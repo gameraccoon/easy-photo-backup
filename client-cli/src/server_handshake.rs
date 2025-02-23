@@ -1,4 +1,5 @@
-use std::io::{BufReader, Read, Write};
+use common::{read_bytes, SocketReadResult};
+use std::io::{BufReader, Write};
 use std::net::TcpStream;
 
 pub(crate) enum HandshakeResult {
@@ -12,31 +13,9 @@ pub(crate) enum HandshakeResult {
     UnknownConnectionError(String), // An error message
 }
 
-enum SocketReadResult {
-    Ok,
-    UnknownError(String),
-}
-
-fn read_bytes(
-    buffer: &mut Vec<u8>,
-    reader: &mut BufReader<&TcpStream>,
-    size: usize,
-) -> SocketReadResult {
-    buffer.resize(size, 0);
-    match reader.read_exact(buffer) {
-        Ok(bytes_read) => bytes_read,
-        Err(e) => {
-            println!("Failed to read from socket: {}", e);
-            return SocketReadResult::UnknownError(format!("Failed to read from socket: {}", e));
-        }
-    };
-
-    SocketReadResult::Ok
-}
-
 pub fn process_handshake(stream: TcpStream) -> HandshakeResult {
     let mut stream = stream;
-    let mut reader = BufReader::new(&stream);
+    let mut reader = BufReader::new(&mut stream);
 
     let mut buffer = Vec::new();
     match read_bytes(&mut buffer, &mut reader, 4) {

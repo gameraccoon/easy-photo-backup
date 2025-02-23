@@ -3,7 +3,6 @@ mod server_config;
 
 use crate::client_handshake::HandshakeResult;
 use crate::server_config::ServerConfig;
-use std::io::{BufRead, BufReader};
 use std::net::{TcpListener, TcpStream};
 use std::thread;
 
