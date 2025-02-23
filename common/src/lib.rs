@@ -3,6 +3,15 @@ use std::net::TcpStream;
 
 pub const ACK_BYTE: u8 = 0xC1;
 
+#[derive(Debug, PartialEq)]
+pub enum ProtocolVersion {
+    InitialHandshake = 0,
+    OneFileTransfer = 1,
+}
+
+pub const SERVER_PROTOCOL_VERSION: u32 = ProtocolVersion::OneFileTransfer as u32;
+pub const LAST_CLIENT_SUPPORTED_PROTOCOL_VERSION: u32 = ProtocolVersion::OneFileTransfer as u32;
+
 pub enum SocketReadResult {
     Ok(Vec<u8>),
     UnknownError(String),

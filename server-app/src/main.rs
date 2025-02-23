@@ -1,4 +1,5 @@
 mod client_handshake;
+mod file_receiver;
 mod server_config;
 
 use crate::client_handshake::HandshakeResult;
@@ -61,8 +62,11 @@ fn handle_client(stream: TcpStream) {
         }
         HandshakeResult::UnknownConnectionError(error_text) => {
             println!("Client handshake failed: '{}'", error_text);
+            return;
         }
     };
+
+    file_receiver::receive_file("received_test.jpg", &mut stream);
 
     match stream.peer_addr() {
         Ok(addr) => println!("Client disconnected: {:?}", addr),

@@ -13,10 +13,8 @@ pub(crate) enum HandshakeResult {
     UnknownConnectionError(String), // An error message
 }
 
-pub fn process_handshake(stream: TcpStream) -> HandshakeResult {
-    let mut stream = stream;
-
-    let buffer = match read_bytes(Vec::new(), &mut stream, 4) {
+pub fn process_handshake(stream: &mut TcpStream) -> HandshakeResult {
+    let buffer = match read_bytes(Vec::new(), stream, 4) {
         SocketReadResult::Ok(buffer) => buffer,
         SocketReadResult::UnknownError(reason) => {
             println!("Unknown error when receiving server version: '{}'", reason);
@@ -35,9 +33,13 @@ pub fn process_handshake(stream: TcpStream) -> HandshakeResult {
         }
     };
     let server_version = u32::from_be_bytes(version_bytes);
-    if server_version != 0 {
-        println!("Server version is {}", server_version);
+    if server_version > common::SERVER_PROTOCOL_VERSION {
+        println!("Server version is unknown: {}", server_version);
         return HandshakeResult::UnknownProtocolVersion(server_version);
+    }
+    if server_version < common::LAST_CLIENT_SUPPORTED_PROTOCOL_VERSION {
+        println!("Server version is not supported: {}", server_version);
+        return HandshakeResult::ObsoleteProtocolVersion(server_version);
     }
 
     let write_result = stream.write(&[common::ACK_BYTE]);
@@ -49,7 +51,7 @@ pub fn process_handshake(stream: TcpStream) -> HandshakeResult {
         ));
     }
 
-    let _ = match read_bytes(buffer, &mut stream, 1) {
+    let _ = match read_bytes(buffer, stream, 1) {
         SocketReadResult::Ok(buffer) => buffer,
         SocketReadResult::UnknownError(reason) => {
             println!("Unknown error when receiving ack from server: '{}'", reason);

@@ -1,5 +1,6 @@
 mod cli_processor;
 mod client_config;
+mod file_sender;
 mod server_handshake;
 
 use crate::client_config::ClientConfig;
@@ -12,7 +13,7 @@ fn network_thread_body(
     sender: std::sync::mpsc::Sender<String>,
     receiver: std::sync::mpsc::Receiver<String>,
 ) {
-    let stream =
+    let mut stream =
         match TcpStream::connect(format!("{}:{}", &config.server_address, config.server_port)) {
             Ok(stream) => stream,
             Err(e) => {
@@ -24,28 +25,15 @@ fn network_thread_body(
             }
         };
 
-    let handshake_result = server_handshake::process_handshake(stream);
+    let handshake_result = server_handshake::process_handshake(&mut stream);
 
-    match handshake_result {
-        HandshakeResult::Ok(server_version) => {
-            println!(
-                "Server handshake succeeded, server version: {}",
-                server_version
-            );
-        }
-        HandshakeResult::UnknownProtocolVersion(server_version) => {}
-        HandshakeResult::ObsoleteProtocolVersion(server_version) => {}
-        HandshakeResult::AlreadyConnected => {}
-        HandshakeResult::TooManyClients => {}
-        HandshakeResult::Rejected(reason) => {}
-        HandshakeResult::UnknownServerError(error_text) => {}
-        HandshakeResult::UnknownConnectionError(error_text) => {}
+    let HandshakeResult::Ok(server_version) = handshake_result else {
+        println!("Failed to handshake with server");
+        return;
     };
+    println!("Connected to server version {}", server_version);
 
-    println!(
-        "Connected to server {}:{}",
-        config.server_address, config.server_port
-    );
+    file_sender::send_file("test.jpg", &mut stream);
 
     println!("Disconnected from server");
 }

@@ -2,15 +2,13 @@ use common::{read_bytes, SocketReadResult};
 use std::io::Write;
 use std::net::TcpStream;
 
-const SERVER_VERSION: u32 = 0;
-
 pub enum HandshakeResult {
     Ok,
     UnknownConnectionError(String),
 }
 
 pub fn process_handshake(stream: &mut TcpStream) -> HandshakeResult {
-    let write_result = stream.write_all(&SERVER_VERSION.to_be_bytes());
+    let write_result = stream.write_all(&common::SERVER_PROTOCOL_VERSION.to_be_bytes());
     if let Err(e) = write_result {
         println!("Failed to write to socket: {}", e);
         return HandshakeResult::UnknownConnectionError(format!(
