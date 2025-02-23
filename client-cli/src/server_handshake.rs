@@ -1,5 +1,5 @@
 use common::{read_bytes, SocketReadResult};
-use std::io::{BufReader, Write};
+use std::io::Write;
 use std::net::TcpStream;
 
 pub(crate) enum HandshakeResult {
@@ -15,19 +15,17 @@ pub(crate) enum HandshakeResult {
 
 pub fn process_handshake(stream: TcpStream) -> HandshakeResult {
     let mut stream = stream;
-    let mut reader = BufReader::new(&mut stream);
 
-    let mut buffer = Vec::new();
-    match read_bytes(&mut buffer, &mut reader, 4) {
-        SocketReadResult::Ok => {}
+    let buffer = match read_bytes(Vec::new(), &mut stream, 4) {
+        SocketReadResult::Ok(buffer) => buffer,
         SocketReadResult::UnknownError(reason) => {
             println!("Unknown error when receiving server version: '{}'", reason);
             return HandshakeResult::UnknownConnectionError(reason);
         }
     };
 
-    let version_bytes = buffer.try_into();
-    let version_bytes = match version_bytes {
+    let version_bytes = buffer.clone();
+    let version_bytes = match version_bytes.try_into() {
         Ok(bytes) => bytes,
         Err(_) => {
             println!("Failed to convert version bytes to slice");
@@ -42,8 +40,7 @@ pub fn process_handshake(stream: TcpStream) -> HandshakeResult {
         return HandshakeResult::UnknownProtocolVersion(server_version);
     }
 
-    // for test only
-    let write_result = stream.write(&[0]);
+    let write_result = stream.write(&[common::ACK_BYTE]);
     if let Err(e) = write_result {
         println!("Failed to write to socket: {}", e);
         return HandshakeResult::UnknownConnectionError(format!(
@@ -52,5 +49,13 @@ pub fn process_handshake(stream: TcpStream) -> HandshakeResult {
         ));
     }
 
-    HandshakeResult::Ok(0)
+    let _ = match read_bytes(buffer, &mut stream, 1) {
+        SocketReadResult::Ok(buffer) => buffer,
+        SocketReadResult::UnknownError(reason) => {
+            println!("Unknown error when receiving ack from server: '{}'", reason);
+            return HandshakeResult::UnknownConnectionError(reason);
+        }
+    };
+
+    HandshakeResult::Ok(server_version)
 }

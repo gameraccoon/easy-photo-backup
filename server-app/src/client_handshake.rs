@@ -1,5 +1,5 @@
 use common::{read_bytes, SocketReadResult};
-use std::io::{BufReader, Write};
+use std::io::Write;
 use std::net::TcpStream;
 
 const SERVER_VERSION: u32 = 0;
@@ -10,24 +10,39 @@ pub enum HandshakeResult {
 }
 
 pub fn process_handshake(stream: &mut TcpStream) -> HandshakeResult {
-    stream.write_all(&SERVER_VERSION.to_be_bytes()).unwrap();
+    let write_result = stream.write_all(&SERVER_VERSION.to_be_bytes());
+    if let Err(e) = write_result {
+        println!("Failed to write to socket: {}", e);
+        return HandshakeResult::UnknownConnectionError(format!(
+            "Failed to write version to socket: {}",
+            e
+        ));
+    }
 
-    let mut reader = BufReader::new(stream);
-    let mut buffer = Vec::new();
+    let buffer = Vec::new();
 
-    match read_bytes(&mut buffer, &mut reader, 1) {
-        SocketReadResult::Ok => {}
+    let buffer = match read_bytes(buffer, stream, 1) {
+        SocketReadResult::Ok(buffer) => buffer,
         SocketReadResult::UnknownError(reason) => {
-            println!("Unknown error when receiving server version: '{}'", reason);
+            println!("Unknown error when receiving ack from client: '{}'", reason);
             return HandshakeResult::UnknownConnectionError(reason);
         }
     };
 
-    if (buffer[0] as u32) != 0 {
-        println!("Unexpected test answer from client: {}", buffer[0]);
+    if buffer[0] != common::ACK_BYTE {
+        println!("Unexpected ack byte from client: {}", buffer[0]);
         return HandshakeResult::UnknownConnectionError(format!(
-            "Unexpected test answer from client: {}",
+            "Unexpected ack byte from client: {}",
             buffer[0]
+        ));
+    }
+
+    let write_result = stream.write_all(&[common::ACK_BYTE]);
+    if let Err(e) = write_result {
+        println!("Failed to write to socket: {}", e);
+        return HandshakeResult::UnknownConnectionError(format!(
+            "Failed to write version to socket: {}",
+            e
         ));
     }
 
