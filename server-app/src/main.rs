@@ -66,7 +66,7 @@ fn handle_client(stream: TcpStream) {
         }
     };
 
-    file_receiver::receive_file("received_test.jpg", &mut stream);
+    file_receiver::receive_directory(&std::path::PathBuf::from("target_dir"), &mut stream);
 
     match stream.peer_addr() {
         Ok(addr) => println!("Client disconnected: {:?}", addr),

@@ -33,7 +33,7 @@ fn network_thread_body(
     };
     println!("Connected to server version {}", server_version);
 
-    file_sender::send_file("test.jpg", &mut stream);
+    file_sender::send_directory(&std::path::PathBuf::from("files_to_send"), &mut stream);
 
     println!("Disconnected from server");
 }
