@@ -109,9 +109,10 @@ pub(crate) fn send_file(
     }
 
     let mut buffer = [0; 1024];
+    let mut file_reader = std::io::BufReader::new(file);
     let mut bytes_written = 0;
     loop {
-        let bytes_read = file.read(&mut buffer);
+        let bytes_read = file_reader.read(&mut buffer);
         let bytes_read = match bytes_read {
             Ok(bytes_read) => bytes_read,
             Err(e) => {
