@@ -1,4 +1,4 @@
-use std::io::{BufReader, Read};
+use std::io::BufReader;
 use std::net::TcpStream;
 
 pub const ACK_BYTE: u8 = 0xC1;
@@ -8,10 +8,12 @@ pub enum ProtocolVersion {
     InitialHandshake = 0,
     OneFileTransfer = 1,
     DirectoryTransfer = 2,
+    TransferConfirmations = 3,
 }
 
-pub const SERVER_PROTOCOL_VERSION: u32 = ProtocolVersion::DirectoryTransfer as u32;
-pub const LAST_CLIENT_SUPPORTED_PROTOCOL_VERSION: u32 = ProtocolVersion::DirectoryTransfer as u32;
+pub const SERVER_PROTOCOL_VERSION: u32 = ProtocolVersion::TransferConfirmations as u32;
+pub const LAST_CLIENT_SUPPORTED_PROTOCOL_VERSION: u32 =
+    ProtocolVersion::TransferConfirmations as u32;
 
 pub enum SocketReadResult {
     Ok(Vec<u8>),

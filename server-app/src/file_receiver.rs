@@ -11,10 +11,9 @@ pub(crate) enum ReceiveFileResult {
 
 pub(crate) fn receive_file(
     destination_root_folder: &PathBuf,
-    stream: &mut TcpStream,
+    reader: &mut BufReader<&TcpStream>,
 ) -> ReceiveFileResult {
-    let mut reader: BufReader<&TcpStream> = BufReader::new(stream);
-    let len_file_name = match common::read_bytes(Vec::new(), &mut reader, 4) {
+    let len_file_name = match common::read_bytes(Vec::new(), reader, 4) {
         common::SocketReadResult::Ok(buffer) => buffer,
         common::SocketReadResult::UnknownError(reason) => {
             println!(
@@ -37,7 +36,7 @@ pub(crate) fn receive_file(
 
     let path_len = u32::from_be_bytes(path_len_bytes);
 
-    let file_path = match common::read_bytes(Vec::new(), &mut reader, path_len as usize) {
+    let file_path = match common::read_bytes(Vec::new(), reader, path_len as usize) {
         common::SocketReadResult::Ok(buffer) => buffer,
         common::SocketReadResult::UnknownError(reason) => {
             println!("Unknown error when receiving file name: '{}'", reason);
@@ -61,7 +60,7 @@ pub(crate) fn receive_file(
 
     println!("destination file path: {}", destination_file_path.display());
 
-    let file_size_bytes = match common::read_bytes(Vec::new(), &mut reader, 8) {
+    let file_size_bytes = match common::read_bytes(Vec::new(), reader, 8) {
         common::SocketReadResult::Ok(buffer) => buffer,
         common::SocketReadResult::UnknownError(reason) => {
             println!("Unknown error when receiving file size: '{}'", reason);
@@ -115,9 +114,9 @@ pub(crate) fn receive_file(
     ReceiveFileResult::Ok
 }
 
-fn receive_continuation_marker(stream: &mut TcpStream) -> bool {
+fn receive_continuation_marker(reader: &mut BufReader<&TcpStream>) -> bool {
     let mut buffer = [0u8; 1];
-    let read_result = stream.read(&mut buffer);
+    let read_result = reader.read_exact(&mut buffer);
     if let Err(e) = read_result {
         println!("Failed to read continuation marker: {}", e);
         return false;
@@ -133,10 +132,31 @@ fn receive_continuation_marker(stream: &mut TcpStream) -> bool {
     false
 }
 
+fn send_file_confirmation(index: u32, stream: &mut TcpStream) {
+    let index_bytes: [u8; 4] = (index as i32).to_be_bytes();
+    let write_result = stream.write(&index_bytes);
+    if let Err(e) = write_result {
+        println!("Failed to write index to socket: {}", e);
+    }
+}
+
 pub(crate) fn receive_directory(destination_directory: &PathBuf, stream: &mut TcpStream) {
-    while receive_continuation_marker(stream) {
-        receive_file(destination_directory, stream);
-        println!("Received file");
+    let write_stream = stream.try_clone();
+    let mut write_stream = match write_stream {
+        Ok(stream) => stream,
+        Err(e) => {
+            println!("Failed to clone stream for writing: {}", e);
+            return;
+        }
+    };
+
+    let mut reader: BufReader<&TcpStream> = BufReader::new(stream);
+
+    let mut index = 0;
+    while receive_continuation_marker(&mut reader) {
+        receive_file(destination_directory, &mut reader);
+        send_file_confirmation(index, &mut write_stream);
+        index += 1;
     }
 
     println!("File receiving done");
