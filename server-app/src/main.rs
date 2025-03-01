@@ -66,12 +66,17 @@ fn handle_client(stream: TcpStream) {
         }
     };
 
+    let peer_addr = match stream.peer_addr() {
+        Ok(addr) => addr,
+        Err(e) => {
+            println!("Failed to get peer address of client connection: {}", e);
+            return;
+        }
+    };
+
     file_receiver::receive_directory(&std::path::PathBuf::from("target_dir"), &mut stream);
 
-    match stream.peer_addr() {
-        Ok(addr) => println!("Client disconnected: {:?}", addr),
-        Err(e) => println!("Failed to get peer address of client connection: {}", e),
-    };
+    println!("Client disconnected: {:?}", peer_addr);
 }
 
 fn main() {
