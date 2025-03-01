@@ -5,6 +5,6 @@ pub(crate) struct ServerConfig {
 
 impl ServerConfig {
     pub(crate) fn new() -> ServerConfig {
-        ServerConfig { port: 10421 }
+        ServerConfig { port: 9022 }
     }
 }
