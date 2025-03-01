@@ -80,11 +80,16 @@ pub(crate) fn receive_file(
 
     let file_size_bytes = u64::from_be_bytes(file_size_bytes);
 
-    let file = std::fs::File::create(destination_file_path);
+    let file = std::fs::File::create(destination_file_path.clone());
     let mut file = match file {
         Ok(file) => file,
         Err(e) => {
-            println!("Failed to open file: {}", e);
+            common::drop_bytes_from_stream(reader, file_size_bytes as usize);
+            println!(
+                "Failed to open file '{}': {}",
+                destination_file_path.display(),
+                e
+            );
             return ReceiveFileResult::CanNotCreateFile;
         }
     };

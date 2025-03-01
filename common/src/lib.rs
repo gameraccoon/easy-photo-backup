@@ -62,6 +62,25 @@ fn read_bytes_generic<T: std::io::Read>(
     SocketReadResult::Ok(buffer)
 }
 
+pub fn drop_bytes_from_stream<T: std::io::Read>(mut stream: T, size: usize) {
+    let mut buffer = [0; 1024];
+    let mut left = size;
+    while left > 0 {
+        let bytes_to_read = std::cmp::min(left, buffer.len());
+        let bytes_read = match stream.read(&mut buffer[..bytes_to_read]) {
+            Ok(bytes_read) => bytes_read,
+            Err(e) => {
+                println!("Failed to read from socket: {}", e);
+                return;
+            }
+        };
+        if bytes_read == 0 {
+            break;
+        }
+        left -= bytes_read;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     // use super::*;
