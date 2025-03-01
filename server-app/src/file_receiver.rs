@@ -14,7 +14,7 @@ pub(crate) fn receive_file(
     stream: &mut TcpStream,
 ) -> ReceiveFileResult {
     let mut reader: BufReader<&TcpStream> = BufReader::new(stream);
-    let len_file_name = match common::read_bytes_reader(Vec::new(), &mut reader, 4) {
+    let len_file_name = match common::read_bytes(Vec::new(), &mut reader, 4) {
         common::SocketReadResult::Ok(buffer) => buffer,
         common::SocketReadResult::UnknownError(reason) => {
             println!(
@@ -37,7 +37,7 @@ pub(crate) fn receive_file(
 
     let path_len = u32::from_be_bytes(path_len_bytes);
 
-    let file_path = match common::read_bytes_reader(Vec::new(), &mut reader, path_len as usize) {
+    let file_path = match common::read_bytes(Vec::new(), &mut reader, path_len as usize) {
         common::SocketReadResult::Ok(buffer) => buffer,
         common::SocketReadResult::UnknownError(reason) => {
             println!("Unknown error when receiving file name: '{}'", reason);
@@ -61,7 +61,7 @@ pub(crate) fn receive_file(
 
     println!("destination file path: {}", destination_file_path.display());
 
-    let file_size_bytes = match common::read_bytes_reader(Vec::new(), &mut reader, 8) {
+    let file_size_bytes = match common::read_bytes(Vec::new(), &mut reader, 8) {
         common::SocketReadResult::Ok(buffer) => buffer,
         common::SocketReadResult::UnknownError(reason) => {
             println!("Unknown error when receiving file size: '{}'", reason);

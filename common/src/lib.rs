@@ -18,19 +18,30 @@ pub enum SocketReadResult {
     UnknownError(String),
 }
 
-pub fn read_bytes(buffer: Vec<u8>, stream: &TcpStream, size: usize) -> SocketReadResult {
-    let mut reader = BufReader::new(stream);
-    read_bytes_reader(buffer, &mut reader, size)
-}
-
-pub fn read_bytes_reader(
+pub fn read_bytes(
     buffer: Vec<u8>,
     reader: &mut BufReader<&TcpStream>,
     size: usize,
 ) -> SocketReadResult {
+    read_bytes_generic(buffer, reader, size)
+}
+
+pub fn read_bytes_unbuffered(
+    buffer: Vec<u8>,
+    stream: &mut TcpStream,
+    size: usize,
+) -> SocketReadResult {
+    read_bytes_generic(buffer, stream, size)
+}
+
+fn read_bytes_generic<T: std::io::Read>(
+    buffer: Vec<u8>,
+    mut stream: T,
+    size: usize,
+) -> SocketReadResult {
     let mut buffer = buffer;
     buffer.resize(size, 0);
-    let bytes_read = match reader.read(&mut buffer) {
+    let bytes_read = match stream.read(&mut buffer) {
         Ok(bytes_read) => bytes_read,
         Err(e) => {
             println!("Failed to read from socket: {}", e);
@@ -51,5 +62,5 @@ pub fn read_bytes_reader(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    // use super::*;
 }

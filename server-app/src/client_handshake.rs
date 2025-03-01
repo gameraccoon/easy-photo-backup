@@ -1,4 +1,4 @@
-use common::{read_bytes, SocketReadResult};
+use common::{read_bytes_unbuffered, SocketReadResult};
 use std::io::Write;
 use std::net::TcpStream;
 
@@ -19,7 +19,7 @@ pub fn process_handshake(stream: &mut TcpStream) -> HandshakeResult {
 
     let buffer = Vec::new();
 
-    let buffer = match read_bytes(buffer, stream, 1) {
+    let buffer = match read_bytes_unbuffered(buffer, stream, 1) {
         SocketReadResult::Ok(buffer) => buffer,
         SocketReadResult::UnknownError(reason) => {
             println!("Unknown error when receiving ack from client: '{}'", reason);

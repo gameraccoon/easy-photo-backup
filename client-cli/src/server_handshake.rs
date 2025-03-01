@@ -1,4 +1,4 @@
-use common::{read_bytes, SocketReadResult};
+use common::{read_bytes_unbuffered, SocketReadResult};
 use std::io::Write;
 use std::net::TcpStream;
 
@@ -14,7 +14,7 @@ pub(crate) enum HandshakeResult {
 }
 
 pub fn process_handshake(stream: &mut TcpStream) -> HandshakeResult {
-    let buffer = match read_bytes(Vec::new(), stream, 4) {
+    let buffer = match read_bytes_unbuffered(Vec::new(), stream, 4) {
         SocketReadResult::Ok(buffer) => buffer,
         SocketReadResult::UnknownError(reason) => {
             println!("Unknown error when receiving server version: '{}'", reason);
@@ -51,7 +51,7 @@ pub fn process_handshake(stream: &mut TcpStream) -> HandshakeResult {
         ));
     }
 
-    let _ = match read_bytes(buffer, stream, 1) {
+    let _ = match read_bytes_unbuffered(buffer, stream, 1) {
         SocketReadResult::Ok(buffer) => buffer,
         SocketReadResult::UnknownError(reason) => {
             println!("Unknown error when receiving ack from server: '{}'", reason);
