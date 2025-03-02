@@ -9,11 +9,12 @@ pub enum ProtocolVersion {
     OneFileTransfer = 1,
     DirectoryTransfer = 2,
     TransferConfirmations = 3,
+    ConfirmationsEachFile = 4,
 }
 
-pub const SERVER_PROTOCOL_VERSION: u32 = ProtocolVersion::TransferConfirmations as u32;
+pub const SERVER_PROTOCOL_VERSION: u32 = ProtocolVersion::ConfirmationsEachFile as u32;
 pub const LAST_CLIENT_SUPPORTED_PROTOCOL_VERSION: u32 =
-    ProtocolVersion::TransferConfirmations as u32;
+    ProtocolVersion::ConfirmationsEachFile as u32;
 
 pub enum SocketReadResult {
     Ok(Vec<u8>),

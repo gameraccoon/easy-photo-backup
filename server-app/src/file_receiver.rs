@@ -5,7 +5,7 @@ use std::path::PathBuf;
 pub(crate) enum ReceiveFileResult {
     Ok,
     CanNotCreateFile,
-    FileAlreadyExists,
+    FileAlreadyExistsAndSkipped,
     UnknownNetworkError(String),
 }
 
@@ -137,8 +137,15 @@ fn receive_continuation_marker(reader: &mut BufReader<&TcpStream>) -> bool {
     false
 }
 
-fn send_file_confirmation(index: u32, stream: &mut TcpStream) {
-    let index_bytes: [u8; 4] = (index as i32).to_be_bytes();
+fn send_file_confirmation(index: u32, has_received: bool, stream: &mut TcpStream) {
+    let mut index_bytes: [u8; 5] = [0; 5];
+    index_bytes[0..4].copy_from_slice(&(index as i32).to_be_bytes());
+    if has_received {
+        index_bytes[4] = 1;
+    } else {
+        index_bytes[4] = 0;
+    }
+
     let write_result = stream.write(&index_bytes);
     if let Err(e) = write_result {
         println!("Failed to write index to socket: {}", e);
@@ -159,8 +166,22 @@ pub(crate) fn receive_directory(destination_directory: &PathBuf, stream: &mut Tc
 
     let mut index = 0;
     while receive_continuation_marker(&mut reader) {
-        receive_file(destination_directory, &mut reader);
-        send_file_confirmation(index, &mut write_stream);
+        let result = receive_file(destination_directory, &mut reader, receive_strategies);
+        match result {
+            ReceiveFileResult::Ok => {
+                send_file_confirmation(index, true, &mut write_stream);
+            }
+            ReceiveFileResult::CanNotCreateFile => {
+                send_file_confirmation(index, false, &mut write_stream);
+            }
+            ReceiveFileResult::FileAlreadyExistsAndSkipped => {
+                send_file_confirmation(index, false, &mut write_stream);
+            }
+            ReceiveFileResult::UnknownNetworkError(error) => {
+                println!("Failed to receive file, aborting: {}", error);
+                return;
+            }
+        }
         index += 1;
     }
 

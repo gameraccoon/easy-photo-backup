@@ -23,7 +23,7 @@ pub(crate) fn send_file(
     stream: &mut TcpStream,
 ) -> SendFileResult {
     let file = std::fs::File::open(file_path);
-    let mut file = match file {
+    let file = match file {
         Ok(file) => file,
         Err(e) => {
             println!("Failed to open file: {}", e);
@@ -223,12 +223,12 @@ pub(crate) fn send_directory(
     });
 
     let confirmed_deliveries = read_file_confirmations(stream, files_count);
-    if confirmed_deliveries < 0 {
+    if confirmed_deliveries.len() == 0 {
         return SendDirectoryResult::Aborted(
             "Failed to read any file confirmations from socket".to_string(),
         );
     }
-    if confirmed_deliveries > files_count as i32 {
+    if confirmed_deliveries.len() > files_count {
         println!("More confirmations than files to send");
     }
 
@@ -278,30 +278,41 @@ fn collect_files(
     }
 }
 
-fn read_file_confirmations(stream: &mut TcpStream, files_count: usize) -> i32 {
-    let mut next_index_to_confirm = 0;
+fn read_file_confirmations(stream: &mut TcpStream, files_count: usize) -> Vec<i32> {
+    let mut confirmed_indexes = Vec::with_capacity(files_count);
+    let mut accepted_files_count = 0;
     loop {
-        let mut index_bytes_buffer = [0u8; 4];
-        let read_result = stream.read(&mut index_bytes_buffer);
+        let mut read_buffer = [0u8; 5];
+        let read_result = stream.read(&mut read_buffer);
         if let Err(e) = read_result {
             println!("Failed to read confirmation index bytes from socket: {}", e);
-            return next_index_to_confirm;
+            return confirmed_indexes;
         }
 
-        let index = i32::from_be_bytes(index_bytes_buffer);
-        if index != next_index_to_confirm {
-            println!(
-                "Unexpected confirmation index: {} when expected {}",
-                index, next_index_to_confirm
-            );
-            return next_index_to_confirm;
+        let index_slice = read_buffer[0..4].try_into();
+        let index_slice = match index_slice {
+            Ok(slice) => slice,
+            Err(_) => {
+                println!("Failed to convert confirmation index bytes to slice");
+                return confirmed_indexes;
+            }
+        };
+        let index = i32::from_be_bytes(index_slice);
+
+        if read_buffer[4] != 0 && read_buffer[4] != 1 {
+            println!("Unexpected confirmation byte: '{}'", read_buffer[4]);
+            return confirmed_indexes;
         }
 
-        next_index_to_confirm += 1;
+        accepted_files_count += 1;
+
+        if read_buffer[4] == 1 {
+            confirmed_indexes.push(index);
+        }
 
         // done when we have read all confirmations
-        if next_index_to_confirm >= files_count as i32 {
-            return next_index_to_confirm;
+        if accepted_files_count >= files_count {
+            return confirmed_indexes;
         }
     }
 }
