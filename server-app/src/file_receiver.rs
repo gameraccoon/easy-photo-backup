@@ -2,6 +2,17 @@ use std::io::{BufReader, Read, Write};
 use std::net::TcpStream;
 use std::path::PathBuf;
 
+#[derive(PartialEq)]
+pub(crate) enum NameCollisionStrategy {
+    Rename,
+    Overwrite,
+    Skip,
+}
+
+pub(crate) struct ReceiveStrategies {
+    pub name_collision_strategy: NameCollisionStrategy,
+}
+
 pub(crate) enum ReceiveFileResult {
     Ok,
     CanNotCreateFile,
@@ -12,6 +23,7 @@ pub(crate) enum ReceiveFileResult {
 pub(crate) fn receive_file(
     destination_root_folder: &PathBuf,
     reader: &mut BufReader<&TcpStream>,
+    receive_strategies: &ReceiveStrategies,
 ) -> ReceiveFileResult {
     let len_file_name = match common::read_bytes(Vec::new(), reader, 4) {
         common::SocketReadResult::Ok(buffer) => buffer,
@@ -58,8 +70,6 @@ pub(crate) fn receive_file(
 
     let destination_file_path = destination_root_folder.join(file_path);
 
-    println!("destination file path: {}", destination_file_path.display());
-
     let file_size_bytes = match common::read_bytes(Vec::new(), reader, 8) {
         common::SocketReadResult::Ok(buffer) => buffer,
         common::SocketReadResult::UnknownError(reason) => {
@@ -79,6 +89,33 @@ pub(crate) fn receive_file(
     };
 
     let file_size_bytes = u64::from_be_bytes(file_size_bytes);
+
+    if let Some(path) = destination_file_path.parent() {
+        let res = std::fs::create_dir_all(path);
+        if let Err(e) = res {
+            println!("Failed to create directory '{}': {}", path.display(), e);
+            return ReceiveFileResult::CanNotCreateFile;
+        }
+    }
+
+    let destination_file_path = if receive_strategies.name_collision_strategy
+        == NameCollisionStrategy::Overwrite
+        || !destination_file_path.exists()
+    {
+        destination_file_path
+    } else {
+        match &receive_strategies.name_collision_strategy {
+            NameCollisionStrategy::Overwrite => destination_file_path,
+            NameCollisionStrategy::Skip => {
+                println!("Skipping file '{}'", destination_file_path.display());
+                common::drop_bytes_from_stream(reader, file_size_bytes as usize);
+                return ReceiveFileResult::FileAlreadyExistsAndSkipped;
+            }
+            NameCollisionStrategy::Rename => find_non_colliding_file_name(destination_file_path),
+        }
+    };
+
+    println!("destination file path: {}", destination_file_path.display());
 
     let file = std::fs::File::create(destination_file_path.clone());
     let mut file = match file {
@@ -119,6 +156,48 @@ pub(crate) fn receive_file(
     ReceiveFileResult::Ok
 }
 
+fn find_non_colliding_file_name(file_path: PathBuf) -> PathBuf {
+    let file_dir = file_path.parent();
+    let Some(file_dir) = file_dir else {
+        println!(
+            "Failed to get parent directory of file path: {}",
+            file_path.display()
+        );
+        return file_path;
+    };
+    let file_stem_str = file_path
+        .file_stem()
+        .map(|s| s.to_str())
+        .flatten()
+        .unwrap_or("");
+    let file_extension_str = file_path
+        .extension()
+        .map(|s| s.to_str())
+        .flatten()
+        .unwrap_or("");
+
+    let mut index = 1;
+    let mut new_file_path = PathBuf::new();
+    loop {
+        new_file_path = file_dir.join(std::path::PathBuf::from(format!(
+            "{}({}).{}",
+            file_stem_str, index, file_extension_str
+        )));
+        if !new_file_path.exists() {
+            return new_file_path;
+        }
+        index += 1;
+
+        if index > 10000 {
+            println!(
+                "Failed to find a non-colliding file name for '{}' for 10000 tries",
+                new_file_path.display()
+            );
+            return file_path;
+        }
+    }
+}
+
 fn receive_continuation_marker(reader: &mut BufReader<&TcpStream>) -> bool {
     let mut buffer = [0u8; 1];
     let read_result = reader.read_exact(&mut buffer);
@@ -152,7 +231,11 @@ fn send_file_confirmation(index: u32, has_received: bool, stream: &mut TcpStream
     }
 }
 
-pub(crate) fn receive_directory(destination_directory: &PathBuf, stream: &mut TcpStream) {
+pub(crate) fn receive_directory(
+    destination_directory: &PathBuf,
+    stream: &mut TcpStream,
+    receive_strategies: &ReceiveStrategies,
+) {
     let write_stream = stream.try_clone();
     let mut write_stream = match write_stream {
         Ok(stream) => stream,

@@ -3,6 +3,7 @@ mod file_receiver;
 mod server_config;
 
 use crate::client_handshake::HandshakeResult;
+use crate::file_receiver::ReceiveStrategies;
 use crate::server_config::ServerConfig;
 use std::net::{TcpListener, TcpStream};
 use std::thread;
@@ -74,7 +75,13 @@ fn handle_client(stream: TcpStream) {
         }
     };
 
-    file_receiver::receive_directory(&std::path::PathBuf::from("target_dir"), &mut stream);
+    file_receiver::receive_directory(
+        &std::path::PathBuf::from("target_dir"),
+        &mut stream,
+        &ReceiveStrategies {
+            name_collision_strategy: file_receiver::NameCollisionStrategy::Rename,
+        },
+    );
 
     println!("Client disconnected: {:?}", peer_addr);
 }
