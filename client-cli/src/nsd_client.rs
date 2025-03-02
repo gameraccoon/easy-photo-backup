@@ -1,6 +1,5 @@
 // Network Service Discovery (NSD) client
 
-use std::fmt::format;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket};
 
 // the result is a list of server addresses in format "<ip>:<port>"
@@ -47,14 +46,12 @@ pub(crate) fn discover_services(id: &str) -> Vec<String> {
         };
         let response_body = String::from_utf8_lossy(&buf[..amt]);
 
-        println!("Response: '{}'", response_body);
-
         if !response_body.starts_with("ad:") {
             continue;
         }
 
-        // 'ad:' + addr + ':' + port + '\n'
-        if response_body.len() < 3 + 1 + 1 + 2 + 1 {
+        // 'ad:' + port + '\n'
+        if response_body.len() < 3 + 2 + 1 {
             continue;
         }
 
