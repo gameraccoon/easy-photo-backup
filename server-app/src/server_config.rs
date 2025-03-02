@@ -1,10 +1,8 @@
 #[derive(Clone)]
-pub(crate) struct ServerConfig {
-    pub port: u32,
-}
+pub(crate) struct ServerConfig {}
 
 impl ServerConfig {
     pub(crate) fn new() -> ServerConfig {
-        ServerConfig { port: 9022 }
+        ServerConfig {}
     }
 }

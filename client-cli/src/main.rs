@@ -1,6 +1,7 @@
 mod cli_processor;
 mod client_config;
 mod file_sender;
+mod nsd_client;
 mod server_handshake;
 
 use crate::client_config::ClientConfig;
@@ -13,17 +14,22 @@ fn network_thread_body(
     sender: std::sync::mpsc::Sender<String>,
     receiver: std::sync::mpsc::Receiver<String>,
 ) {
-    let mut stream =
-        match TcpStream::connect(format!("{}:{}", &config.server_address, config.server_port)) {
-            Ok(stream) => stream,
-            Err(e) => {
-                println!(
-                    "Failed to connect to server {}:{}: {}",
-                    &config.server_address, config.server_port, e
-                );
-                return;
-            }
-        };
+    let addresses = nsd_client::discover_services("_easy-photo-backup._tcp");
+
+    if addresses.is_empty() {
+        println!("Failed to find any servers");
+        return;
+    }
+
+    println!("Found servers: {}", addresses.join(", "));
+
+    let mut stream = match TcpStream::connect(addresses[0].as_str()) {
+        Ok(stream) => stream,
+        Err(e) => {
+            println!("Failed to connect to server {}: {}", &addresses[0], e);
+            return;
+        }
+    };
 
     let handshake_result = server_handshake::process_handshake(&mut stream);
 

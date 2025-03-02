@@ -1,5 +1,6 @@
 mod client_handshake;
 mod file_receiver;
+mod nsd_server;
 mod server_config;
 
 use crate::client_handshake::HandshakeResult;
@@ -9,19 +10,31 @@ use std::net::{TcpListener, TcpStream};
 use std::thread;
 
 fn run_server(config: ServerConfig) {
-    let network_interface = "0.0.0.0";
-    let listener = TcpListener::bind(format!("{}:{}", network_interface, config.port));
+    // open on all network interfaces using the system-provided port
+    let listener = TcpListener::bind("0.0.0.0:0");
     let listener = match listener {
         Ok(listener) => listener,
         Err(e) => {
-            println!(
-                "Failed to bind server to port {} of network interface '{}': {}",
-                config.port, network_interface, e
-            );
+            println!("Failed to start server: {}", e);
             return;
         }
     };
-    println!("Server listening on port {}", config.port);
+
+    let server_addr = listener.local_addr();
+    let server_addr = match server_addr {
+        Ok(addr) => addr,
+        Err(e) => {
+            println!("Failed to get server address: {}", e);
+            return;
+        }
+    };
+
+    println!("Server listening on port {}", server_addr.port());
+
+    // we don't have a way to stop the NSD thread for now, but it is something we should do in the future
+    let _nsd_thread_handle = thread::spawn(move || {
+        nsd_server::run_nsd_server("_easy-photo-backup._tcp", server_addr.port());
+    });
 
     let mut handles = Vec::new();
 
@@ -39,6 +52,8 @@ fn run_server(config: ServerConfig) {
         });
         handles.push(thread_handle);
     }
+
+    println!("Server is shutting down");
 
     // make sure we don't leak threads
     for handle in handles {
@@ -83,7 +98,7 @@ fn handle_client(stream: TcpStream) {
         },
     );
 
-    println!("Client disconnected: {:?}", peer_addr);
+    println!("Client disconnected: {}", peer_addr);
 }
 
 fn main() {
