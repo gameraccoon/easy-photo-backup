@@ -39,7 +39,7 @@ fn network_thread_body(
     };
     println!("Connected to server version {}", server_version);
 
-    file_sender::send_directory(&std::path::PathBuf::from("files_to_send"), &mut stream);
+    file_sender::send_directory(&config.folder_to_sync, &mut stream);
 
     println!("Disconnected from server");
 }

@@ -47,8 +47,9 @@ fn run_server(config: ServerConfig) {
             }
         };
 
+        let config_clone = config.clone();
         let thread_handle = thread::spawn(move || {
-            handle_client(stream);
+            handle_client(stream, &config_clone);
         });
         handles.push(thread_handle);
     }
@@ -68,7 +69,7 @@ fn run_server(config: ServerConfig) {
     }
 }
 
-fn handle_client(stream: TcpStream) {
+fn handle_client(stream: TcpStream, server_config: &ServerConfig) {
     let mut stream = stream;
     let handshake_result = client_handshake::process_handshake(&mut stream);
 
@@ -91,7 +92,7 @@ fn handle_client(stream: TcpStream) {
     };
 
     file_receiver::receive_directory(
-        &std::path::PathBuf::from("target_dir"),
+        &server_config.target_folder,
         &mut stream,
         &ReceiveStrategies {
             name_collision_strategy: file_receiver::NameCollisionStrategy::Rename,

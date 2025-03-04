@@ -177,7 +177,7 @@ fn find_non_colliding_file_name(file_path: PathBuf) -> PathBuf {
         .unwrap_or("");
 
     let mut index = 1;
-    let mut new_file_path = PathBuf::new();
+    let mut new_file_path;
     loop {
         new_file_path = file_dir.join(std::path::PathBuf::from(format!(
             "{}({}).{}",
