@@ -2,8 +2,13 @@
 
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket};
 
+pub(crate) struct SocketAddrV4 {
+    pub ip: IpAddr,
+    pub port: u16,
+}
+
 // the result is a list of server addresses in format "<ip>:<port>"
-pub(crate) fn discover_services(id: &str) -> Vec<String> {
+pub(crate) fn discover_services(id: &str) -> Vec<SocketAddrV4> {
     // bind to a port provided by the OS
     let socket = UdpSocket::bind("0.0.0.0:0");
     let socket = match socket {
@@ -62,7 +67,13 @@ pub(crate) fn discover_services(id: &str) -> Vec<String> {
             continue;
         }
 
-        responses.push(format!("{}:{}", src.ip(), port_str));
+        let port = port_str.parse();
+        let port = match port {
+            Ok(port) => port,
+            Err(_) => continue,
+        };
+
+        responses.push(SocketAddrV4 { ip: src.ip(), port });
         // for now, we only support one server
         break;
     }

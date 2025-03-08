@@ -2,15 +2,18 @@ mod cli_processor;
 mod client_config;
 mod file_sender;
 mod nsd_client;
+mod request_writer;
 mod server_handshake;
 
 use crate::client_config::ClientConfig;
+use crate::request_writer::RequestWriteResult;
 use crate::server_handshake::HandshakeResult;
+use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::thread;
 
 fn network_thread_body(
-    config: ClientConfig,
+    client_config: ClientConfig,
     sender: std::sync::mpsc::Sender<String>,
     receiver: std::sync::mpsc::Receiver<String>,
 ) {
@@ -21,16 +24,23 @@ fn network_thread_body(
         return;
     }
 
-    println!("Found servers: {}", addresses.join(", "));
+    let server_to_connect = &addresses[0];
 
-    let mut stream = match TcpStream::connect(addresses[0].as_str()) {
+    let mut stream = match TcpStream::connect(format!(
+        "{}:{}",
+        server_to_connect.ip, server_to_connect.port
+    )) {
         Ok(stream) => stream,
         Err(e) => {
-            println!("Failed to connect to server {}: {}", &addresses[0], e);
+            println!(
+                "Failed to connect to server {}:{} : {}",
+                &addresses[0].ip, addresses[0].port, e
+            );
             return;
         }
     };
 
+    // perform the handshake unencrypted to figure out compatibility before we choose what to do
     let handshake_result = server_handshake::process_handshake(&mut stream);
 
     let HandshakeResult::Ok(server_version) = handshake_result else {
@@ -39,7 +49,30 @@ fn network_thread_body(
     };
     println!("Connected to server version {}", server_version);
 
-    file_sender::send_directory(&config.folder_to_sync, &mut stream);
+    let device_name = std::env::var("DEVICE_NAME").unwrap_or("unknown".to_string());
+
+    let request_result = request_writer::write_request(
+        &mut stream,
+        common::protocol::Request::Introduce(device_name, Vec::new()),
+    );
+    let request_result = match request_result {
+        RequestWriteResult::Ok(request_result) => request_result,
+        RequestWriteResult::UnknownError(error_text) => {
+            println!("Failed to write request to server: {}", error_text);
+            return;
+        }
+    };
+    match request_result {
+        common::protocol::RequestAnswer::Introduced(public_key) => {
+            println!("Introduced to server");
+        }
+        _ => {
+            println!("Failed to introduce to server");
+            return;
+        }
+    }
+
+    file_sender::send_directory(&client_config.folder_to_sync, &mut stream);
 
     println!("Disconnected from server");
 }

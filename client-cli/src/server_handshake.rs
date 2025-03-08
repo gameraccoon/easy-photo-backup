@@ -33,16 +33,16 @@ pub fn process_handshake(stream: &mut TcpStream) -> HandshakeResult {
         }
     };
     let server_version = u32::from_be_bytes(version_bytes);
-    if server_version > common::SERVER_PROTOCOL_VERSION {
+    if server_version > common::protocol::SERVER_PROTOCOL_VERSION {
         println!("Server version is unknown: {}", server_version);
         return HandshakeResult::UnknownProtocolVersion(server_version);
     }
-    if server_version < common::LAST_CLIENT_SUPPORTED_PROTOCOL_VERSION {
+    if server_version < common::protocol::LAST_CLIENT_SUPPORTED_PROTOCOL_VERSION {
         println!("Server version is not supported: {}", server_version);
         return HandshakeResult::ObsoleteProtocolVersion(server_version);
     }
 
-    let write_result = stream.write(&[common::ACK_BYTE]);
+    let write_result = stream.write(&[common::protocol::ACK_BYTE]);
     if let Err(e) = write_result {
         println!("Failed to write to socket: {}", e);
         return HandshakeResult::UnknownConnectionError(format!(

@@ -1,3 +1,4 @@
+use common::TypeReadResult;
 use std::io::{BufReader, Read, Write};
 use std::net::TcpStream;
 use std::path::PathBuf;
@@ -25,41 +26,10 @@ pub(crate) fn receive_file(
     reader: &mut BufReader<&TcpStream>,
     receive_strategies: &ReceiveStrategies,
 ) -> ReceiveFileResult {
-    let len_file_name = match common::read_bytes(Vec::new(), reader, 4) {
-        common::SocketReadResult::Ok(buffer) => buffer,
-        common::SocketReadResult::UnknownError(reason) => {
-            println!(
-                "Unknown error when receiving file name length: '{}'",
-                reason
-            );
-            return ReceiveFileResult::UnknownNetworkError(reason);
-        }
-    };
-
-    let path_len_bytes = match len_file_name.try_into() {
-        Ok(bytes) => bytes,
-        Err(_) => {
-            println!("Failed to convert file name length bytes to slice");
-            return ReceiveFileResult::UnknownNetworkError(
-                "Failed to convert file name length bytes to slice".to_string(),
-            );
-        }
-    };
-
-    let path_len = u32::from_be_bytes(path_len_bytes);
-
-    let file_path = match common::read_bytes(Vec::new(), reader, path_len as usize) {
-        common::SocketReadResult::Ok(buffer) => buffer,
-        common::SocketReadResult::UnknownError(reason) => {
-            println!("Unknown error when receiving file name: '{}'", reason);
-            return ReceiveFileResult::UnknownNetworkError(reason);
-        }
-    };
-
-    let file_path = std::str::from_utf8(&file_path);
+    let file_path = common::read_string(reader);
     let file_path = match file_path {
-        Ok(file_path) => file_path,
-        Err(e) => {
+        TypeReadResult::Ok(file_path) => file_path,
+        TypeReadResult::UnknownError(e) => {
             println!("Failed to convert file name bytes to string: {}", e);
             return ReceiveFileResult::UnknownNetworkError(format!(
                 "Failed to convert file name bytes to string: {}",
@@ -70,25 +40,14 @@ pub(crate) fn receive_file(
 
     let destination_file_path = destination_root_folder.join(file_path);
 
-    let file_size_bytes = match common::read_bytes(Vec::new(), reader, 8) {
-        common::SocketReadResult::Ok(buffer) => buffer,
-        common::SocketReadResult::UnknownError(reason) => {
-            println!("Unknown error when receiving file size: '{}'", reason);
-            return ReceiveFileResult::UnknownNetworkError(reason);
+    let file_size_bytes = common::read_u64(reader);
+    let file_size_bytes = match file_size_bytes {
+        TypeReadResult::Ok(file_size_bytes) => file_size_bytes,
+        TypeReadResult::UnknownError(e) => {
+            println!("Unknown error when receiving file size: '{}'", e);
+            return ReceiveFileResult::UnknownNetworkError(e);
         }
     };
-
-    let file_size_bytes = match file_size_bytes.try_into() {
-        Ok(bytes) => bytes,
-        Err(_) => {
-            println!("Failed to convert file size bytes to slice");
-            return ReceiveFileResult::UnknownNetworkError(
-                "Failed to convert file size bytes to slice".to_string(),
-            );
-        }
-    };
-
-    let file_size_bytes = u64::from_be_bytes(file_size_bytes);
 
     if let Some(path) = destination_file_path.parent() {
         let res = std::fs::create_dir_all(path);

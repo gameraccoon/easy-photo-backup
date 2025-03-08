@@ -8,7 +8,7 @@ pub enum HandshakeResult {
 }
 
 pub fn process_handshake(stream: &mut TcpStream) -> HandshakeResult {
-    let write_result = stream.write_all(&common::SERVER_PROTOCOL_VERSION.to_be_bytes());
+    let write_result = stream.write_all(&common::protocol::SERVER_PROTOCOL_VERSION.to_be_bytes());
     if let Err(e) = write_result {
         println!("Failed to write to socket: {}", e);
         return HandshakeResult::UnknownConnectionError(format!(
@@ -27,7 +27,7 @@ pub fn process_handshake(stream: &mut TcpStream) -> HandshakeResult {
         }
     };
 
-    if buffer[0] != common::ACK_BYTE {
+    if buffer[0] != common::protocol::ACK_BYTE {
         println!("Unexpected ack byte from client: {}", buffer[0]);
         return HandshakeResult::UnknownConnectionError(format!(
             "Unexpected ack byte from client: {}",
@@ -35,7 +35,7 @@ pub fn process_handshake(stream: &mut TcpStream) -> HandshakeResult {
         ));
     }
 
-    let write_result = stream.write_all(&[common::ACK_BYTE]);
+    let write_result = stream.write_all(&[common::protocol::ACK_BYTE]);
     if let Err(e) = write_result {
         println!("Failed to write to socket: {}", e);
         return HandshakeResult::UnknownConnectionError(format!(

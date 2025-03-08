@@ -1,11 +1,14 @@
 mod client_handshake;
 mod file_receiver;
 mod nsd_server;
+mod request_reader;
 mod server_config;
 
 use crate::client_handshake::HandshakeResult;
 use crate::file_receiver::ReceiveStrategies;
+use crate::request_reader::{read_request, RequestReadResult};
 use crate::server_config::ServerConfig;
+use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::thread;
 
@@ -90,6 +93,25 @@ fn handle_client(stream: TcpStream, server_config: &ServerConfig) {
             return;
         }
     };
+
+    let mut request_read_result = read_request(&mut stream);
+    match request_read_result {
+        RequestReadResult::Ok(request) => match request {
+            common::protocol::Request::Introduce(name, public_key) => {
+                println!("Introduce request from client '{}'", name);
+            }
+            common::protocol::Request::ConfirmConnection => {
+                println!("Confirm connection request from client");
+            }
+            common::protocol::Request::SendFiles => {
+                println!("Send files request from client");
+            }
+        },
+        RequestReadResult::UnknownError(error) => {
+            println!("Failed to read request: {}", error);
+            return;
+        }
+    }
 
     file_receiver::receive_directory(
         &server_config.target_folder,
