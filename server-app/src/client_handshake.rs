@@ -1,4 +1,4 @@
-use common::{read_bytes_unbuffered, SocketReadResult};
+use common::{read_bytes_unbuffered, SocketReadResult, TypeReadResult};
 use std::io::Write;
 use std::net::TcpStream;
 
@@ -17,21 +17,20 @@ pub fn process_handshake(stream: &mut TcpStream) -> HandshakeResult {
         ));
     }
 
-    let buffer = Vec::new();
-
-    let buffer = match read_bytes_unbuffered(buffer, stream, 1) {
-        SocketReadResult::Ok(buffer) => buffer,
-        SocketReadResult::UnknownError(reason) => {
-            println!("Unknown error when receiving ack from client: '{}'", reason);
-            return HandshakeResult::UnknownConnectionError(reason);
+    let ack_byte = common::read_u8(stream);
+    let ack_byte = match ack_byte {
+        TypeReadResult::Ok(ack_byte) => ack_byte,
+        TypeReadResult::UnknownError(e) => {
+            println!("Unknown error when receiving ack byte: '{}'", e);
+            return HandshakeResult::UnknownConnectionError(e);
         }
     };
 
-    if buffer[0] != common::protocol::ACK_BYTE {
-        println!("Unexpected ack byte from client: {}", buffer[0]);
+    if ack_byte != common::protocol::ACK_BYTE {
+        println!("Unexpected ack byte from client: {}", ack_byte);
         return HandshakeResult::UnknownConnectionError(format!(
             "Unexpected ack byte from client: {}",
-            buffer[0]
+            ack_byte
         ));
     }
 

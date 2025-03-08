@@ -74,6 +74,16 @@ pub fn drop_bytes_from_stream<T: std::io::Read>(mut stream: T, size: usize) {
     }
 }
 
+pub fn read_u8<T: std::io::Read>(stream: &mut T) -> TypeReadResult<u8> {
+    match read_number_as_slice::<u8, 1, T>(stream) {
+        Ok(number_slice) => TypeReadResult::Ok(u8::from_be_bytes(number_slice)),
+        Err(e) => {
+            println!("Failed to read number slice from socket: {}", e);
+            TypeReadResult::UnknownError(e)
+        }
+    }
+}
+
 pub fn read_u32<T: std::io::Read>(stream: &mut T) -> TypeReadResult<u32> {
     match read_number_as_slice::<u32, 4, T>(stream) {
         Ok(number_slice) => TypeReadResult::Ok(u32::from_be_bytes(number_slice)),

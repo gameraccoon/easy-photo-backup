@@ -1,5 +1,5 @@
-use common::{read_bytes_unbuffered, SocketReadResult};
-use std::io::Write;
+use common::{read_bytes_unbuffered, SocketReadResult, TypeReadResult};
+use std::io::{Read, Write};
 use std::net::TcpStream;
 
 pub(crate) enum HandshakeResult {
@@ -14,25 +14,14 @@ pub(crate) enum HandshakeResult {
 }
 
 pub fn process_handshake(stream: &mut TcpStream) -> HandshakeResult {
-    let buffer = match read_bytes_unbuffered(Vec::new(), stream, 4) {
-        SocketReadResult::Ok(buffer) => buffer,
-        SocketReadResult::UnknownError(reason) => {
-            println!("Unknown error when receiving server version: '{}'", reason);
-            return HandshakeResult::UnknownConnectionError(reason);
+    let server_version = common::read_u32(stream);
+    let server_version = match server_version {
+        TypeReadResult::Ok(server_version) => server_version,
+        TypeReadResult::UnknownError(e) => {
+            println!("Unknown error when receiving server version: '{}'", e);
+            return HandshakeResult::UnknownConnectionError(e);
         }
     };
-
-    let version_bytes = buffer.clone();
-    let version_bytes = match version_bytes.try_into() {
-        Ok(bytes) => bytes,
-        Err(_) => {
-            println!("Failed to convert version bytes to slice");
-            return HandshakeResult::UnknownConnectionError(
-                "Failed to convert bytes to slice".to_string(),
-            );
-        }
-    };
-    let server_version = u32::from_be_bytes(version_bytes);
     if server_version > common::protocol::SERVER_PROTOCOL_VERSION {
         println!("Server version is unknown: {}", server_version);
         return HandshakeResult::UnknownProtocolVersion(server_version);
@@ -51,13 +40,21 @@ pub fn process_handshake(stream: &mut TcpStream) -> HandshakeResult {
         ));
     }
 
-    let _ = match read_bytes_unbuffered(buffer, stream, 1) {
-        SocketReadResult::Ok(buffer) => buffer,
-        SocketReadResult::UnknownError(reason) => {
-            println!("Unknown error when receiving ack from server: '{}'", reason);
-            return HandshakeResult::UnknownConnectionError(reason);
+    let ack_byte = match common::read_u8(stream) {
+        TypeReadResult::Ok(ack_byte) => ack_byte,
+        TypeReadResult::UnknownError(e) => {
+            println!("Unknown error when receiving ack byte: '{}'", e);
+            return HandshakeResult::UnknownConnectionError(e);
         }
     };
+
+    if ack_byte != common::protocol::ACK_BYTE {
+        println!("Unexpected ack byte from server: {}", ack_byte);
+        return HandshakeResult::UnknownConnectionError(format!(
+            "Unexpected ack byte from server: {}",
+            ack_byte
+        ));
+    }
 
     HandshakeResult::Ok(server_version)
 }
