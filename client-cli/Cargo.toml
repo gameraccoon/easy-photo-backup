@@ -1,5 +1,5 @@
 [package]
-name = "easy-photo-client-cli"
+name = "easy-photo-backup-client-cli"
 version = "0.1.0"
 edition = "2021"
 

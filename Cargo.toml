@@ -1,6 +1,6 @@
 [workspace]
 members = [
-    "server-app",
+    "server",
     "client-cli",
     "common"
 ]
