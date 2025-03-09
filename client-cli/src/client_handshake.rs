@@ -13,6 +13,12 @@ pub(crate) enum HandshakeResult {
     UnknownConnectionError(String), // An error message
 }
 
+// Handshake is the very first interaction between the client and the server
+// whenever a connection happens. During the handshake, the server sends its version.
+// This is important to be the first thing, because the client would be able
+// to adapt the logic based on the server version to not break the protocol.
+// This is due to the fact that server executable is usually not updated often,
+// whether the client usually receives updates pretty fast after they released.
 pub fn process_handshake(stream: &mut TcpStream) -> HandshakeResult {
     let server_version = common::read_u32(stream);
     let server_version = match server_version {

@@ -1,9 +1,10 @@
 use std::io::Write;
 
 use crate::client_config::ClientConfig;
-use crate::nsd_client;
+use crate::confirm_connection_request;
 use crate::nsd_client::ServiceAddress;
 use crate::send_files_request::send_files_request;
+use crate::{introduction_request, nsd_client};
 
 pub fn start_cli_processor(config: ClientConfig) {
     let mut buffer = String::new();
@@ -41,6 +42,8 @@ pub fn start_cli_processor(config: ClientConfig) {
             "help" => {
                 println!("Available commands:");
                 println!("discover - start service discovery");
+                println!("introduce - introduce the client to a server");
+                println!("check - check if the server has accepted this client");
                 println!("send - send files to a server");
                 println!("exit - exit the program");
                 println!("help - show this help");
@@ -52,6 +55,18 @@ pub fn start_cli_processor(config: ClientConfig) {
                     "Stopped discovering servers, found {} servers",
                     online_servers.len()
                 );
+            }
+            "introduce" => {
+                if online_servers.len() == 0 {
+                    println!("We haven't discovered any servers yet, you may want to run 'discover' first");
+                }
+                introduce_server(&online_servers);
+            }
+            "check" => {
+                if online_servers.len() == 0 {
+                    println!("We haven't discovered any servers yet, you may want to run 'discover' first");
+                }
+                check_server(&online_servers);
             }
             "send" => {
                 if online_servers.len() == 0 {
@@ -171,29 +186,82 @@ fn discover_servers() -> Vec<nsd_client::ServiceAddress> {
     online_servers
 }
 
-fn send_files(client_config: &ClientConfig, online_servers: &Vec<nsd_client::ServiceAddress>) {
-    println!("Choose a server to send files to:");
-    for (index, server) in online_servers.iter().enumerate() {
-        println!("{}: {}:{}", index, server.ip, server.port);
-    }
+fn introduce_server(online_servers: &Vec<nsd_client::ServiceAddress>) {
+    println!("Choose a server to introduce to:");
+    let address = read_server_address(online_servers);
+    let address = match address {
+        Ok(address) => address,
+        Err(e) => {
+            println!("Failed to read server address: {}", e);
+            return;
+        }
+    };
 
-    println!("{}: enter manually", online_servers.len());
+    println!("Sending files to {}:{}", address.ip, address.port);
+
+    // synchronous for now
+    let result = introduction_request::introduction_request(address);
+    if let Err(e) = result {
+        println!("Failed to introduce to server: {}", e);
+    }
+}
+
+fn check_server(online_servers: &Vec<nsd_client::ServiceAddress>) {
+    println!("Choose a server to check if it has accepted this client:");
+    let address = read_server_address(online_servers);
+    let address = match address {
+        Ok(address) => address,
+        Err(e) => {
+            println!("Failed to read server address: {}", e);
+            return;
+        }
+    };
+
+    // synchronous for now
+    let result = confirm_connection_request::confirm_connection_request(address);
+    if let Err(e) = result {
+        println!("Failed to check if server has accepted this client: {}", e);
+    }
+}
+
+fn send_files(client_config: &ClientConfig, online_servers: &Vec<ServiceAddress>) {
+    println!("Choose a server to send files to:");
+    let address = read_server_address(online_servers);
+    let address = match address {
+        Ok(address) => address,
+        Err(e) => {
+            println!("Failed to read server address: {}", e);
+            return;
+        }
+    };
+
+    println!("Sending files to {}:{}", address.ip, address.port);
+
+    // synchronous for now
+    send_files_request(client_config, address);
+}
+
+fn read_server_address(
+    online_servers: &Vec<nsd_client::ServiceAddress>,
+) -> Result<ServiceAddress, String> {
+    println!("0: enter manually");
+    for (index, server) in online_servers.iter().enumerate() {
+        println!("{}: {}:{}", index + 1, server.ip, server.port);
+    }
 
     let mut buffer = String::new();
     buffer.clear();
     match std::io::stdin().read_line(&mut buffer) {
         Ok(bytes_read) => {
             if bytes_read == 0 {
-                println!("Failed to read from stdin, closing the client connection");
-                return;
+                return Err("Failed to read from stdin, closing the client connection".to_string());
             }
         }
         Err(e) => {
-            println!(
+            return Err(format!(
                 "Failed to read from stdin, closing the client connection: {}",
                 e
-            );
-            return;
+            ));
         }
     };
 
@@ -201,39 +269,36 @@ fn send_files(client_config: &ClientConfig, online_servers: &Vec<nsd_client::Ser
     let number = match number.parse::<usize>() {
         Ok(number) => number,
         Err(_) => {
-            println!("Invalid number");
-            return;
+            return Err("Invalid number".to_string());
         }
     };
 
     if number > online_servers.len() {
-        println!("Invalid number");
-        return;
+        return Err("Invalid number".to_string());
     }
 
-    let server = if number != online_servers.len() {
-        online_servers[number].clone()
+    if number != 0 {
+        Ok(online_servers[number - 1].clone())
     } else {
         print!("Enter the address: ");
         let result = std::io::stdout().flush();
         if let Err(e) = result {
-            println!("Failed to flush stdout: {}", e);
-            return;
+            return Err(format!("Failed to flush stdout: {}", e));
         }
         buffer.clear();
         match std::io::stdin().read_line(&mut buffer) {
             Ok(bytes_read) => {
                 if bytes_read == 0 {
-                    println!("Failed to read from stdin, closing the client connection");
-                    return;
+                    return Err(
+                        "Failed to read from stdin, closing the client connection".to_string()
+                    );
                 }
             }
             Err(e) => {
-                println!(
+                return Err(format!(
                     "Failed to read from stdin, closing the client connection: {}",
                     e
-                );
-                return;
+                ));
             }
         };
 
@@ -244,26 +309,18 @@ fn send_files(client_config: &ClientConfig, online_servers: &Vec<nsd_client::Ser
             let ip = match ip.parse::<std::net::IpAddr>() {
                 Ok(ip) => ip,
                 Err(_) => {
-                    println!("Invalid IP address");
-                    return;
+                    return Err("Invalid IP address".to_string());
                 }
             };
             let port = match port.parse::<u16>() {
                 Ok(port) => port,
                 Err(_) => {
-                    println!("Invalid port");
-                    return;
+                    return Err("Invalid port".to_string());
                 }
             };
-            ServiceAddress { ip, port }
+            Ok(ServiceAddress { ip, port })
         } else {
-            println!("Invalid address");
-            return;
+            Err("Invalid address, the format should be IP:PORT".to_string())
         }
-    };
-
-    println!("Sending files to {}:{}", server.ip, server.port);
-
-    // synchronous for now
-    send_files_request(client_config, server.clone());
+    }
 }

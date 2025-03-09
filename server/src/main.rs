@@ -93,7 +93,7 @@ fn handle_client(stream: TcpStream, server_config: &ServerConfig) {
         }
     };
 
-    let mut request_read_result = read_request(&mut stream);
+    let request_read_result = read_request(&mut stream);
     match request_read_result {
         RequestReadResult::Ok(request) => match request {
             common::protocol::Request::Introduce(name, public_key) => {
