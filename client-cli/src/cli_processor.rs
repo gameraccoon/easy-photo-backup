@@ -2,6 +2,7 @@ use std::io::Write;
 
 use crate::client_config::ClientConfig;
 use crate::nsd_client;
+use crate::nsd_client::ServiceAddress;
 use crate::send_files_request::send_files_request;
 
 pub fn start_cli_processor(config: ClientConfig) {
@@ -54,8 +55,7 @@ pub fn start_cli_processor(config: ClientConfig) {
             }
             "send" => {
                 if online_servers.len() == 0 {
-                    println!("We haven't discovered any servers yet, run 'discover' first");
-                    continue;
+                    println!("We haven't discovered any servers yet, you may want to run 'discover' first");
                 }
                 send_files(&config, &online_servers);
             }
@@ -163,6 +163,11 @@ fn discover_servers() -> Vec<nsd_client::ServiceAddress> {
         println!("Failed to join the CLI processor thread");
     }
 
+    let result = discovery_thread_handle.join();
+    if let Err(_) = result {
+        println!("Failed to join the discovery thread");
+    }
+
     online_servers
 }
 
@@ -171,6 +176,8 @@ fn send_files(client_config: &ClientConfig, online_servers: &Vec<nsd_client::Ser
     for (index, server) in online_servers.iter().enumerate() {
         println!("{}: {}:{}", index, server.ip, server.port);
     }
+
+    println!("{}: enter manually", online_servers.len());
 
     let mut buffer = String::new();
     buffer.clear();
@@ -199,12 +206,61 @@ fn send_files(client_config: &ClientConfig, online_servers: &Vec<nsd_client::Ser
         }
     };
 
-    if number >= online_servers.len() {
+    if number > online_servers.len() {
         println!("Invalid number");
         return;
     }
 
-    let server = &online_servers[number];
+    let server = if number != online_servers.len() {
+        online_servers[number].clone()
+    } else {
+        print!("Enter the address: ");
+        let result = std::io::stdout().flush();
+        if let Err(e) = result {
+            println!("Failed to flush stdout: {}", e);
+            return;
+        }
+        buffer.clear();
+        match std::io::stdin().read_line(&mut buffer) {
+            Ok(bytes_read) => {
+                if bytes_read == 0 {
+                    println!("Failed to read from stdin, closing the client connection");
+                    return;
+                }
+            }
+            Err(e) => {
+                println!(
+                    "Failed to read from stdin, closing the client connection: {}",
+                    e
+                );
+                return;
+            }
+        };
+
+        let address = buffer.trim();
+
+        let split_res = address.split_once(':');
+        if let Some((ip, port)) = split_res {
+            let ip = match ip.parse::<std::net::IpAddr>() {
+                Ok(ip) => ip,
+                Err(_) => {
+                    println!("Invalid IP address");
+                    return;
+                }
+            };
+            let port = match port.parse::<u16>() {
+                Ok(port) => port,
+                Err(_) => {
+                    println!("Invalid port");
+                    return;
+                }
+            };
+            ServiceAddress { ip, port }
+        } else {
+            println!("Invalid address");
+            return;
+        }
+    };
 
     println!("Sending files to {}:{}", server.ip, server.port);
 
