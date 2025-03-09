@@ -1,16 +1,11 @@
 // Network Service Discovery (NSD) client
 
+use crate::service_address::ServiceAddress;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket};
 
 pub(crate) enum DiscoveryState {
     Added,
     Removed,
-}
-
-#[derive(PartialEq, Clone, Debug)]
-pub(crate) struct ServiceAddress {
-    pub ip: IpAddr,
-    pub port: u16,
 }
 
 pub(crate) struct DiscoveryResult {

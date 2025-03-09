@@ -7,6 +7,7 @@ mod file_sender;
 mod introduction_request;
 mod nsd_client;
 mod send_files_request;
+mod service_address;
 
 use crate::client_config::ClientConfig;
 
