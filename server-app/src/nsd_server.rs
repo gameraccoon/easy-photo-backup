@@ -1,6 +1,6 @@
 use std::net::UdpSocket;
 
-// start the "network service discovery" server, which will be used to advertise the service's presence
+// run the "network service discovery" server, which will be used to advertise the service's presence
 pub(crate) fn run_nsd_server(service_id: &str, server_port: u16) {
     let socket = UdpSocket::bind("0.0.0.0:5354");
     let socket = match socket {

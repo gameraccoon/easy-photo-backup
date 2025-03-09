@@ -14,6 +14,8 @@ pub const SERVER_PROTOCOL_VERSION: u32 = ProtocolVersion::IntroductionRequests a
 pub const LAST_CLIENT_SUPPORTED_PROTOCOL_VERSION: u32 =
     ProtocolVersion::IntroductionRequests as u32;
 
+pub const SERVICE_IDENTIFIER: &str = "_easy-photo-backup._tcp";
+
 // Don't change or reuse indexes
 #[repr(u32)]
 pub enum Request {

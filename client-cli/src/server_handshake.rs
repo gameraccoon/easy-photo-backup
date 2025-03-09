@@ -1,5 +1,5 @@
-use common::{read_bytes_unbuffered, SocketReadResult, TypeReadResult};
-use std::io::{Read, Write};
+use common::TypeReadResult;
+use std::io::Write;
 use std::net::TcpStream;
 
 pub(crate) enum HandshakeResult {

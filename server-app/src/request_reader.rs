@@ -1,5 +1,4 @@
 use common::TypeReadResult;
-use std::io::Read;
 
 pub(crate) enum RequestReadResult {
     Ok(common::protocol::Request),
