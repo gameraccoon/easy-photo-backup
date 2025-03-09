@@ -104,6 +104,14 @@ fn handle_client(stream: TcpStream, server_config: &ServerConfig) {
             }
             common::protocol::Request::SendFiles => {
                 println!("Send files request from client");
+
+                file_receiver::receive_directory(
+                    &server_config.target_folder,
+                    &mut stream,
+                    &ReceiveStrategies {
+                        name_collision_strategy: file_receiver::NameCollisionStrategy::Rename,
+                    },
+                );
             }
         },
         RequestReadResult::UnknownError(error) => {
@@ -111,14 +119,6 @@ fn handle_client(stream: TcpStream, server_config: &ServerConfig) {
             return;
         }
     }
-
-    file_receiver::receive_directory(
-        &server_config.target_folder,
-        &mut stream,
-        &ReceiveStrategies {
-            name_collision_strategy: file_receiver::NameCollisionStrategy::Rename,
-        },
-    );
 
     println!("Client disconnected: {}", peer_addr);
 }

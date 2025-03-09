@@ -26,12 +26,8 @@ pub(crate) fn send_files_request(client_config: &ClientConfig, destination: Serv
     };
     println!("Connected to server version {}", server_version);
 
-    let device_name = std::env::var("DEVICE_NAME").unwrap_or("unknown".to_string());
-
-    let request_result = request_writer::write_request(
-        &mut stream,
-        common::protocol::Request::Introduce(device_name, Vec::new()),
-    );
+    let request_result =
+        request_writer::write_request(&mut stream, common::protocol::Request::SendFiles);
     let request_result = match request_result {
         RequestWriteResult::Ok(request_result) => request_result,
         RequestWriteResult::UnknownError(error_text) => {
