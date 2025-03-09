@@ -1,4 +1,5 @@
 use common::TypeReadResult;
+use std::io::Write;
 
 pub(crate) enum RequestReadResult {
     Ok(common::protocol::Request),
@@ -58,4 +59,25 @@ pub(crate) fn read_request(stream: &mut std::net::TcpStream) -> RequestReadResul
     };
 
     RequestReadResult::Ok(request)
+}
+
+pub(crate) fn send_request_answer(
+    stream: &mut std::net::TcpStream,
+    answer: common::protocol::RequestAnswer,
+) -> Result<(), String> {
+    let header_bytes: [u8; 4] = answer.discriminant().to_be_bytes();
+    let result = stream.write(&header_bytes);
+    if let Err(e) = result {
+        println!("Failed to write request header to socket: {}", e);
+        return Err(format!("Failed to write request header to socket: {}", e));
+    }
+
+    match answer {
+        common::protocol::RequestAnswer::Introduced(_public_key) => {}
+        common::protocol::RequestAnswer::ReadyToReceiveFiles => {}
+        common::protocol::RequestAnswer::ConnectionConfirmed => {}
+        common::protocol::RequestAnswer::UnknownClient => {}
+    };
+
+    Ok(())
 }

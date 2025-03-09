@@ -1,3 +1,4 @@
+use common::TypeReadResult;
 use std::io::Write;
 
 pub(crate) enum RequestWriteResult {
@@ -5,7 +6,7 @@ pub(crate) enum RequestWriteResult {
     UnknownError(String),
 }
 
-pub(crate) fn write_request(
+pub(crate) fn make_request(
     stream: &mut std::net::TcpStream,
     request: common::protocol::Request,
 ) -> RequestWriteResult {
@@ -45,7 +46,27 @@ pub(crate) fn write_request(
         common::protocol::Request::SendFiles => {}
     }
 
-    // ToDo: read the answer
+    // read the answer
+    let answer = common::read_u32(stream);
+    let answer = match answer {
+        TypeReadResult::Ok(answer) => answer,
+        TypeReadResult::UnknownError(e) => {
+            println!("Unknown error when receiving answer: '{}'", e);
+            return RequestWriteResult::UnknownError(format!(
+                "Unknown error when receiving answer: '{}'",
+                e
+            ));
+        }
+    };
 
-    RequestWriteResult::Ok(common::protocol::RequestAnswer::Introduced(Vec::new()))
+    match answer {
+        0 => RequestWriteResult::Ok(common::protocol::RequestAnswer::UnknownClient),
+        1 => RequestWriteResult::Ok(common::protocol::RequestAnswer::Introduced(Vec::new())),
+        2 => RequestWriteResult::Ok(common::protocol::RequestAnswer::ConnectionConfirmed),
+        3 => RequestWriteResult::Ok(common::protocol::RequestAnswer::ReadyToReceiveFiles),
+        _ => {
+            println!("Unknown answer: {}", answer);
+            RequestWriteResult::UnknownError(format!("Unknown answer: {}", answer))
+        }
+    }
 }

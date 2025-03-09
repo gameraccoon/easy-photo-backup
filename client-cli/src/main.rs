@@ -1,10 +1,10 @@
 mod cli_processor;
 mod client_config;
+mod client_handshake;
+mod client_requests;
 mod file_sender;
 mod nsd_client;
-mod request_writer;
 mod send_files_request;
-mod server_handshake;
 
 use crate::client_config::ClientConfig;
 

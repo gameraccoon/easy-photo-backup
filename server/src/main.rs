@@ -1,13 +1,13 @@
-mod client_handshake;
 mod file_receiver;
 mod nsd_server;
-mod request_reader;
 mod server_config;
+mod server_handshake;
+mod server_requests;
 
-use crate::client_handshake::HandshakeResult;
 use crate::file_receiver::ReceiveStrategies;
-use crate::request_reader::{read_request, RequestReadResult};
 use crate::server_config::ServerConfig;
+use crate::server_handshake::HandshakeResult;
+use crate::server_requests::{read_request, RequestReadResult};
 use std::net::{TcpListener, TcpStream};
 use std::thread;
 
@@ -73,7 +73,7 @@ fn run_server(config: ServerConfig) {
 
 fn handle_client(stream: TcpStream, server_config: &ServerConfig) {
     let mut stream = stream;
-    let handshake_result = client_handshake::process_handshake(&mut stream);
+    let handshake_result = server_handshake::process_handshake(&mut stream);
 
     match handshake_result {
         HandshakeResult::Ok => {
@@ -98,12 +98,35 @@ fn handle_client(stream: TcpStream, server_config: &ServerConfig) {
         RequestReadResult::Ok(request) => match request {
             common::protocol::Request::Introduce(name, public_key) => {
                 println!("Introduce request from client '{}'", name);
+                let result = server_requests::send_request_answer(
+                    &mut stream,
+                    common::protocol::RequestAnswer::Introduced(Vec::new()),
+                );
+                if let Err(e) = result {
+                    println!("Failed to send answer to client: {}", e);
+                }
             }
             common::protocol::Request::ConfirmConnection => {
                 println!("Confirm connection request from client");
+
+                let result = server_requests::send_request_answer(
+                    &mut stream,
+                    common::protocol::RequestAnswer::ConnectionConfirmed,
+                );
+                if let Err(e) = result {
+                    println!("Failed to send answer to client: {}", e);
+                }
             }
             common::protocol::Request::SendFiles => {
                 println!("Send files request from client");
+
+                let result = server_requests::send_request_answer(
+                    &mut stream,
+                    common::protocol::RequestAnswer::ReadyToReceiveFiles,
+                );
+                if let Err(e) = result {
+                    println!("Failed to send answer to client: {}", e);
+                }
 
                 file_receiver::receive_directory(
                     &server_config.target_folder,
