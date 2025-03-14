@@ -137,8 +137,8 @@ fn read_number_as_slice<N, const S: usize, T: std::io::Read>(
 
 pub fn read_string_raw<T: std::io::Read>(stream: &mut T, size: usize) -> TypeReadResult<String> {
     let string = match read_bytes_generic(Vec::new(), stream, size as usize) {
-        crate::SocketReadResult::Ok(buffer) => buffer,
-        crate::SocketReadResult::UnknownError(reason) => {
+        SocketReadResult::Ok(buffer) => buffer,
+        SocketReadResult::UnknownError(reason) => {
             println!("Unknown error when receiving file name: '{}'", reason);
             return TypeReadResult::UnknownError(reason);
         }
@@ -173,6 +173,23 @@ pub fn read_string<T: std::io::Read>(stream: &mut T) -> TypeReadResult<String> {
     };
 
     read_string_raw(stream, string_len as usize)
+}
+
+pub fn write_string<T: std::io::Write>(stream: &mut T, string: &str) -> Result<(), String> {
+    let len_bytes: [u8; 4] = (string.len() as u32).to_be_bytes();
+    let result = stream.write(&len_bytes);
+    if let Err(e) = result {
+        println!("Failed to write string length: {}", e);
+        return Err(format!("Failed to write string length: {}", e));
+    }
+
+    let result = stream.write(string.as_bytes());
+    if let Err(e) = result {
+        println!("Failed to write string: {}", e);
+        return Err(format!("Failed to write string: {}", e));
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]

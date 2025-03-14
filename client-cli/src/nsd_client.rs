@@ -8,13 +8,21 @@ pub(crate) enum DiscoveryState {
     Removed,
 }
 
-pub(crate) struct DiscoveryResult {
+#[derive(Clone)]
+pub(crate) struct ServiceInfo {
     pub address: ServiceAddress,
+    pub extra_data: Vec<u8>,
+}
+
+pub(crate) struct DiscoveryResult {
+    pub service_info: ServiceInfo,
     pub state: DiscoveryState,
 }
 
 pub(crate) fn start_service_discovery_thread(
     service_identifier: String,
+    broadcast_port: u16,
+    broadcast_period: std::time::Duration,
     results_sender: std::sync::mpsc::SyncSender<DiscoveryResult>,
     stop_signal_receiver: std::sync::mpsc::Receiver<()>,
 ) -> std::thread::JoinHandle<Result<(), String>> {
@@ -59,22 +67,21 @@ pub(crate) fn start_service_discovery_thread(
         let mut online_servers: Vec<ServiceAddress> = Vec::new();
         let mut servers_to_remove: Vec<ServiceAddress> = Vec::new();
 
-        let query = format!("discovery:{}\n", service_identifier);
+        let query = format!("aloha:{}\n", service_identifier);
         let mut buf = [0; 1024];
 
-        let broadcast_frequency = std::time::Duration::from_secs(5);
-
         // set the time in the past, enough to trigger the broadcast immediately
-        let mut last_broadcast_time = std::time::Instant::now() - (broadcast_frequency * 2);
+        let mut last_broadcast_time = std::time::Instant::now() - (broadcast_period * 2);
 
         loop {
             if stop_signal_receiver.try_recv().is_ok() {
                 return Ok(());
             }
 
-            if std::time::Instant::now() > last_broadcast_time + broadcast_frequency {
+            if std::time::Instant::now() > last_broadcast_time + broadcast_period {
                 // broadcast a UDP packet to the network
-                let broadcast_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::BROADCAST), 5354);
+                let broadcast_addr =
+                    SocketAddr::new(IpAddr::V4(Ipv4Addr::BROADCAST), broadcast_port);
                 let result = socket.send_to(query.as_bytes(), broadcast_addr);
                 if let Err(e) = result {
                     println!("Failed to send UDP packet: {}", e);
@@ -102,9 +109,12 @@ pub(crate) fn start_service_discovery_thread(
                 }
                 for server in &servers_to_remove {
                     let result = results_sender.send(DiscoveryResult {
-                        address: ServiceAddress {
-                            ip: server.ip.clone(),
-                            port: server.port,
+                        service_info: ServiceInfo {
+                            address: ServiceAddress {
+                                ip: server.ip.clone(),
+                                port: server.port,
+                            },
+                            extra_data: Vec::new(),
                         },
                         state: DiscoveryState::Removed,
                     });
@@ -130,31 +140,37 @@ pub(crate) fn start_service_discovery_thread(
                     continue;
                 }
             };
-            let response_body = String::from_utf8_lossy(&buf[..amt]);
+            let response_body = &buf[..amt];
 
-            if !response_body.starts_with("ad:") {
+            if response_body.len() < 1 + 2 + 2 + 0 + 2 {
                 continue;
             }
 
-            // 'ad:' + port + '\n'
-            if response_body.len() < 3 + 2 + 1 {
+            // protocol version
+            if response_body[0] != 0x01 {
                 continue;
             }
 
-            let port_str = response_body[3..response_body.len() - 1].to_string();
+            let extra_data_len = u16::from_be_bytes([response_body[1], response_body[2]]) as usize;
 
-            if port_str.len() < 2
-                || port_str.len() > 5
-                || port_str.chars().any(|c| !c.is_ascii_digit())
-            {
+            let port = u16::from_be_bytes([response_body[3], response_body[4]]);
+
+            if response_body.len() < 1 + 2 + 2 + extra_data_len + 2 {
                 continue;
             }
 
-            let port = port_str.parse();
-            let port = match port {
-                Ok(port) => port,
-                Err(_) => continue,
-            };
+            let checksum = u16::from_be_bytes([
+                response_body[5 + extra_data_len],
+                response_body[6 + extra_data_len],
+            ]);
+
+            let expected_checksum = checksum16(&response_body[3..3 + 2 + extra_data_len]);
+
+            if expected_checksum != checksum {
+                continue;
+            }
+
+            let extra_data = response_body[5..5 + extra_data_len].to_vec();
 
             let address = ServiceAddress { ip: src.ip(), port };
 
@@ -166,7 +182,10 @@ pub(crate) fn start_service_discovery_thread(
                 // found new server that wasn't in the list
                 online_servers.push(address);
                 let result = results_sender.send(DiscoveryResult {
-                    address: ServiceAddress { ip: src.ip(), port },
+                    service_info: ServiceInfo {
+                        address: ServiceAddress { ip: src.ip(), port },
+                        extra_data,
+                    },
                     state: DiscoveryState::Added,
                 });
                 if let Err(e) = result {
@@ -176,4 +195,14 @@ pub(crate) fn start_service_discovery_thread(
             }
         }
     })
+}
+
+fn checksum16(data: &[u8]) -> u16 {
+    // this is a very trivial checksum, eventually we want crc16 here
+    assert!(data.len() <= u16::MAX as usize);
+    let mut checksum = 0;
+    for i in 0..data.len() {
+        checksum ^= (data[i] as u16) << ((i & 0x1) * 8);
+    }
+    checksum
 }

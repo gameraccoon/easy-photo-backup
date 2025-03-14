@@ -14,13 +14,14 @@ pub const SERVER_PROTOCOL_VERSION: u32 = ProtocolVersion::IntroductionRequests a
 pub const LAST_CLIENT_SUPPORTED_PROTOCOL_VERSION: u32 =
     ProtocolVersion::IntroductionRequests as u32;
 
+pub const NSD_PORT: u16 = 5354;
 pub const SERVICE_IDENTIFIER: &str = "_easy-photo-backup._tcp";
 
 // Don't change or reuse indexes
 #[repr(u32)]
 pub enum Request {
     // The client sees the server for the first time
-    // The client doesn't know the server's public key yet
+    // The client doesn't yet know the server's public key
     // It sends its name and public key to the server
     Introduce(String, Vec<u8>) = 0,
     // The client already sent the public key and got server's public key

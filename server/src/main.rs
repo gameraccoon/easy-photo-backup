@@ -3,6 +3,7 @@ mod nsd_server;
 mod server_config;
 mod server_handshake;
 mod server_requests;
+mod server_storage;
 
 use crate::file_receiver::ReceiveStrategies;
 use crate::server_config::ServerConfig;
@@ -34,8 +35,14 @@ fn run_server(config: ServerConfig) {
     println!("Server listening on port {}", server_addr.port());
 
     // we don't have a way to stop the NSD thread for now, but it is something we should do in the future
+    let machine_id = config.machine_id.clone();
     let _nsd_thread_handle = thread::spawn(move || {
-        nsd_server::run_nsd_server("_easy-photo-backup._tcp", server_addr.port());
+        nsd_server::run_nsd_server(
+            common::protocol::SERVICE_IDENTIFIER,
+            common::protocol::NSD_PORT,
+            server_addr.port(),
+            machine_id.as_bytes().to_vec(),
+        );
     });
 
     let mut handles = Vec::new();
@@ -147,6 +154,75 @@ fn handle_client(stream: TcpStream, server_config: &ServerConfig) {
 }
 
 fn main() {
+    // {
+    //     let mut args = std::env::args();
+    //     args.next();
+    //     let cert_file = args.next().expect("missing certificate file argument");
+    //     let private_key_file = args.next().expect("missing private key file argument");
+    //
+    //     let certs = rustls::pki_types::CertificateDer::pem_file_iter(cert_file)
+    //         .unwrap()
+    //         .map(|cert| cert.unwrap())
+    //         .collect();
+    //     let private_key =
+    //         rustls::pki_types::PrivateKeyDer::from_pem_file(private_key_file).unwrap();
+    //     let config = rustls::ServerConfig::builder()
+    //         .with_no_client_auth()
+    //         .with_single_cert(certs, private_key);
+    //     let config = match config {
+    //         Ok(config) => config,
+    //         Err(e) => {
+    //             println!("Failed to build TLS config: {}", e);
+    //             return;
+    //         }
+    //     };
+    //
+    //     let listener = TcpListener::bind(format!("[::]:{}", 4443)).unwrap();
+    //     let result = listener.accept();
+    //     let (mut stream, _) = match result {
+    //         Ok(result) => result,
+    //         Err(e) => {
+    //             println!("Failed to accept connection: {}", e);
+    //             return;
+    //         }
+    //     };
+    //
+    //     let conn = rustls::ServerConnection::new(std::sync::Arc::new(config));
+    //     let mut conn = match conn {
+    //         Ok(conn) => conn,
+    //         Err(e) => {
+    //             println!("Failed to create TLS connection: {}", e);
+    //             return;
+    //         }
+    //     };
+    //     let result = conn.complete_io(&mut stream);
+    //     if let Err(e) = result {
+    //         println!("Failed to complete TLS handshake: {}", e);
+    //         return;
+    //     }
+    //
+    //     let result = conn.writer().write_all(b"Hello from the server");
+    //     if let Err(e) = result {
+    //         println!("Failed to write to TLS connection: {}", e);
+    //         return;
+    //     }
+    //     let result = conn.complete_io(&mut stream);
+    //     if let Err(e) = result {
+    //         println!("Failed to complete TLS handshake: {}", e);
+    //         return;
+    //     }
+    //     let mut buf = [0; 64];
+    //     let len = conn.reader().read(&mut buf);
+    //     let len = match len {
+    //         Ok(len) => len,
+    //         Err(e) => {
+    //             println!("Failed to read from TLS connection: {}", e);
+    //             return;
+    //         }
+    //     };
+    //     println!("Received message from client: {:?}", &buf[..len]);
+    // }
+
     let config = ServerConfig::new();
     run_server(config);
 }

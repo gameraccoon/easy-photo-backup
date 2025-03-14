@@ -72,23 +72,8 @@ pub(crate) fn send_file(
     #[cfg(windows)]
     let path_string_representation = path_string_representation.replace("\\", "/");
 
-    let path_len = path_string_representation.len() as u32;
-
-    let path_length_bytes: [u8; 4] = path_len.to_be_bytes();
-
-    let write_result = stream.write(&path_length_bytes);
-    if let Err(e) = write_result {
-        println!("Failed to write to socket: {}", e);
-        return SendFileResult::UnknownConnectionError(format!(
-            "Failed to write file length to socket: {}",
-            e
-        ));
-    }
-
-    let path_bytes = path_string_representation.as_bytes();
-
-    let write_result = stream.write(&path_bytes);
-    if let Err(e) = write_result {
+    let result = common::write_string(stream, &path_string_representation);
+    if let Err(e) = result {
         println!("Failed to write file path to socket: {}", e);
         return SendFileResult::UnknownConnectionError(format!(
             "Failed to write file path to socket: {}",

@@ -2,6 +2,7 @@ mod cli_processor;
 mod client_config;
 mod client_handshake;
 mod client_requests;
+mod client_storage;
 mod confirm_connection_request;
 mod file_sender;
 mod introduction_request;

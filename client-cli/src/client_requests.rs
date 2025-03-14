@@ -23,17 +23,7 @@ pub(crate) fn make_request(
 
     match request {
         common::protocol::Request::Introduce(name, public_key) => {
-            let name_len = name.len() as u32;
-            let name_len_bytes: [u8; 4] = name_len.to_be_bytes();
-            let result = stream.write(&name_len_bytes);
-            if let Err(e) = result {
-                println!("Failed to write name length to socket: {}", e);
-                return RequestWriteResult::UnknownError(format!(
-                    "Failed to write name length to socket: {}",
-                    e
-                ));
-            }
-            let result = stream.write_all(name.as_bytes());
+            let result = common::write_string(stream, &name);
             if let Err(e) = result {
                 println!("Failed to write name to socket: {}", e);
                 return RequestWriteResult::UnknownError(format!(
