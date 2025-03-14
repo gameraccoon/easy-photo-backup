@@ -1,7 +1,7 @@
 use crate::client_config::ClientConfig;
 use crate::client_handshake::HandshakeResult;
 use crate::client_requests::RequestWriteResult;
-use crate::nsd_client::ServiceAddress;
+use crate::service_address::ServiceAddress;
 use crate::{client_handshake, client_requests, file_sender};
 use std::net::TcpStream;
 

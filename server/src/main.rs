@@ -3,6 +3,7 @@ mod nsd_server;
 mod server_config;
 mod server_handshake;
 mod server_requests;
+mod server_storage;
 
 use crate::file_receiver::ReceiveStrategies;
 use crate::server_config::ServerConfig;
@@ -34,8 +35,14 @@ fn run_server(config: ServerConfig) {
     println!("Server listening on port {}", server_addr.port());
 
     // we don't have a way to stop the NSD thread for now, but it is something we should do in the future
+    let machine_id = config.machine_id.clone();
     let _nsd_thread_handle = thread::spawn(move || {
-        nsd_server::run_nsd_server("_easy-photo-backup._tcp", server_addr.port());
+        nsd_server::run_nsd_server(
+            common::protocol::SERVICE_IDENTIFIER,
+            common::protocol::NSD_PORT,
+            server_addr.port(),
+            machine_id.as_bytes().to_vec(),
+        );
     });
 
     let mut handles = Vec::new();
@@ -147,6 +154,6 @@ fn handle_client(stream: TcpStream, server_config: &ServerConfig) {
 }
 
 fn main() {
-    let config = ServerConfig::new();
+    let config = ServerConfig::load_or_generate();
     run_server(config);
 }

@@ -1,10 +1,12 @@
 use crate::client_handshake::HandshakeResult;
 use crate::client_requests::RequestWriteResult;
-use crate::nsd_client::ServiceAddress;
+use crate::service_address::ServiceAddress;
 use crate::{client_handshake, client_requests};
 use std::net::TcpStream;
 
-pub(crate) struct ServerIntroductionInfo {}
+pub(crate) struct ServerIntroductionInfo {
+    pub public_key: Vec<u8>,
+}
 
 pub(crate) fn introduction_request(
     destination: ServiceAddress,
@@ -46,7 +48,7 @@ pub(crate) fn introduction_request(
     match request_result {
         common::protocol::RequestAnswer::Introduced(public_key) => {
             println!("Introduced to server");
-            Ok(ServerIntroductionInfo {})
+            Ok(ServerIntroductionInfo { public_key })
         }
         _ => Err("Unexpected answer from server".to_string()),
     }
