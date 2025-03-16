@@ -1,4 +1,5 @@
 pub mod protocol;
+pub mod text_config;
 
 use std::io::BufReader;
 use std::net::TcpStream;

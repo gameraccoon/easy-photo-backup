@@ -103,7 +103,6 @@ pub fn start_cli_processor(config: ClientConfig) {
                         continue;
                     }
                 };
-                // move the server from awaiting_approval to approved
                 let element = storage.introduced_to_servers.remove(idx);
                 storage.awaiting_approval_servers.push(element);
 
@@ -126,7 +125,6 @@ pub fn start_cli_processor(config: ClientConfig) {
                         continue;
                     }
                 };
-                // move the server from awaiting_approval to approved
                 let element = storage.awaiting_approval_servers.remove(idx);
                 storage.approved_servers.push(element);
 

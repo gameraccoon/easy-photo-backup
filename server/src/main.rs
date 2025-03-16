@@ -136,7 +136,7 @@ fn handle_client(stream: TcpStream, server_config: &ServerConfig) {
                 }
 
                 file_receiver::receive_directory(
-                    &server_config.target_folder,
+                    &server_config.destination_folder,
                     &mut stream,
                     &ReceiveStrategies {
                         name_collision_strategy: file_receiver::NameCollisionStrategy::Rename,

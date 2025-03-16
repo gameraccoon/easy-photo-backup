@@ -13,6 +13,6 @@ mod service_address;
 use crate::client_config::ClientConfig;
 
 fn main() {
-    let config = ClientConfig::new();
+    let config = ClientConfig::load_or_generate();
     cli_processor::start_cli_processor(config);
 }
