@@ -5,7 +5,11 @@ use crate::service_address::ServiceAddress;
 use crate::{client_handshake, client_requests, file_sender};
 use std::net::TcpStream;
 
-pub(crate) fn send_files_request(client_config: &ClientConfig, destination: ServiceAddress) {
+pub(crate) fn send_files_request(
+    client_config: &ClientConfig,
+    destination: ServiceAddress,
+    current_device_id: String,
+) {
     let mut stream = match TcpStream::connect(format!("{}:{}", destination.ip, destination.port)) {
         Ok(stream) => stream,
         Err(e) => {
@@ -26,8 +30,10 @@ pub(crate) fn send_files_request(client_config: &ClientConfig, destination: Serv
     };
     println!("Connected to server version {}", server_version);
 
-    let request_result =
-        client_requests::make_request(&mut stream, common::protocol::Request::SendFiles);
+    let request_result = client_requests::make_request(
+        &mut stream,
+        common::protocol::Request::SendFiles(current_device_id),
+    );
     let request_result = match request_result {
         RequestWriteResult::Ok(request_result) => request_result,
         RequestWriteResult::UnknownError(error_text) => {

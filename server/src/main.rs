@@ -112,62 +112,90 @@ fn handle_client(
 
     let request_read_result = read_request(&mut stream);
     match request_read_result {
-        RequestReadResult::Ok(request) => match request {
-            common::protocol::Request::Introduce(id, public_key) => {
-                println!("Introduce request from client '{}'", id);
-                let storage = shared_storage.lock();
-                let mut storage = match storage {
-                    Ok(storage) => storage,
-                    Err(e) => {
-                        println!("Failed to lock server storage: {}", e);
-                        return;
+        RequestReadResult::Ok(request) => {
+            let storage = shared_storage.lock();
+            let mut storage = match storage {
+                Ok(storage) => storage,
+                Err(e) => {
+                    println!("Failed to lock server storage: {}", e);
+                    return;
+                }
+            };
+
+            match request {
+                common::protocol::Request::Introduce(id, public_key) => {
+                    println!("Introduce request from client '{}'", id);
+                    storage
+                        .awaiting_approval
+                        .push(ClientInfo { id, public_key });
+                    storage.save();
+                    let result = server_requests::send_request_answer(
+                        &mut stream,
+                        common::protocol::RequestAnswer::Introduced(
+                            storage.server_certificate.public_key.clone(),
+                        ),
+                    );
+                    if let Err(e) = result {
+                        println!("Failed to send answer to client: {}", e);
                     }
-                };
-                storage
-                    .awaiting_approval
-                    .push(ClientInfo { id, public_key });
-                storage.save();
-                let result = server_requests::send_request_answer(
-                    &mut stream,
-                    common::protocol::RequestAnswer::Introduced(
-                        storage.server_certificate.public_key.clone(),
-                    ),
-                );
-                if let Err(e) = result {
-                    println!("Failed to send answer to client: {}", e);
+                }
+                common::protocol::Request::ConfirmConnection(id) => {
+                    println!("Confirm connection request from client");
+
+                    // we don't really need to care about public key here, since this request doesn't mutate the storage
+                    let answer = if storage
+                        .approved_clients
+                        .iter()
+                        .any(|client| client.id == id)
+                    {
+                        common::protocol::RequestAnswer::ConnectionConfirmed
+                    } else if storage
+                        .awaiting_approval
+                        .iter()
+                        .any(|client| client.id == id)
+                    {
+                        common::protocol::RequestAnswer::ConnectionAwaitingApproval
+                    } else {
+                        common::protocol::RequestAnswer::UnknownClient
+                    };
+                    drop(storage);
+
+                    let result = server_requests::send_request_answer(&mut stream, answer);
+                    if let Err(e) = result {
+                        println!("Failed to send answer to client: {}", e);
+                    }
+                }
+                common::protocol::Request::SendFiles(id) => {
+                    println!("Send files request from client");
+
+                    let is_approved = storage
+                        .approved_clients
+                        .iter()
+                        .any(|client| client.id == id);
+
+                    let result = server_requests::send_request_answer(
+                        &mut stream,
+                        if is_approved {
+                            common::protocol::RequestAnswer::ReadyToReceiveFiles
+                        } else {
+                            common::protocol::RequestAnswer::UnknownClient
+                        },
+                    );
+                    if let Err(e) = result {
+                        println!("Failed to send answer to client: {}", e);
+                    }
+                    drop(storage);
+
+                    file_receiver::receive_directory(
+                        &server_config.destination_folder,
+                        &mut stream,
+                        &ReceiveStrategies {
+                            name_collision_strategy: file_receiver::NameCollisionStrategy::Rename,
+                        },
+                    );
                 }
             }
-            common::protocol::Request::ConfirmConnection => {
-                println!("Confirm connection request from client");
-
-                let result = server_requests::send_request_answer(
-                    &mut stream,
-                    common::protocol::RequestAnswer::ConnectionConfirmed,
-                );
-                if let Err(e) = result {
-                    println!("Failed to send answer to client: {}", e);
-                }
-            }
-            common::protocol::Request::SendFiles => {
-                println!("Send files request from client");
-
-                let result = server_requests::send_request_answer(
-                    &mut stream,
-                    common::protocol::RequestAnswer::ReadyToReceiveFiles,
-                );
-                if let Err(e) = result {
-                    println!("Failed to send answer to client: {}", e);
-                }
-
-                file_receiver::receive_directory(
-                    &server_config.destination_folder,
-                    &mut stream,
-                    &ReceiveStrategies {
-                        name_collision_strategy: file_receiver::NameCollisionStrategy::Rename,
-                    },
-                );
-            }
-        },
+        }
         RequestReadResult::UnknownError(error) => {
             println!("Failed to read request: {}", error);
             return;

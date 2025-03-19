@@ -73,6 +73,7 @@ pub fn start_cli_processor(config: ClientConfig, storage: &mut ClientStorage) {
                 let result = introduce_to_server(
                     &online_servers,
                     storage.client_certificate.public_key.clone(),
+                    storage.device_id.clone(),
                 );
                 let result = match result {
                     Ok(result) => result,
@@ -97,18 +98,34 @@ pub fn start_cli_processor(config: ClientConfig, storage: &mut ClientStorage) {
                     println!("We don't have any servers we are awaiting confirmation from, you may want to run 'introduce' first");
                     continue;
                 }
-                let result = check_server(&online_servers, &storage.introduced_to_servers);
-                let idx = match result {
-                    Ok(idx) => idx,
+                let result = check_server(
+                    &online_servers,
+                    &storage.introduced_to_servers,
+                    storage.device_id.clone(),
+                );
+                let (confirmation_result, idx) = match result {
+                    Ok((result, idx)) => (result, idx),
                     Err(e) => {
                         println!("Failed to check server: {}", e);
                         continue;
                     }
                 };
-                let element = storage.introduced_to_servers.remove(idx);
-                storage.awaiting_approval_servers.push(element);
-
-                storage.save();
+                match confirmation_result {
+                    confirm_connection_request::ConfirmConnectionResult::Approved => {
+                        println!("Server accepted the client");
+                        let element = storage.introduced_to_servers.remove(idx);
+                        storage.awaiting_approval_servers.push(element);
+                        storage.save();
+                    }
+                    confirm_connection_request::ConfirmConnectionResult::AwaitingApproval => {
+                        println!("Server is awaiting approval");
+                    }
+                    confirm_connection_request::ConfirmConnectionResult::Rejected => {
+                        println!("Server rejected the client");
+                        storage.introduced_to_servers.remove(idx);
+                        storage.save();
+                    }
+                }
             }
             "approve" => {
                 if online_servers.len() == 0 {
@@ -142,7 +159,12 @@ pub fn start_cli_processor(config: ClientConfig, storage: &mut ClientStorage) {
                     );
                     continue;
                 }
-                send_files(&config, &online_servers, &storage.approved_servers);
+                send_files(
+                    &config,
+                    &online_servers,
+                    &storage.approved_servers,
+                    storage.device_id.clone(),
+                );
             }
             _ => {
                 println!("Unknown command: {}", command);
@@ -267,6 +289,7 @@ fn discover_servers() -> Vec<DiscoveredServer> {
 fn introduce_to_server(
     online_servers: &Vec<DiscoveredServer>,
     client_public_key: Vec<u8>,
+    current_device_id: String,
 ) -> Result<(DiscoveredServer, Vec<u8>), String> {
     println!("Choose a server to introduce to:");
     let server_info = read_server_info(online_servers);
@@ -284,8 +307,11 @@ fn introduce_to_server(
     );
 
     // synchronous for now
-    let result =
-        introduction_request::introduction_request(server_info.address.clone(), client_public_key);
+    let result = introduction_request::introduction_request(
+        server_info.address.clone(),
+        current_device_id,
+        client_public_key,
+    );
     let result = match result {
         Ok(result) => result,
         Err(e) => {
@@ -300,7 +326,8 @@ fn introduce_to_server(
 fn check_server(
     online_servers: &Vec<DiscoveredServer>,
     introduced_to_servers: &Vec<ServerInfo>,
-) -> Result<usize, String> {
+    current_device_id: String,
+) -> Result<(confirm_connection_request::ConfirmConnectionResult, usize), String> {
     let mut filtered_servers = Vec::new();
     for server in online_servers {
         for introduced_to_server in introduced_to_servers {
@@ -321,21 +348,31 @@ fn check_server(
     };
 
     // synchronous for now
-    let result = confirm_connection_request::confirm_connection_request(server_info.address);
-    if let Err(e) = result {
-        println!("Failed to check if server has accepted this client: {}", e);
-        return Err(format!(
-            "Failed to check if server has accepted this client: {}",
-            e
-        ));
+    let result = confirm_connection_request::confirm_connection_request(
+        server_info.address,
+        current_device_id,
+    );
+    let confirmation_result = match result {
+        Ok(is_approved) => is_approved,
+        Err(e) => {
+            println!("Failed to check if server has accepted this client: {}", e);
+            return Err(format!(
+                "Failed to check if server has accepted this client: {}",
+                e
+            ));
+        }
+    };
+
+    if confirmation_result == confirm_connection_request::ConfirmConnectionResult::Approved {
+        for i in 0..introduced_to_servers.len() {
+            if introduced_to_servers[i].id == server_info.id {
+                return Ok((confirmation_result, i));
+            }
+        }
+        return Err("Failed to find server in the list of introduced servers".to_string());
     }
 
-    for i in 0..introduced_to_servers.len() {
-        if introduced_to_servers[i].id == server_info.id {
-            return Ok(i);
-        }
-    }
-    Err("Failed to find server in the list of introduced servers".to_string())
+    Ok((confirmation_result, 0))
 }
 
 fn approve_server(
@@ -361,16 +398,6 @@ fn approve_server(
         }
     };
 
-    // synchronous for now
-    let result = confirm_connection_request::confirm_connection_request(server_info.address);
-    if let Err(e) = result {
-        println!("Failed to check if server has accepted this client: {}", e);
-        return Err(format!(
-            "Failed to check if server has accepted this client: {}",
-            e
-        ));
-    }
-
     for i in 0..awaiting_approval_servers.len() {
         if awaiting_approval_servers[i].id == server_info.id {
             return Ok(i);
@@ -383,6 +410,7 @@ fn send_files(
     client_config: &ClientConfig,
     online_servers: &Vec<DiscoveredServer>,
     approved_servers: &Vec<ServerInfo>,
+    current_device_id: String,
 ) {
     let mut filtered_servers = Vec::new();
     for server in online_servers {
@@ -409,7 +437,7 @@ fn send_files(
     );
 
     // synchronous for now
-    send_files_request(client_config, server_info.address);
+    send_files_request(client_config, server_info.address, current_device_id);
 }
 
 fn read_server_info(online_servers: &Vec<DiscoveredServer>) -> Result<DiscoveredServer, String> {

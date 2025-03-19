@@ -27,6 +27,7 @@ fn main() {
             }
         };
         storage.client_certificate = result;
+        storage.device_id = common::generate_device_id();
         storage.save();
     }
     cli_processor::start_cli_processor(config, &mut storage);

@@ -17,7 +17,7 @@ pub const LAST_CLIENT_SUPPORTED_PROTOCOL_VERSION: u32 =
 pub const NSD_PORT: u16 = 5354;
 pub const SERVICE_IDENTIFIER: &str = "_easy-photo-backup._tcp";
 
-// Don't change or reuse indexes
+// Changing existing indexes will break compatibility
 #[repr(u32)]
 pub enum Request {
     // The client sees the server for the first time
@@ -26,10 +26,10 @@ pub enum Request {
     Introduce(String, Vec<u8>) = 0,
     // The client already sent the public key and got server's public key
     // the client wants to check that the server agrees to establish a connection
-    ConfirmConnection = 1,
+    ConfirmConnection(String) = 1,
     // The client and server established a connection before
     // The client is ready to send files
-    SendFiles = 2,
+    SendFiles(String) = 2,
 }
 
 impl Request {
@@ -38,7 +38,7 @@ impl Request {
     }
 }
 
-// Don't change or reuse indexes
+// Changing existing indexes will break compatibility
 #[repr(u32)]
 pub enum RequestAnswer {
     // Server doesn't know the client, rejects the connection
@@ -47,11 +47,13 @@ pub enum RequestAnswer {
     // The server received the client's name and public key
     // The server sends its public key to the client
     Introduced(Vec<u8>) = 1,
+    // The connection is awaiting approval
+    ConnectionAwaitingApproval = 2,
     // The user confirmed the server identity
     // The server will accept receiving files
-    ConnectionConfirmed = 2,
+    ConnectionConfirmed = 3,
     // The server is ready to receive files
-    ReadyToReceiveFiles = 3,
+    ReadyToReceiveFiles = 4,
 }
 
 impl RequestAnswer {

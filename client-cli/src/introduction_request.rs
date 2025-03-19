@@ -10,6 +10,7 @@ pub(crate) struct ServerIntroductionInfo {
 
 pub(crate) fn introduction_request(
     destination: ServiceAddress,
+    current_device_id: String,
     client_public_key: Vec<u8>,
 ) -> Result<ServerIntroductionInfo, String> {
     let mut stream = match TcpStream::connect(format!("{}:{}", destination.ip, destination.port)) {
@@ -36,7 +37,7 @@ pub(crate) fn introduction_request(
 
     let request_result = client_requests::make_request(
         &mut stream,
-        common::protocol::Request::Introduce("my device name".to_string(), client_public_key),
+        common::protocol::Request::Introduce(current_device_id, client_public_key),
     );
     let request_result = match request_result {
         RequestWriteResult::Ok(request_result) => request_result,

@@ -138,6 +138,10 @@ fn read_number_as_slice<N, const S: usize, T: std::io::Read>(
 }
 
 pub fn read_string_raw<T: std::io::Read>(stream: &mut T, size: usize) -> TypeReadResult<String> {
+    if size == 0 {
+        return TypeReadResult::Ok("".to_string());
+    }
+
     let string = match read_bytes_generic(Vec::new(), stream, size as usize) {
         SocketReadResult::Ok(buffer) => buffer,
         SocketReadResult::UnknownError(reason) => {
@@ -224,6 +228,10 @@ pub fn read_variable_size_bytes<T: std::io::Read>(stream: &mut T) -> Result<Vec<
         }
     };
 
+    if len == 0 {
+        return Ok(Vec::new());
+    }
+
     let result = read_bytes_generic(Vec::new(), stream, len as usize);
     let result = match result {
         SocketReadResult::Ok(result) => result,
@@ -234,6 +242,10 @@ pub fn read_variable_size_bytes<T: std::io::Read>(stream: &mut T) -> Result<Vec<
     };
 
     Ok(result)
+}
+
+pub fn generate_device_id() -> String {
+    "test device id".to_string()
 }
 
 #[cfg(test)]

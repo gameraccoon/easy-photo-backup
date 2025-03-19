@@ -10,7 +10,7 @@ pub(crate) struct ServerInfo {
 }
 
 pub(crate) struct ClientStorage {
-    pub client_id: String,
+    pub device_id: String,
     pub introduced_to_servers: Vec<ServerInfo>,
     pub awaiting_approval_servers: Vec<ServerInfo>,
     pub approved_servers: Vec<ServerInfo>,
@@ -25,7 +25,7 @@ impl ClientStorage {
         }
 
         ClientStorage {
-            client_id: "".to_string(),
+            device_id: "".to_string(),
             introduced_to_servers: vec![],
             awaiting_approval_servers: vec![],
             approved_servers: vec![],
@@ -75,7 +75,7 @@ impl ClientStorage {
         };
 
         Some(ClientStorage {
-            client_id: id,
+            device_id: id,
             introduced_to_servers: vec![],
             awaiting_approval_servers: vec![],
             approved_servers: vec![],
@@ -105,7 +105,7 @@ impl ClientStorage {
             return;
         }
 
-        let result = common::write_string(&mut file, &self.client_id);
+        let result = common::write_string(&mut file, &self.device_id);
         if let Err(e) = result {
             println!("Failed to write client storage id: {}", e);
             return;

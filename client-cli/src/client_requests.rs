@@ -41,8 +41,26 @@ pub(crate) fn make_request(
                 ));
             }
         }
-        common::protocol::Request::ConfirmConnection => {}
-        common::protocol::Request::SendFiles => {}
+        common::protocol::Request::ConfirmConnection(id) => {
+            let result = common::write_string(stream, &id);
+            if let Err(e) = result {
+                println!("Failed to write id to socket: {}", e);
+                return RequestWriteResult::UnknownError(format!(
+                    "Failed to write id to socket: {}",
+                    e
+                ));
+            }
+        }
+        common::protocol::Request::SendFiles(id) => {
+            let result = common::write_string(stream, &id);
+            if let Err(e) = result {
+                println!("Failed to write id to socket: {}", e);
+                return RequestWriteResult::UnknownError(format!(
+                    "Failed to write id to socket: {}",
+                    e
+                ));
+            }
+        }
     }
 
     // read the answer
@@ -74,8 +92,9 @@ pub(crate) fn make_request(
             };
             common::protocol::RequestAnswer::Introduced(public_key)
         }
-        2 => common::protocol::RequestAnswer::ConnectionConfirmed,
-        3 => common::protocol::RequestAnswer::ReadyToReceiveFiles,
+        2 => common::protocol::RequestAnswer::ConnectionAwaitingApproval,
+        3 => common::protocol::RequestAnswer::ConnectionConfirmed,
+        4 => common::protocol::RequestAnswer::ReadyToReceiveFiles,
         _ => {
             println!("Unknown answer: {}", answer);
             return RequestWriteResult::UnknownError(format!("Unknown answer: {}", answer));
