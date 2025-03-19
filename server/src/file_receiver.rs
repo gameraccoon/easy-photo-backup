@@ -101,7 +101,7 @@ pub(crate) fn receive_file(
                 break;
             }
         };
-        let write_result = file.write(&buffer[..read_size]);
+        let write_result = file.write_all(&buffer[..read_size]);
         if let Err(e) = write_result {
             println!("Failed to write to file: {}", e);
             return ReceiveFileResult::UnknownNetworkError(format!(
@@ -184,7 +184,7 @@ fn send_file_confirmation(index: u32, has_received: bool, stream: &mut TcpStream
         index_bytes[4] = 0;
     }
 
-    let write_result = stream.write(&index_bytes);
+    let write_result = stream.write_all(&index_bytes);
     if let Err(e) = write_result {
         println!("Failed to write index to socket: {}", e);
     }

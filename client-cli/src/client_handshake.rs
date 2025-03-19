@@ -37,7 +37,7 @@ pub fn process_handshake(stream: &mut TcpStream) -> HandshakeResult {
         return HandshakeResult::ObsoleteProtocolVersion(server_version);
     }
 
-    let write_result = stream.write(&[common::protocol::ACK_BYTE]);
+    let write_result = stream.write_all(&[common::protocol::ACK_BYTE]);
     if let Err(e) = write_result {
         println!("Failed to write to socket: {}", e);
         return HandshakeResult::UnknownConnectionError(format!(

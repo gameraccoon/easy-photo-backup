@@ -1,3 +1,4 @@
+pub mod certificate;
 pub mod protocol;
 pub mod text_config;
 
@@ -178,19 +179,61 @@ pub fn read_string<T: std::io::Read>(stream: &mut T) -> TypeReadResult<String> {
 
 pub fn write_string<T: std::io::Write>(stream: &mut T, string: &str) -> Result<(), String> {
     let len_bytes: [u8; 4] = (string.len() as u32).to_be_bytes();
-    let result = stream.write(&len_bytes);
+    let result = stream.write_all(&len_bytes);
     if let Err(e) = result {
         println!("Failed to write string length: {}", e);
         return Err(format!("Failed to write string length: {}", e));
     }
 
-    let result = stream.write(string.as_bytes());
+    let result = stream.write_all(string.as_bytes());
     if let Err(e) = result {
         println!("Failed to write string: {}", e);
         return Err(format!("Failed to write string: {}", e));
     }
 
     Ok(())
+}
+
+pub fn write_variable_size_bytes<T: std::io::Write>(
+    stream: &mut T,
+    bytes: &[u8],
+) -> Result<(), String> {
+    let len_bytes: [u8; 4] = (bytes.len() as u32).to_be_bytes();
+    let result = stream.write_all(&len_bytes);
+    if let Err(e) = result {
+        println!("Failed to write data length: {}", e);
+        return Err(format!("Failed to write data length: {}", e));
+    }
+
+    let result = stream.write_all(bytes);
+    if let Err(e) = result {
+        println!("Failed to write data: {}", e);
+        return Err(format!("Failed to write data: {}", e));
+    }
+
+    Ok(())
+}
+
+pub fn read_variable_size_bytes<T: std::io::Read>(stream: &mut T) -> Result<Vec<u8>, String> {
+    let len = read_u32(stream);
+    let len = match len {
+        TypeReadResult::Ok(len) => len,
+        TypeReadResult::UnknownError(reason) => {
+            println!("Unknown error when receiving data length: '{}'", reason);
+            return Err(reason);
+        }
+    };
+
+    let result = read_bytes_generic(Vec::new(), stream, len as usize);
+    let result = match result {
+        SocketReadResult::Ok(result) => result,
+        SocketReadResult::UnknownError(reason) => {
+            println!("Unknown error when receiving data: '{}'", reason);
+            return Err(reason);
+        }
+    };
+
+    Ok(result)
 }
 
 #[cfg(test)]

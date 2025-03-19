@@ -12,7 +12,7 @@ pub(crate) fn make_request(
 ) -> RequestWriteResult {
     // based on the header, the server will know how to interpret the rest of the message
     let header_bytes: [u8; 4] = request.discriminant().to_be_bytes();
-    let result = stream.write(&header_bytes);
+    let result = stream.write_all(&header_bytes);
     if let Err(e) = result {
         println!("Failed to write request header to socket: {}", e);
         return RequestWriteResult::UnknownError(format!(
@@ -28,6 +28,15 @@ pub(crate) fn make_request(
                 println!("Failed to write name to socket: {}", e);
                 return RequestWriteResult::UnknownError(format!(
                     "Failed to write name to socket: {}",
+                    e
+                ));
+            }
+
+            let result = common::write_variable_size_bytes(stream, &public_key);
+            if let Err(e) = result {
+                println!("Failed to write public key to socket: {}", e);
+                return RequestWriteResult::UnknownError(format!(
+                    "Failed to write public key to socket: {}",
                     e
                 ));
             }
@@ -49,14 +58,27 @@ pub(crate) fn make_request(
         }
     };
 
-    match answer {
-        0 => RequestWriteResult::Ok(common::protocol::RequestAnswer::UnknownClient),
-        1 => RequestWriteResult::Ok(common::protocol::RequestAnswer::Introduced(Vec::new())),
-        2 => RequestWriteResult::Ok(common::protocol::RequestAnswer::ConnectionConfirmed),
-        3 => RequestWriteResult::Ok(common::protocol::RequestAnswer::ReadyToReceiveFiles),
+    RequestWriteResult::Ok(match answer {
+        0 => common::protocol::RequestAnswer::UnknownClient,
+        1 => {
+            let public_key = common::read_variable_size_bytes(stream);
+            let public_key = match public_key {
+                Ok(public_key) => public_key,
+                Err(e) => {
+                    println!("Failed to read public key from socket: {}", e);
+                    return RequestWriteResult::UnknownError(format!(
+                        "Failed to read public key from socket: {}",
+                        e
+                    ));
+                }
+            };
+            common::protocol::RequestAnswer::Introduced(public_key)
+        }
+        2 => common::protocol::RequestAnswer::ConnectionConfirmed,
+        3 => common::protocol::RequestAnswer::ReadyToReceiveFiles,
         _ => {
             println!("Unknown answer: {}", answer);
-            RequestWriteResult::UnknownError(format!("Unknown answer: {}", answer))
+            return RequestWriteResult::UnknownError(format!("Unknown answer: {}", answer));
         }
-    }
+    })
 }

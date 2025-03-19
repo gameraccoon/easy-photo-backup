@@ -45,7 +45,15 @@ pub(crate) fn read_request(stream: &mut std::net::TcpStream) -> RequestReadResul
                     return RequestReadResult::UnknownError(err);
                 }
             };
-            common::protocol::Request::Introduce(name, Vec::new())
+            let public_key = common::read_variable_size_bytes(stream);
+            let public_key = match public_key {
+                Ok(bytes) => bytes,
+                Err(err) => {
+                    println!("Failed to read public key from socket: {}", err);
+                    return RequestReadResult::UnknownError(err);
+                }
+            };
+            common::protocol::Request::Introduce(name, public_key)
         }
         1 => common::protocol::Request::ConfirmConnection,
         2 => common::protocol::Request::SendFiles,
@@ -66,14 +74,20 @@ pub(crate) fn send_request_answer(
     answer: common::protocol::RequestAnswer,
 ) -> Result<(), String> {
     let header_bytes: [u8; 4] = answer.discriminant().to_be_bytes();
-    let result = stream.write(&header_bytes);
+    let result = stream.write_all(&header_bytes);
     if let Err(e) = result {
         println!("Failed to write request header to socket: {}", e);
         return Err(format!("Failed to write request header to socket: {}", e));
     }
 
     match answer {
-        common::protocol::RequestAnswer::Introduced(_public_key) => {}
+        common::protocol::RequestAnswer::Introduced(public_key) => {
+            let result = common::write_variable_size_bytes(stream, &public_key);
+            if let Err(e) = result {
+                println!("Failed to write public key to socket: {}", e);
+                return Err(format!("Failed to write public key to socket: {}", e));
+            }
+        }
         common::protocol::RequestAnswer::ReadyToReceiveFiles => {}
         common::protocol::RequestAnswer::ConnectionConfirmed => {}
         common::protocol::RequestAnswer::UnknownClient => {}

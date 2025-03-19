@@ -15,8 +15,7 @@ struct DiscoveredServer {
     address: ServiceAddress,
 }
 
-pub fn start_cli_processor(config: ClientConfig) {
-    let mut storage = ClientStorage::load_or_generate();
+pub fn start_cli_processor(config: ClientConfig, storage: &mut ClientStorage) {
     let mut buffer = String::new();
     let mut online_servers = Vec::new();
     loop {
@@ -71,7 +70,10 @@ pub fn start_cli_processor(config: ClientConfig) {
                 if online_servers.len() == 0 {
                     println!("We haven't discovered any servers yet, you may want to run 'discover' first");
                 }
-                let result = introduce_to_server(&online_servers);
+                let result = introduce_to_server(
+                    &online_servers,
+                    storage.client_certificate.public_key.clone(),
+                );
                 let result = match result {
                     Ok(result) => result,
                     Err(e) => {
@@ -264,6 +266,7 @@ fn discover_servers() -> Vec<DiscoveredServer> {
 
 fn introduce_to_server(
     online_servers: &Vec<DiscoveredServer>,
+    client_public_key: Vec<u8>,
 ) -> Result<(DiscoveredServer, Vec<u8>), String> {
     println!("Choose a server to introduce to:");
     let server_info = read_server_info(online_servers);
@@ -281,7 +284,8 @@ fn introduce_to_server(
     );
 
     // synchronous for now
-    let result = introduction_request::introduction_request(server_info.address.clone());
+    let result =
+        introduction_request::introduction_request(server_info.address.clone(), client_public_key);
     let result = match result {
         Ok(result) => result,
         Err(e) => {

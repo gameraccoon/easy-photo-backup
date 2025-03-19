@@ -9,10 +9,13 @@ use crate::file_receiver::ReceiveStrategies;
 use crate::server_config::ServerConfig;
 use crate::server_handshake::HandshakeResult;
 use crate::server_requests::{read_request, RequestReadResult};
+use crate::server_storage::{ClientInfo, ServerStorage};
+use common::certificate;
 use std::net::{TcpListener, TcpStream};
+use std::sync::{Arc, Mutex};
 use std::thread;
 
-fn run_server(config: ServerConfig) {
+fn run_server(config: ServerConfig, server_storage: ServerStorage) {
     // open on all network interfaces using the system-provided port
     let listener = TcpListener::bind("0.0.0.0:0");
     let listener = match listener {
@@ -47,6 +50,8 @@ fn run_server(config: ServerConfig) {
 
     let mut handles = Vec::new();
 
+    let shared_storage = Arc::new(Mutex::new(server_storage));
+
     for stream in listener.incoming() {
         let stream = match stream {
             Ok(stream) => stream,
@@ -57,8 +62,9 @@ fn run_server(config: ServerConfig) {
         };
 
         let config_clone = config.clone();
+        let shared_storage = shared_storage.clone();
         let thread_handle = thread::spawn(move || {
-            handle_client(stream, &config_clone);
+            handle_client(stream, &config_clone, shared_storage);
         });
         handles.push(thread_handle);
     }
@@ -78,7 +84,11 @@ fn run_server(config: ServerConfig) {
     }
 }
 
-fn handle_client(stream: TcpStream, server_config: &ServerConfig) {
+fn handle_client(
+    stream: TcpStream,
+    server_config: &ServerConfig,
+    shared_storage: Arc<Mutex<ServerStorage>>,
+) {
     let mut stream = stream;
     let handshake_result = server_handshake::process_handshake(&mut stream);
 
@@ -103,11 +113,25 @@ fn handle_client(stream: TcpStream, server_config: &ServerConfig) {
     let request_read_result = read_request(&mut stream);
     match request_read_result {
         RequestReadResult::Ok(request) => match request {
-            common::protocol::Request::Introduce(name, public_key) => {
-                println!("Introduce request from client '{}'", name);
+            common::protocol::Request::Introduce(id, public_key) => {
+                println!("Introduce request from client '{}'", id);
+                let storage = shared_storage.lock();
+                let mut storage = match storage {
+                    Ok(storage) => storage,
+                    Err(e) => {
+                        println!("Failed to lock server storage: {}", e);
+                        return;
+                    }
+                };
+                storage
+                    .awaiting_approval
+                    .push(ClientInfo { id, public_key });
+                storage.save();
                 let result = server_requests::send_request_answer(
                     &mut stream,
-                    common::protocol::RequestAnswer::Introduced(Vec::new()),
+                    common::protocol::RequestAnswer::Introduced(
+                        storage.server_certificate.public_key.clone(),
+                    ),
                 );
                 if let Err(e) = result {
                     println!("Failed to send answer to client: {}", e);
@@ -155,5 +179,18 @@ fn handle_client(stream: TcpStream, server_config: &ServerConfig) {
 
 fn main() {
     let config = ServerConfig::load_or_generate();
-    run_server(config);
+    let mut storage = ServerStorage::load_or_generate();
+    if storage.server_certificate.cert.is_empty() {
+        let result = certificate::generate_certificate();
+        let result = match result {
+            Ok(result) => result,
+            Err(e) => {
+                println!("Failed to generate certificate: {}", e);
+                return;
+            }
+        };
+        storage.server_certificate = result;
+        storage.save();
+    }
+    run_server(config, storage);
 }

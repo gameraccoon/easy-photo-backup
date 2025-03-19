@@ -1,3 +1,4 @@
+use common::certificate;
 use std::io::Write;
 
 const CLIENT_STORAGE_VERSION: u32 = 1;
@@ -13,7 +14,7 @@ pub(crate) struct ClientStorage {
     pub introduced_to_servers: Vec<ServerInfo>,
     pub awaiting_approval_servers: Vec<ServerInfo>,
     pub approved_servers: Vec<ServerInfo>,
-    pub client_certificate: Vec<u8>,
+    pub client_certificate: certificate::Certificate,
 }
 
 impl ClientStorage {
@@ -28,7 +29,7 @@ impl ClientStorage {
             introduced_to_servers: vec![],
             awaiting_approval_servers: vec![],
             approved_servers: vec![],
-            client_certificate: vec![],
+            client_certificate: certificate::Certificate::uninitialized(),
         }
     }
 
@@ -78,7 +79,7 @@ impl ClientStorage {
             introduced_to_servers: vec![],
             awaiting_approval_servers: vec![],
             approved_servers: vec![],
-            client_certificate: vec![],
+            client_certificate: certificate::Certificate::uninitialized(),
         })
     }
 
@@ -98,7 +99,7 @@ impl ClientStorage {
         let mut file = std::io::BufWriter::new(file);
 
         let version_bytes: [u8; 4] = CLIENT_STORAGE_VERSION.to_be_bytes();
-        let result = file.write(&version_bytes);
+        let result = file.write_all(&version_bytes);
         if let Err(e) = result {
             println!("Failed to write client storage version: {}", e);
             return;

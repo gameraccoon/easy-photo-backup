@@ -109,7 +109,7 @@ pub(crate) fn send_file(
         if bytes_read == 0 {
             break;
         }
-        let write_result = stream.write(&buffer[..bytes_read]);
+        let write_result = stream.write_all(&buffer[..bytes_read]);
         if let Err(err) = write_result {
             println!("Failed to write to socket: {}", err);
             return SendFileResult::UnknownConnectionError(format!(
