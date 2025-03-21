@@ -4,6 +4,7 @@ use std::io::Write;
 const SERVER_STORAGE_VERSION: u32 = 1;
 const SERVER_STORAGE_FILE_NAME: &str = "server_storage.bin";
 
+#[derive(Clone)]
 pub(crate) struct ClientInfo {
     pub id: String,
     pub public_key: Vec<u8>,

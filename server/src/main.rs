@@ -1,5 +1,6 @@
 mod file_receiver;
 mod nsd_server;
+mod server_cli_processor;
 mod server_config;
 mod server_handshake;
 mod server_requests;
@@ -15,7 +16,7 @@ use std::net::{TcpListener, TcpStream};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-fn run_server(config: ServerConfig, server_storage: ServerStorage) {
+fn run_server(config: ServerConfig, server_storage: Arc<Mutex<ServerStorage>>) {
     // open on all network interfaces using the system-provided port
     let listener = TcpListener::bind("0.0.0.0:0");
     let listener = match listener {
@@ -50,8 +51,6 @@ fn run_server(config: ServerConfig, server_storage: ServerStorage) {
 
     let mut handles = Vec::new();
 
-    let shared_storage = Arc::new(Mutex::new(server_storage));
-
     for stream in listener.incoming() {
         let stream = match stream {
             Ok(stream) => stream,
@@ -62,9 +61,9 @@ fn run_server(config: ServerConfig, server_storage: ServerStorage) {
         };
 
         let config_clone = config.clone();
-        let shared_storage = shared_storage.clone();
+        let server_storage = server_storage.clone();
         let thread_handle = thread::spawn(move || {
-            handle_client(stream, &config_clone, shared_storage);
+            handle_client(stream, &config_clone, server_storage);
         });
         handles.push(thread_handle);
     }
@@ -87,7 +86,7 @@ fn run_server(config: ServerConfig, server_storage: ServerStorage) {
 fn handle_client(
     stream: TcpStream,
     server_config: &ServerConfig,
-    shared_storage: Arc<Mutex<ServerStorage>>,
+    server_storage: Arc<Mutex<ServerStorage>>,
 ) {
     let mut stream = stream;
     let handshake_result = server_handshake::process_handshake(&mut stream);
@@ -113,7 +112,7 @@ fn handle_client(
     let request_read_result = read_request(&mut stream);
     match request_read_result {
         RequestReadResult::Ok(request) => {
-            let storage = shared_storage.lock();
+            let storage = server_storage.lock();
             let mut storage = match storage {
                 Ok(storage) => storage,
                 Err(e) => {
@@ -129,6 +128,7 @@ fn handle_client(
                         .awaiting_approval
                         .push(ClientInfo { id, public_key });
                     storage.save();
+
                     let result = server_requests::send_request_answer(
                         &mut stream,
                         common::protocol::RequestAnswer::Introduced(
@@ -220,5 +220,16 @@ fn main() {
         storage.server_certificate = result;
         storage.save();
     }
-    run_server(config, storage);
+
+    let storage = Arc::new(Mutex::new(storage));
+    let storage_clone = storage.clone();
+    let thread = std::thread::spawn(move || {
+        run_server(config, storage_clone);
+    });
+    server_cli_processor::start_cli_processor(storage);
+
+    let result = thread.join();
+    if let Err(_) = result {
+        println!("Failed to join the server thread");
+    }
 }
