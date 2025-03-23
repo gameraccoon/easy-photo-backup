@@ -1,11 +1,10 @@
-use std::io::Write;
-
 use crate::client_config::ClientConfig;
 use crate::client_storage::{ClientStorage, ServerInfo};
 use crate::confirm_connection_request;
 use crate::send_files_request::send_files_request;
 use crate::service_address::ServiceAddress;
 use crate::{introduction_request, nsd_client};
+use std::io::Write;
 
 const NSD_BROADCAST_PERIOD: std::time::Duration = std::time::Duration::from_secs(3);
 
@@ -18,6 +17,24 @@ struct DiscoveredServer {
 pub fn start_cli_processor(config: ClientConfig, storage: &mut ClientStorage) {
     let mut buffer = String::new();
     let mut online_servers = Vec::new();
+
+    let (client_tls_config, approved_raw_keys) = match common::tls::client_config::make_config(
+        storage.tls_data.get_private_key().to_vec(),
+        storage.tls_data.public_key.clone(),
+    ) {
+        Ok(client_tls_config) => client_tls_config,
+        Err(e) => {
+            println!("Failed to initialize TLS config: {}", e);
+            return;
+        }
+    };
+    for server in &storage.approved_servers {
+        common::tls::approved_raw_keys::add_approved_raw_key(
+            server.public_key.clone(),
+            approved_raw_keys.clone(),
+        );
+    }
+
     loop {
         print!("> ");
         let result = std::io::stdout().flush();
@@ -72,7 +89,7 @@ pub fn start_cli_processor(config: ClientConfig, storage: &mut ClientStorage) {
                 }
                 let result = introduce_to_server(
                     &online_servers,
-                    storage.client_certificate.public_key.clone(),
+                    storage.tls_data.public_key.clone(),
                     storage.device_id.clone(),
                 );
                 let result = match result {
@@ -145,8 +162,11 @@ pub fn start_cli_processor(config: ClientConfig, storage: &mut ClientStorage) {
                     }
                 };
                 let element = storage.awaiting_approval_servers.remove(idx);
+                common::tls::approved_raw_keys::add_approved_raw_key(
+                    element.public_key.clone(),
+                    approved_raw_keys.clone(),
+                );
                 storage.approved_servers.push(element);
-
                 storage.save();
             }
             "send" => {
@@ -160,9 +180,10 @@ pub fn start_cli_processor(config: ClientConfig, storage: &mut ClientStorage) {
                     continue;
                 }
                 send_files(
+                    &client_tls_config,
                     &config,
                     &online_servers,
-                    &storage.approved_servers,
+                    &storage,
                     storage.device_id.clone(),
                 );
             }
@@ -407,14 +428,15 @@ fn approve_server(
 }
 
 fn send_files(
+    client_tls_config: &rustls::client::ClientConfig,
     client_config: &ClientConfig,
     online_servers: &Vec<DiscoveredServer>,
-    approved_servers: &Vec<ServerInfo>,
+    storage: &ClientStorage,
     current_device_id: String,
 ) {
     let mut filtered_servers = Vec::new();
     for server in online_servers {
-        for introduced_to_server in approved_servers {
+        for introduced_to_server in &storage.approved_servers {
             if introduced_to_server.id == server.id {
                 filtered_servers.push(server.clone());
             }
@@ -437,7 +459,12 @@ fn send_files(
     );
 
     // synchronous for now
-    send_files_request(client_config, server_info.address, current_device_id);
+    send_files_request(
+        &client_tls_config,
+        client_config,
+        server_info.address,
+        current_device_id,
+    );
 }
 
 fn read_server_info(online_servers: &Vec<DiscoveredServer>) -> Result<DiscoveredServer, String> {

@@ -1,8 +1,12 @@
 use crate::server_storage::{ClientInfo, ServerStorage};
+use rustls::pki_types::SubjectPublicKeyInfoDer;
 use std::io::Write;
 use std::sync::{Arc, Mutex};
 
-pub fn start_cli_processor(storage: Arc<Mutex<ServerStorage>>) {
+pub fn start_cli_processor(
+    storage: Arc<Mutex<ServerStorage>>,
+    approved_raw_keys: Arc<Mutex<Vec<SubjectPublicKeyInfoDer<'static>>>>,
+) {
     let mut buffer = String::new();
     loop {
         print!("> ");
@@ -75,6 +79,10 @@ pub fn start_cli_processor(storage: Arc<Mutex<ServerStorage>>) {
                 };
                 // this code is the only place where we remove elements, so we know the index didn't change
                 let element = storage_lock.awaiting_approval.remove(idx);
+                common::tls::approved_raw_keys::add_approved_raw_key(
+                    element.public_key.clone(),
+                    approved_raw_keys.clone(),
+                );
                 storage_lock.approved_clients.push(element);
 
                 storage_lock.save();

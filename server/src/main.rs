@@ -11,12 +11,16 @@ use crate::server_config::ServerConfig;
 use crate::server_handshake::HandshakeResult;
 use crate::server_requests::{read_request, RequestReadResult};
 use crate::server_storage::{ClientInfo, ServerStorage};
-use common::certificate;
+use rustls::pki_types::SubjectPublicKeyInfoDer;
 use std::net::{TcpListener, TcpStream};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-fn run_server(config: ServerConfig, server_storage: Arc<Mutex<ServerStorage>>) {
+fn run_server(
+    server_config: ServerConfig,
+    server_tls_config: rustls::server::ServerConfig,
+    server_storage: Arc<Mutex<ServerStorage>>,
+) {
     // open on all network interfaces using the system-provided port
     let listener = TcpListener::bind("0.0.0.0:0");
     let listener = match listener {
@@ -39,7 +43,7 @@ fn run_server(config: ServerConfig, server_storage: Arc<Mutex<ServerStorage>>) {
     println!("Server listening on port {}", server_addr.port());
 
     // we don't have a way to stop the NSD thread for now, but it is something we should do in the future
-    let machine_id = config.machine_id.clone();
+    let machine_id = server_config.machine_id.clone();
     let _nsd_thread_handle = thread::spawn(move || {
         nsd_server::run_nsd_server(
             common::protocol::SERVICE_IDENTIFIER,
@@ -60,10 +64,11 @@ fn run_server(config: ServerConfig, server_storage: Arc<Mutex<ServerStorage>>) {
             }
         };
 
-        let config_clone = config.clone();
+        let config_clone = server_config.clone();
         let server_storage = server_storage.clone();
+        let server_tls_config = server_tls_config.clone();
         let thread_handle = thread::spawn(move || {
-            handle_client(stream, &config_clone, server_storage);
+            handle_client(stream, &config_clone, server_storage, server_tls_config);
         });
         handles.push(thread_handle);
     }
@@ -87,6 +92,7 @@ fn handle_client(
     stream: TcpStream,
     server_config: &ServerConfig,
     server_storage: Arc<Mutex<ServerStorage>>,
+    server_tls_config: rustls::server::ServerConfig,
 ) {
     let mut stream = stream;
     let handshake_result = server_handshake::process_handshake(&mut stream);
@@ -132,7 +138,7 @@ fn handle_client(
                     let result = server_requests::send_request_answer(
                         &mut stream,
                         common::protocol::RequestAnswer::Introduced(
-                            storage.server_certificate.public_key.clone(),
+                            storage.tls_data.public_key.clone(),
                         ),
                     );
                     if let Err(e) = result {
@@ -207,26 +213,33 @@ fn handle_client(
 
 fn main() {
     let config = ServerConfig::load_or_generate();
-    let mut storage = ServerStorage::load_or_generate();
-    if storage.server_certificate.cert.is_empty() {
-        let result = certificate::generate_certificate();
-        let result = match result {
-            Ok(result) => result,
-            Err(e) => {
-                println!("Failed to generate certificate: {}", e);
-                return;
-            }
-        };
-        storage.server_certificate = result;
-        storage.save();
+    let storage = ServerStorage::load_or_generate();
+
+    let (server_tls_config, approved_raw_keys) = match common::tls::server_config::make_config(
+        storage.tls_data.get_private_key().to_vec(),
+        storage.tls_data.public_key.clone(),
+    ) {
+        Ok(server_tls_config) => server_tls_config,
+        Err(e) => {
+            println!("Failed to initialize TLS config: {}", e);
+            return;
+        }
+    };
+    for client in &storage.approved_clients {
+        common::tls::approved_raw_keys::add_approved_raw_key(
+            client.public_key.clone(),
+            approved_raw_keys.clone(),
+        );
     }
 
     let storage = Arc::new(Mutex::new(storage));
+
     let storage_clone = storage.clone();
     let thread = std::thread::spawn(move || {
-        run_server(config, storage_clone);
+        run_server(config, server_tls_config, storage_clone);
     });
-    server_cli_processor::start_cli_processor(storage);
+
+    server_cli_processor::start_cli_processor(storage, approved_raw_keys);
 
     let result = thread.join();
     if let Err(_) = result {

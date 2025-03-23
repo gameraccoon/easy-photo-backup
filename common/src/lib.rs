@@ -1,6 +1,6 @@
-pub mod certificate;
 pub mod protocol;
 pub mod text_config;
+pub mod tls;
 
 use std::io::BufReader;
 use std::net::TcpStream;

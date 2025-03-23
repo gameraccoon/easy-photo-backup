@@ -5,3 +5,4 @@ edition = "2021"
 
 [dependencies]
 common = { path = "../common" , version = "0.2" }
+rustls = { version = "0.23.23", default-features = true, features = [] }

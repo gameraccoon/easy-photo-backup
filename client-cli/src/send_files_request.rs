@@ -6,6 +6,7 @@ use crate::{client_handshake, client_requests, file_sender};
 use std::net::TcpStream;
 
 pub(crate) fn send_files_request(
+    client_tls_config: &rustls::client::ClientConfig,
     client_config: &ClientConfig,
     destination: ServiceAddress,
     current_device_id: String,

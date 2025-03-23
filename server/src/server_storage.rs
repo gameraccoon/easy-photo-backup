@@ -1,4 +1,3 @@
-use common::certificate;
 use std::io::Write;
 
 const SERVER_STORAGE_VERSION: u32 = 1;
@@ -13,7 +12,7 @@ pub(crate) struct ClientInfo {
 pub(crate) struct ServerStorage {
     pub approved_clients: Vec<ClientInfo>,
     pub awaiting_approval: Vec<ClientInfo>,
-    pub server_certificate: certificate::Certificate,
+    pub tls_data: common::tls::tls_data::TlsData,
 }
 
 impl ServerStorage {
@@ -23,10 +22,16 @@ impl ServerStorage {
             return storage;
         }
 
+        let tls_data = common::tls::tls_data::TlsData::generate();
+        let tls_data = tls_data.unwrap_or_else(|e| {
+            println!("Failed to generate TLS data: {}", e);
+            common::tls::tls_data::TlsData::uninitialized()
+        });
+
         ServerStorage {
             approved_clients: vec![],
             awaiting_approval: vec![],
-            server_certificate: certificate::Certificate::uninitialized(),
+            tls_data,
         }
     }
 
@@ -62,10 +67,16 @@ impl ServerStorage {
             return None;
         }
 
+        let tls_data = common::tls::tls_data::TlsData::generate();
+        let tls_data = tls_data.unwrap_or_else(|e| {
+            println!("Failed to generate TLS data: {}", e);
+            common::tls::tls_data::TlsData::uninitialized()
+        });
+
         Some(ServerStorage {
             approved_clients: vec![],
             awaiting_approval: vec![],
-            server_certificate: certificate::Certificate::uninitialized(),
+            tls_data,
         })
     }
 
