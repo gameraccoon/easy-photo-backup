@@ -85,7 +85,10 @@ pub fn start_cli_processor(
                 );
                 storage_lock.approved_clients.push(element);
 
-                storage_lock.save();
+                let result = storage_lock.save();
+                if let Err(e) = result {
+                    println!("Failed to save server storage: {}", e);
+                }
             }
             _ => {
                 println!("Unknown command: {}", command);

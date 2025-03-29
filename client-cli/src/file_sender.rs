@@ -1,7 +1,7 @@
+use rustls::{ClientConnection, Stream};
 use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::path::PathBuf;
-use std::thread;
 
 pub(crate) enum SendFileResult {
     Ok,
@@ -20,7 +20,7 @@ pub(crate) enum SendDirectoryResult {
 pub(crate) fn send_file(
     file_path: &PathBuf,
     root_path: &PathBuf,
-    stream: &mut TcpStream,
+    stream: &mut Stream<ClientConnection, TcpStream>,
 ) -> SendFileResult {
     let file = std::fs::File::open(file_path);
     let file = match file {
@@ -133,7 +133,10 @@ pub(crate) fn send_file(
     SendFileResult::Ok
 }
 
-fn send_continuation_marker(should_continue: bool, stream: &mut TcpStream) {
+fn send_continuation_marker(
+    should_continue: bool,
+    stream: &mut Stream<ClientConnection, TcpStream>,
+) {
     let write_result = stream.write_all(if should_continue { &[1u8] } else { &[0u8] });
     if let Err(e) = write_result {
         println!("Failed to send continuation marker: {}", e);
@@ -144,7 +147,7 @@ fn send_files(
     files: Vec<PathBuf>,
     skipped: Vec<PathBuf>,
     source_directory_path: PathBuf,
-    stream: TcpStream,
+    stream: &mut Stream<ClientConnection, TcpStream>,
 ) -> (Vec<(PathBuf, SendFileResult)>, Vec<PathBuf>) {
     let mut stream = stream;
     let mut files = files;
@@ -152,11 +155,56 @@ fn send_files(
     let mut send_result = Vec::new();
     let mut first_skipped_index = files.len();
     for i in 0..files.len() {
-        send_continuation_marker(true, &mut stream);
+        println!("Sending file {}", i);
+        send_continuation_marker(true, stream);
 
         let mut file_path = PathBuf::new();
         std::mem::swap(&mut file_path, &mut files[i]);
         let result = send_file(&file_path, &source_directory_path, &mut stream);
+
+        {
+            // receive confirmation
+            // there are a few issues with synchronously waiting for confirmation like this:
+            // - we have a delay because of the wait for confirmation before sending the next file
+            // - the attacker will know how many files we are sending and their size
+            // for now, however, we keep this to simplify working with TLS connections
+            let mut read_buffer = [0u8; 5];
+            let read_result = stream.read(&mut read_buffer);
+            let read_result = match read_result {
+                Ok(read_result) => read_result,
+                Err(e) => {
+                    println!("Failed to read confirmation: {}", e);
+                    first_skipped_index = i;
+                    break;
+                }
+            };
+            if read_result != 5 {
+                println!("Confirmation was not 5 bytes long");
+                first_skipped_index = i;
+                break;
+            }
+            let index_bytes = read_buffer[0..4].try_into();
+            let index_bytes = match index_bytes {
+                Ok(index_bytes) => index_bytes,
+                Err(e) => {
+                    println!("Failed to convert confirmation index bytes to slice: {}", e);
+                    first_skipped_index = i;
+                    break;
+                }
+            };
+            let index = u32::from_be_bytes(index_bytes);
+            if index != i as u32 {
+                println!("Received confirmation for wrong file");
+                first_skipped_index = i;
+                break;
+            }
+            if read_buffer[4] != 1 {
+                println!("The file was reported as not received");
+                first_skipped_index = i;
+                break;
+            }
+        }
+
         match &result {
             SendFileResult::Skipped => {
                 skipped.push(file_path);
@@ -172,6 +220,7 @@ fn send_files(
         }
     }
 
+    println!("Sending stop marker");
     send_continuation_marker(false, &mut stream);
 
     skipped.extend(files.drain(first_skipped_index..));
@@ -181,7 +230,7 @@ fn send_files(
 
 pub(crate) fn send_directory(
     source_directory_path: &PathBuf,
-    stream: &mut TcpStream,
+    stream: &mut Stream<ClientConnection, TcpStream>,
 ) -> SendDirectoryResult {
     let mut files = Vec::new();
     let mut skipped = Vec::new();
@@ -191,45 +240,9 @@ pub(crate) fn send_directory(
         return SendDirectoryResult::AllSent(Vec::new());
     }
 
-    let stream_clone = stream.try_clone();
-    let stream_clone = match stream_clone {
-        Ok(stream_clone) => stream_clone,
-        Err(e) => {
-            println!("Failed to clone stream: {}", e);
-            return SendDirectoryResult::Aborted(format!("Failed to clone stream: {}", e));
-        }
-    };
-
     let source_directory_path_copy = source_directory_path.clone();
-    let files_count = files.len();
 
-    let thread_handle = thread::spawn(move || {
-        return send_files(files, skipped, source_directory_path_copy, stream_clone);
-    });
-
-    let confirmed_deliveries = read_file_confirmations(stream, files_count);
-    if confirmed_deliveries.len() == 0 {
-        return SendDirectoryResult::Aborted(
-            "Failed to read any file confirmations from socket".to_string(),
-        );
-    }
-    if confirmed_deliveries.len() > files_count {
-        println!("More confirmations than files to send");
-    }
-
-    let join_result = thread_handle.join();
-    let (send_result, skipped) = match join_result {
-        Ok(send_result) => send_result,
-        Err(e) => {
-            return if let Some(e) = e.downcast_ref::<String>() {
-                println!("Failed to join the send thread: {}", e);
-                SendDirectoryResult::Aborted(format!("Failed to join the send thread: {}", e))
-            } else {
-                println!("Failed to join the send thread");
-                SendDirectoryResult::Aborted("Failed to join the send thread".to_string())
-            }
-        }
-    };
+    let (send_result, skipped) = send_files(files, skipped, source_directory_path_copy, stream);
 
     if skipped.len() > 0 {
         return SendDirectoryResult::PartiallySent(send_result, skipped);
@@ -259,45 +272,6 @@ fn collect_files(
             } else {
                 in_out_files.push(path);
             }
-        }
-    }
-}
-
-fn read_file_confirmations(stream: &mut TcpStream, files_count: usize) -> Vec<i32> {
-    let mut confirmed_indexes = Vec::with_capacity(files_count);
-    let mut accepted_files_count = 0;
-    loop {
-        let mut read_buffer = [0u8; 5];
-        let read_result = stream.read(&mut read_buffer);
-        if let Err(e) = read_result {
-            println!("Failed to read confirmation index bytes from socket: {}", e);
-            return confirmed_indexes;
-        }
-
-        let index_slice = read_buffer[0..4].try_into();
-        let index_slice = match index_slice {
-            Ok(slice) => slice,
-            Err(_) => {
-                println!("Failed to convert confirmation index bytes to slice");
-                return confirmed_indexes;
-            }
-        };
-        let index = i32::from_be_bytes(index_slice);
-
-        if read_buffer[4] != 0 && read_buffer[4] != 1 {
-            println!("Unexpected confirmation byte: '{}'", read_buffer[4]);
-            return confirmed_indexes;
-        }
-
-        accepted_files_count += 1;
-
-        if read_buffer[4] == 1 {
-            confirmed_indexes.push(index);
-        }
-
-        // done when we have read all confirmations
-        if accepted_files_count >= files_count {
-            return confirmed_indexes;
         }
     }
 }

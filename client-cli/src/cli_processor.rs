@@ -5,6 +5,7 @@ use crate::send_files_request::send_files_request;
 use crate::service_address::ServiceAddress;
 use crate::{introduction_request, nsd_client};
 use std::io::Write;
+use std::sync::Arc;
 
 const NSD_BROADCAST_PERIOD: std::time::Duration = std::time::Duration::from_secs(3);
 
@@ -34,6 +35,7 @@ pub fn start_cli_processor(config: ClientConfig, storage: &mut ClientStorage) {
             approved_raw_keys.clone(),
         );
     }
+    let client_tls_config = Arc::new(client_tls_config);
 
     loop {
         print!("> ");
@@ -105,7 +107,10 @@ pub fn start_cli_processor(config: ClientConfig, storage: &mut ClientStorage) {
                     public_key: result.1,
                 });
 
-                storage.save();
+                let result = storage.save();
+                if let Err(e) = result {
+                    println!("Failed to save client storage: {}", e);
+                }
             }
             "check" => {
                 if online_servers.len() == 0 {
@@ -132,7 +137,10 @@ pub fn start_cli_processor(config: ClientConfig, storage: &mut ClientStorage) {
                         println!("Server accepted the client");
                         let element = storage.introduced_to_servers.remove(idx);
                         storage.awaiting_approval_servers.push(element);
-                        storage.save();
+                        let result = storage.save();
+                        if let Err(e) = result {
+                            println!("Failed to save client storage: {}", e);
+                        }
                     }
                     confirm_connection_request::ConfirmConnectionResult::AwaitingApproval => {
                         println!("Server is awaiting approval");
@@ -140,14 +148,14 @@ pub fn start_cli_processor(config: ClientConfig, storage: &mut ClientStorage) {
                     confirm_connection_request::ConfirmConnectionResult::Rejected => {
                         println!("Server rejected the client");
                         storage.introduced_to_servers.remove(idx);
-                        storage.save();
+                        let result = storage.save();
+                        if let Err(e) = result {
+                            println!("Failed to save client storage: {}", e);
+                        }
                     }
                 }
             }
             "approve" => {
-                if online_servers.len() == 0 {
-                    println!("We haven't discovered any servers yet, you may want to run 'discover' first");
-                }
                 if storage.awaiting_approval_servers.len() == 0 {
                     println!("We don't have any servers that are waiting approval, you may want to run 'check' first");
                     continue;
@@ -167,7 +175,10 @@ pub fn start_cli_processor(config: ClientConfig, storage: &mut ClientStorage) {
                     approved_raw_keys.clone(),
                 );
                 storage.approved_servers.push(element);
-                storage.save();
+                let result = storage.save();
+                if let Err(e) = result {
+                    println!("Failed to save client storage: {}", e);
+                }
             }
             "send" => {
                 if online_servers.len() == 0 {
@@ -180,7 +191,7 @@ pub fn start_cli_processor(config: ClientConfig, storage: &mut ClientStorage) {
                     continue;
                 }
                 send_files(
-                    &client_tls_config,
+                    client_tls_config.clone(),
                     &config,
                     &online_servers,
                     &storage,
@@ -400,14 +411,22 @@ fn approve_server(
     online_servers: &Vec<DiscoveredServer>,
     awaiting_approval_servers: &Vec<ServerInfo>,
 ) -> Result<usize, String> {
-    let mut filtered_servers = Vec::new();
-    for server in online_servers {
-        for introduced_to_server in awaiting_approval_servers {
-            if introduced_to_server.id == server.id {
-                filtered_servers.push(server.clone());
-            }
-        }
-    }
+    // transform the list of servers to filter
+    let filtered_servers = awaiting_approval_servers
+        .iter()
+        .map(|server| DiscoveredServer {
+            id: server.id.clone(),
+            address: ServiceAddress {
+                ip: {
+                    match online_servers.iter().find(|server| server.id == server.id) {
+                        Some(server) => server.address.ip,
+                        None => std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0)),
+                    }
+                },
+                port: 0,
+            },
+        })
+        .collect::<Vec<DiscoveredServer>>();
 
     println!("Choose a server to approve:");
     let server_info = read_server_info(&filtered_servers);
@@ -428,7 +447,7 @@ fn approve_server(
 }
 
 fn send_files(
-    client_tls_config: &rustls::client::ClientConfig,
+    client_tls_config: Arc<rustls::client::ClientConfig>,
     client_config: &ClientConfig,
     online_servers: &Vec<DiscoveredServer>,
     storage: &ClientStorage,
@@ -460,7 +479,7 @@ fn send_files(
 
     // synchronous for now
     send_files_request(
-        &client_tls_config,
+        client_tls_config,
         client_config,
         server_info.address,
         current_device_id,

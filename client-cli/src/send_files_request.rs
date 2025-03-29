@@ -3,10 +3,12 @@ use crate::client_handshake::HandshakeResult;
 use crate::client_requests::RequestWriteResult;
 use crate::service_address::ServiceAddress;
 use crate::{client_handshake, client_requests, file_sender};
+use rustls::{ClientConnection, Stream};
 use std::net::TcpStream;
+use std::sync::Arc;
 
 pub(crate) fn send_files_request(
-    client_tls_config: &rustls::client::ClientConfig,
+    client_tls_config: Arc<rustls::client::ClientConfig>,
     client_config: &ClientConfig,
     destination: ServiceAddress,
     current_device_id: String,
@@ -52,7 +54,19 @@ pub(crate) fn send_files_request(
         }
     }
 
-    let result = file_sender::send_directory(&client_config.folder_to_sync, &mut stream);
+    let conn = ClientConnection::new(client_tls_config, destination.ip.into());
+
+    let mut conn = match conn {
+        Ok(conn) => conn,
+        Err(e) => {
+            println!("Failed to create TLS connection: {}", e);
+            return;
+        }
+    };
+
+    let mut tls = Stream::new(&mut conn, &mut stream);
+
+    let result = file_sender::send_directory(&client_config.folder_to_sync, &mut tls);
     match result {
         file_sender::SendDirectoryResult::AllSent(_) => {
             println!("Successfully sent all files");
@@ -67,6 +81,18 @@ pub(crate) fn send_files_request(
         file_sender::SendDirectoryResult::Aborted(reason) => {
             println!("Failed to send files: {}", reason);
         }
+    }
+
+    drop(tls);
+    conn.send_close_notify();
+    let result = conn.complete_io(&mut stream);
+    if let Err(e) = result {
+        println!("Failed to complete TLS connection: {}", e);
+    }
+
+    let result = stream.shutdown(std::net::Shutdown::Both);
+    if let Err(e) = result {
+        println!("Failed to shutdown the connection: {}", e);
     }
 
     println!("Closing the connection to the target machine");

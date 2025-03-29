@@ -1,5 +1,5 @@
-use common::TypeReadResult;
-use std::io::{BufReader, Read, Write};
+use rustls::{ServerConnection, Stream};
+use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::path::PathBuf;
 
@@ -23,13 +23,13 @@ pub(crate) enum ReceiveFileResult {
 
 pub(crate) fn receive_file(
     destination_root_folder: &PathBuf,
-    reader: &mut BufReader<&TcpStream>,
+    reader: &mut Stream<ServerConnection, TcpStream>,
     receive_strategies: &ReceiveStrategies,
 ) -> ReceiveFileResult {
     let file_path = common::read_string(reader);
     let file_path = match file_path {
-        TypeReadResult::Ok(file_path) => file_path,
-        TypeReadResult::UnknownError(e) => {
+        Ok(file_path) => file_path,
+        Err(e) => {
             println!("Failed to convert file name bytes to string: {}", e);
             return ReceiveFileResult::UnknownNetworkError(format!(
                 "Failed to convert file name bytes to string: {}",
@@ -42,8 +42,8 @@ pub(crate) fn receive_file(
 
     let file_size_bytes = common::read_u64(reader);
     let file_size_bytes = match file_size_bytes {
-        TypeReadResult::Ok(file_size_bytes) => file_size_bytes,
-        TypeReadResult::UnknownError(e) => {
+        Ok(file_size_bytes) => file_size_bytes,
+        Err(e) => {
             println!("Unknown error when receiving file size: '{}'", e);
             return ReceiveFileResult::UnknownNetworkError(e);
         }
@@ -157,9 +157,9 @@ fn find_non_colliding_file_name(file_path: PathBuf) -> PathBuf {
     }
 }
 
-fn receive_continuation_marker(reader: &mut BufReader<&TcpStream>) -> bool {
+fn receive_continuation_marker(stream: &mut Stream<ServerConnection, TcpStream>) -> bool {
     let mut buffer = [0u8; 1];
-    let read_result = reader.read_exact(&mut buffer);
+    let read_result = stream.read_exact(&mut buffer);
     if let Err(e) = read_result {
         println!("Failed to read continuation marker: {}", e);
         return false;
@@ -175,7 +175,11 @@ fn receive_continuation_marker(reader: &mut BufReader<&TcpStream>) -> bool {
     false
 }
 
-fn send_file_confirmation(index: u32, has_received: bool, stream: &mut TcpStream) {
+fn send_file_confirmation(
+    index: u32,
+    has_received: bool,
+    stream: &mut Stream<ServerConnection, TcpStream>,
+) {
     let mut index_bytes: [u8; 5] = [0; 5];
     index_bytes[0..4].copy_from_slice(&(index as i32).to_be_bytes());
     if has_received {
@@ -192,32 +196,21 @@ fn send_file_confirmation(index: u32, has_received: bool, stream: &mut TcpStream
 
 pub(crate) fn receive_directory(
     destination_directory: &PathBuf,
-    stream: &mut TcpStream,
+    stream: &mut Stream<ServerConnection, TcpStream>,
     receive_strategies: &ReceiveStrategies,
 ) {
-    let write_stream = stream.try_clone();
-    let mut write_stream = match write_stream {
-        Ok(stream) => stream,
-        Err(e) => {
-            println!("Failed to clone stream for writing: {}", e);
-            return;
-        }
-    };
-
-    let mut reader: BufReader<&TcpStream> = BufReader::new(stream);
-
     let mut index = 0;
-    while receive_continuation_marker(&mut reader) {
-        let result = receive_file(destination_directory, &mut reader, receive_strategies);
+    while receive_continuation_marker(stream) {
+        let result = receive_file(destination_directory, stream, receive_strategies);
         match result {
             ReceiveFileResult::Ok => {
-                send_file_confirmation(index, true, &mut write_stream);
+                send_file_confirmation(index, true, stream);
             }
             ReceiveFileResult::CanNotCreateFile => {
-                send_file_confirmation(index, false, &mut write_stream);
+                send_file_confirmation(index, false, stream);
             }
             ReceiveFileResult::FileAlreadyExistsAndSkipped => {
-                send_file_confirmation(index, false, &mut write_stream);
+                send_file_confirmation(index, false, stream);
             }
             ReceiveFileResult::UnknownNetworkError(error) => {
                 println!("Failed to receive file, aborting: {}", error);

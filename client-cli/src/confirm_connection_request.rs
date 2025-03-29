@@ -41,6 +41,12 @@ pub(crate) fn confirm_connection_request(
         &mut stream,
         common::protocol::Request::ConfirmConnection(current_device_id),
     );
+
+    let result = stream.shutdown(std::net::Shutdown::Both);
+    if let Err(e) = result {
+        println!("Failed to shutdown the connection: {}", e);
+    }
+
     let request_result = match request_result {
         RequestWriteResult::Ok(request_result) => request_result,
         RequestWriteResult::UnknownError(error_text) => {

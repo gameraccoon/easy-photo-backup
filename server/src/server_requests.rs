@@ -1,4 +1,3 @@
-use common::TypeReadResult;
 use std::io::Write;
 
 pub(crate) enum RequestReadResult {
@@ -10,8 +9,8 @@ pub(crate) fn read_request(stream: &mut std::net::TcpStream) -> RequestReadResul
     let buffer = Vec::new();
 
     let buffer = match common::read_bytes_unbuffered(buffer, stream, 4) {
-        common::SocketReadResult::Ok(buffer) => buffer,
-        common::SocketReadResult::UnknownError(reason) => {
+        Ok(buffer) => buffer,
+        Err(reason) => {
             println!("Unknown error when receiving request header: '{}'", reason);
             return RequestReadResult::UnknownError(reason);
         }
@@ -39,8 +38,8 @@ pub(crate) fn read_request(stream: &mut std::net::TcpStream) -> RequestReadResul
         0 => {
             let id = common::read_string(stream);
             let id = match id {
-                TypeReadResult::Ok(string) => string,
-                TypeReadResult::UnknownError(err) => {
+                Ok(string) => string,
+                Err(err) => {
                     println!("Failed to read name from socket: {}", err);
                     return RequestReadResult::UnknownError(err);
                 }
@@ -58,8 +57,8 @@ pub(crate) fn read_request(stream: &mut std::net::TcpStream) -> RequestReadResul
         1 => {
             let id = common::read_string(stream);
             let id = match id {
-                TypeReadResult::Ok(string) => string,
-                TypeReadResult::UnknownError(err) => {
+                Ok(string) => string,
+                Err(err) => {
                     println!("Failed to read name from socket: {}", err);
                     return RequestReadResult::UnknownError(err);
                 }
@@ -69,8 +68,8 @@ pub(crate) fn read_request(stream: &mut std::net::TcpStream) -> RequestReadResul
         2 => {
             let id = common::read_string(stream);
             let id = match id {
-                TypeReadResult::Ok(string) => string,
-                TypeReadResult::UnknownError(err) => {
+                Ok(string) => string,
+                Err(err) => {
                     println!("Failed to read name from socket: {}", err);
                     return RequestReadResult::UnknownError(err);
                 }

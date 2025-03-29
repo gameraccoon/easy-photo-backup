@@ -1,17 +1,16 @@
 mod file_receiver;
 mod nsd_server;
+mod send_files_request;
 mod server_cli_processor;
 mod server_config;
 mod server_handshake;
 mod server_requests;
 mod server_storage;
 
-use crate::file_receiver::ReceiveStrategies;
 use crate::server_config::ServerConfig;
 use crate::server_handshake::HandshakeResult;
 use crate::server_requests::{read_request, RequestReadResult};
 use crate::server_storage::{ClientInfo, ServerStorage};
-use rustls::pki_types::SubjectPublicKeyInfoDer;
 use std::net::{TcpListener, TcpStream};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -133,7 +132,10 @@ fn handle_client(
                     storage
                         .awaiting_approval
                         .push(ClientInfo { id, public_key });
-                    storage.save();
+                    let result = storage.save();
+                    if let Err(e) = result {
+                        println!("Failed to save server storage: {}", e);
+                    }
 
                     let result = server_requests::send_request_answer(
                         &mut stream,
@@ -178,6 +180,7 @@ fn handle_client(
                         .approved_clients
                         .iter()
                         .any(|client| client.id == id);
+                    drop(storage);
 
                     let result = server_requests::send_request_answer(
                         &mut stream,
@@ -190,15 +193,17 @@ fn handle_client(
                     if let Err(e) = result {
                         println!("Failed to send answer to client: {}", e);
                     }
-                    drop(storage);
 
-                    file_receiver::receive_directory(
-                        &server_config.destination_folder,
-                        &mut stream,
-                        &ReceiveStrategies {
-                            name_collision_strategy: file_receiver::NameCollisionStrategy::Rename,
-                        },
-                    );
+                    if is_approved {
+                        let result = send_files_request::process_receive_files(
+                            server_tls_config,
+                            server_config,
+                            &mut stream,
+                        );
+                        if let Err(e) = result {
+                            println!("Failed to send answer to client: {}", e);
+                        }
+                    }
                 }
             }
         }
@@ -207,6 +212,8 @@ fn handle_client(
             return;
         }
     }
+
+    let _ = stream.shutdown(std::net::Shutdown::Both);
 
     println!("Client disconnected: {}", peer_addr);
 }

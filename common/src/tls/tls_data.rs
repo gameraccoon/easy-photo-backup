@@ -12,6 +12,13 @@ impl TlsData {
         }
     }
 
+    pub fn new(public_key: Vec<u8>, private_key: Vec<u8>) -> Self {
+        Self {
+            private_key,
+            public_key,
+        }
+    }
+
     pub fn generate() -> Result<TlsData, String> {
         let key_pair = rcgen::KeyPair::generate();
         let key_pair = match key_pair {

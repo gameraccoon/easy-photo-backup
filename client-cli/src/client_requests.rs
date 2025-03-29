@@ -1,4 +1,3 @@
-use common::TypeReadResult;
 use std::io::Write;
 
 pub(crate) enum RequestWriteResult {
@@ -66,8 +65,8 @@ pub(crate) fn make_request(
     // read the answer
     let answer = common::read_u32(stream);
     let answer = match answer {
-        TypeReadResult::Ok(answer) => answer,
-        TypeReadResult::UnknownError(e) => {
+        Ok(answer) => answer,
+        Err(e) => {
             println!("Unknown error when receiving answer: '{}'", e);
             return RequestWriteResult::UnknownError(format!(
                 "Unknown error when receiving answer: '{}'",

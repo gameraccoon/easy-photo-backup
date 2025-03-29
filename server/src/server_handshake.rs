@@ -1,4 +1,3 @@
-use common::TypeReadResult;
 use std::io::Write;
 use std::net::TcpStream;
 
@@ -19,8 +18,8 @@ pub fn process_handshake(stream: &mut TcpStream) -> HandshakeResult {
 
     let ack_byte = common::read_u8(stream);
     let ack_byte = match ack_byte {
-        TypeReadResult::Ok(ack_byte) => ack_byte,
-        TypeReadResult::UnknownError(e) => {
+        Ok(ack_byte) => ack_byte,
+        Err(e) => {
             println!("Unknown error when receiving ack byte: '{}'", e);
             return HandshakeResult::UnknownConnectionError(e);
         }

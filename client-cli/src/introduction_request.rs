@@ -39,6 +39,12 @@ pub(crate) fn introduction_request(
         &mut stream,
         common::protocol::Request::Introduce(current_device_id, client_public_key),
     );
+
+    let result = stream.shutdown(std::net::Shutdown::Both);
+    if let Err(e) = result {
+        println!("Failed to shutdown the connection: {}", e);
+    }
+
     let request_result = match request_result {
         RequestWriteResult::Ok(request_result) => request_result,
         RequestWriteResult::UnknownError(error_text) => {

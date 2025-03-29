@@ -1,4 +1,4 @@
-use std::io::Write;
+use std::io::{Read, Write};
 
 const SERVER_STORAGE_VERSION: u32 = 1;
 const SERVER_STORAGE_FILE_NAME: &str = "server_storage.bin";
@@ -18,8 +18,14 @@ pub(crate) struct ServerStorage {
 impl ServerStorage {
     pub(crate) fn load_or_generate() -> ServerStorage {
         let storage = ServerStorage::load();
-        if let Some(storage) = storage {
+        if let Ok(Some(storage)) = storage {
             return storage;
+        }
+        if let Err(e) = storage {
+            println!(
+                "Failed to load server storage: {}. Generating new storage.",
+                e
+            );
         }
 
         let tls_data = common::tls::tls_data::TlsData::generate();
@@ -28,14 +34,21 @@ impl ServerStorage {
             common::tls::tls_data::TlsData::uninitialized()
         });
 
-        ServerStorage {
+        let storage = ServerStorage {
             approved_clients: vec![],
             awaiting_approval: vec![],
             tls_data,
+        };
+
+        let result = storage.save();
+        if let Err(e) = result {
+            println!("Failed to save server storage: {}", e);
         }
+
+        storage
     }
 
-    pub(crate) fn load() -> Option<ServerStorage> {
+    pub(crate) fn load() -> Result<Option<ServerStorage>, String> {
         let file = std::fs::File::open(SERVER_STORAGE_FILE_NAME);
         let file = match file {
             Ok(file) => file,
@@ -44,62 +57,81 @@ impl ServerStorage {
                     "Failed to open client storage file '{}'",
                     SERVER_STORAGE_FILE_NAME
                 );
-                return None;
+                return Ok(None);
             }
         };
 
         let mut file = std::io::BufReader::new(file);
 
-        let version = common::read_u32(&mut file);
-        let version = match version {
-            common::TypeReadResult::Ok(version) => version,
-            common::TypeReadResult::UnknownError(reason) => {
-                println!("Failed to read client storage version: {}", reason);
-                return None;
-            }
-        };
+        let version = common::read_u32(&mut file)?;
 
         if version != SERVER_STORAGE_VERSION {
-            println!(
-                "Client storage version mismatch, expected {}, got {}",
-                SERVER_STORAGE_VERSION, version
-            );
-            return None;
+            return Err("Server storage version mismatch".to_string());
         }
 
-        let tls_data = common::tls::tls_data::TlsData::generate();
-        let tls_data = tls_data.unwrap_or_else(|e| {
-            println!("Failed to generate TLS data: {}", e);
-            common::tls::tls_data::TlsData::uninitialized()
-        });
+        let public_key = common::read_variable_size_bytes(&mut file)?;
+        let private_key = common::read_variable_size_bytes(&mut file)?;
+        let tls_data = common::tls::tls_data::TlsData::new(public_key, private_key);
 
-        Some(ServerStorage {
-            approved_clients: vec![],
-            awaiting_approval: vec![],
+        let approved_clients = read_client_info_vec(&mut file)?;
+        let awaiting_approval = read_client_info_vec(&mut file)?;
+
+        Ok(Some(ServerStorage {
+            approved_clients,
+            awaiting_approval,
             tls_data,
-        })
+        }))
     }
 
-    pub(crate) fn save(&self) {
+    pub(crate) fn save(&self) -> Result<(), String> {
         let file = std::fs::File::create(SERVER_STORAGE_FILE_NAME);
         let file = match file {
             Ok(file) => file,
             Err(e) => {
-                println!(
+                return Err(format!(
                     "Failed to open client storage file '{}': {}",
                     SERVER_STORAGE_FILE_NAME, e
-                );
-                return;
+                ));
             }
         };
 
         let mut file = std::io::BufWriter::new(file);
 
-        let version_bytes: [u8; 4] = SERVER_STORAGE_VERSION.to_be_bytes();
-        let result = file.write_all(&version_bytes);
-        if let Err(e) = result {
-            println!("Failed to write client storage version: {}", e);
-            return;
-        }
+        common::write_u32(&mut file, SERVER_STORAGE_VERSION)?;
+
+        common::write_variable_size_bytes(&mut file, &self.tls_data.public_key)?;
+        common::write_variable_size_bytes(&mut file, &self.tls_data.get_private_key())?;
+
+        write_client_info_vec(&mut file, &self.approved_clients)?;
+        write_client_info_vec(&mut file, &self.awaiting_approval)?;
+
+        Ok(())
     }
+}
+
+fn write_client_info_vec<T: Write>(
+    file: &mut T,
+    client_info_vec: &Vec<ClientInfo>,
+) -> Result<(), String> {
+    common::write_u32(file, client_info_vec.len() as u32)?;
+    for client in client_info_vec {
+        common::write_string(file, &client.id)?;
+        common::write_variable_size_bytes(file, &client.public_key)?;
+    }
+
+    Ok(())
+}
+
+fn read_client_info_vec<T: Read>(file: &mut T) -> Result<Vec<ClientInfo>, String> {
+    let len = common::read_u32(file)?;
+
+    let mut client_info_vec = Vec::with_capacity(len as usize);
+    for _ in 0..len {
+        let id = common::read_string(file)?;
+        let public_key = common::read_variable_size_bytes(file)?;
+
+        client_info_vec.push(ClientInfo { id, public_key });
+    }
+
+    Ok(client_info_vec)
 }

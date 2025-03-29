@@ -1,4 +1,3 @@
-use common::TypeReadResult;
 use std::io::Write;
 use std::net::TcpStream;
 
@@ -22,8 +21,8 @@ pub(crate) enum HandshakeResult {
 pub fn process_handshake(stream: &mut TcpStream) -> HandshakeResult {
     let server_version = common::read_u32(stream);
     let server_version = match server_version {
-        TypeReadResult::Ok(server_version) => server_version,
-        TypeReadResult::UnknownError(e) => {
+        Ok(server_version) => server_version,
+        Err(e) => {
             println!("Unknown error when receiving server version: '{}'", e);
             return HandshakeResult::UnknownConnectionError(e);
         }
@@ -47,8 +46,8 @@ pub fn process_handshake(stream: &mut TcpStream) -> HandshakeResult {
     }
 
     let ack_byte = match common::read_u8(stream) {
-        TypeReadResult::Ok(ack_byte) => ack_byte,
-        TypeReadResult::UnknownError(e) => {
+        Ok(ack_byte) => ack_byte,
+        Err(e) => {
             println!("Unknown error when receiving ack byte: '{}'", e);
             return HandshakeResult::UnknownConnectionError(e);
         }
