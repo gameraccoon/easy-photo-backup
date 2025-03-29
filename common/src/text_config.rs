@@ -428,7 +428,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn empty_config__create__has_default_values() {
+    fn given_empty_config_when_create_then_has_default_values() {
         let config = Config::new(1);
 
         assert_eq!(config.version, 1);
@@ -436,7 +436,7 @@ mod tests {
     }
 
     #[test]
-    fn empty_config_with_correct_header__read__returns_empty_config() {
+    fn given_empty_config_with_correct_header_when_read_then_returns_empty_config() {
         let mut file = std::io::Cursor::new(
             b"\
             format_version=1\n\
@@ -450,7 +450,7 @@ mod tests {
     }
 
     #[test]
-    fn config_with_unsupported_format_version__read__returns_error() {
+    fn given_config_with_unsupported_format_version_when_read_then_returns_error() {
         let mut file = std::io::Cursor::new(
             b"\
             format_version=2\n\
@@ -465,7 +465,7 @@ mod tests {
     }
 
     #[test]
-    fn empty_config_with_no_version_and_format_version__read__returns_error() {
+    fn given_empty_config_with_no_version_and_format_version_when_read_then_returns_error() {
         let mut file = std::io::Cursor::new(b"");
         let result = Config::from_stream(&mut file, "test.txt");
         assert!(result.is_err());
@@ -476,7 +476,8 @@ mod tests {
     }
 
     #[test]
-    fn empty_config_with_no_version_and_format_version_ending_on_new_line__read__returns_error() {
+    fn given_empty_config_with_no_version_and_format_version_ending_on_new_line_when_read_then_returns_error(
+    ) {
         let mut file = std::io::Cursor::new(b"\n");
         let result = Config::from_stream(&mut file, "test.txt");
         assert!(result.is_err());
@@ -487,7 +488,7 @@ mod tests {
     }
 
     #[test]
-    fn empty_config_with_missing_format_version__read__returns_error() {
+    fn given_empty_config_with_missing_format_version_when_read_then_returns_error() {
         let mut file = std::io::Cursor::new(b"version=1");
         let result = Config::from_stream(&mut file, "test.txt");
         assert!(result.is_err());
@@ -498,7 +499,7 @@ mod tests {
     }
 
     #[test]
-    fn config_with_incorrect_format_version__read__returns_error() {
+    fn given_config_with_incorrect_format_version_when_read_then_returns_error() {
         let mut file = std::io::Cursor::new(
             b"\
             format_version=1.2\n\
@@ -514,7 +515,7 @@ mod tests {
     }
 
     #[test]
-    fn empty_config_with_missing_version__read__returns_error() {
+    fn given_empty_config_with_missing_version_when_read_then_returns_error() {
         let mut file = std::io::Cursor::new(b"format_version=1");
         let result = Config::from_stream(&mut file, "test.txt");
         assert!(result.is_err());
@@ -525,7 +526,7 @@ mod tests {
     }
 
     #[test]
-    fn empty_config_with_missing_version_ending_on_new_line__read__returns_error() {
+    fn given_empty_config_with_missing_version_ending_on_new_line_when_read_then_returns_error() {
         let mut file = std::io::Cursor::new(b"format_version=1\n");
         let result = Config::from_stream(&mut file, "test.txt");
         assert!(result.is_err());
@@ -536,7 +537,7 @@ mod tests {
     }
 
     #[test]
-    fn config_with_missing_version__read__returns_error() {
+    fn given_config_with_missing_version_when_read_then_returns_error() {
         let mut file = std::io::Cursor::new(
             b"\
             format_version=1\n\
@@ -551,7 +552,7 @@ mod tests {
     }
 
     #[test]
-    fn config_with_incorrect_version__read__returns_error() {
+    fn given_config_with_incorrect_version_when_read_then_returns_error() {
         let mut file = std::io::Cursor::new(
             b"\
             format_version=1\n\
@@ -566,7 +567,8 @@ mod tests {
         );
     }
 
-    fn empty_config_with_a_value_outside_a_category__read__returns_error() {
+    #[test]
+    fn given_empty_config_with_a_value_outside_a_category_when_read_then_returns_error() {
         let mut file = std::io::Cursor::new(
             b"\
             format_version=1\n\
@@ -581,7 +583,9 @@ mod tests {
         );
     }
 
-    fn empty_config_with_a_value_outside_a_category_ending_on_new_line__read__returns_error() {
+    #[test]
+    fn given_empty_config_with_a_value_outside_a_category_ending_on_new_line_when_read_then_returns_error(
+    ) {
         let mut file = std::io::Cursor::new(
             b"\
             format_version=1\n\
@@ -597,7 +601,7 @@ mod tests {
     }
 
     #[test]
-    fn config_with_a_value_outside_a_category__read__returns_error() {
+    fn given_config_with_a_value_outside_a_category_when_read_then_returns_error() {
         let mut file = std::io::Cursor::new(
             b"\
             format_version=1\n\
@@ -614,7 +618,7 @@ mod tests {
     }
 
     #[test]
-    fn config_with_incorrect_value__read__returns_error() {
+    fn given_config_with_incorrect_value_when_read_then_returns_error() {
         let mut file = std::io::Cursor::new(
             b"\
             format_version=1\n\
@@ -631,7 +635,7 @@ mod tests {
     }
 
     #[test]
-    fn config_with_one_empty_category__read__returns_config_with_one_category() {
+    fn given_config_with_one_empty_category_when_read_then_returns_config_with_one_category() {
         let mut file = std::io::Cursor::new(
             b"\
             format_version=1\n\
@@ -648,7 +652,8 @@ mod tests {
     }
 
     #[test]
-    fn config_with_one_empty_category_ending_on_new_line__read__returns_config_with_one_category() {
+    fn given_config_with_one_empty_category_ending_on_new_line_when_read_then_returns_config_with_one_category(
+    ) {
         let mut file = std::io::Cursor::new(
             b"\
             format_version=1\n\
@@ -665,7 +670,7 @@ mod tests {
     }
 
     #[test]
-    fn config_with_one_category_with_one_string_option__read__returns_config_with_one_category_and_the_option(
+    fn given_config_with_one_category_with_one_string_option_when_read_then_returns_config_with_one_category_and_the_option(
     ) {
         let mut file = std::io::Cursor::new(
             b"\
@@ -689,7 +694,7 @@ mod tests {
     }
 
     #[test]
-    fn config_with_one_category_with_one_string_option_ending_on_new_line__read__returns_config_with_one_category_and_the_option(
+    fn given_config_with_one_category_with_one_string_option_ending_on_new_line_when_read_then_returns_config_with_one_category_and_the_option(
     ) {
         let mut file = std::io::Cursor::new(
             b"\
@@ -713,7 +718,7 @@ mod tests {
     }
 
     #[test]
-    fn config_with_one_category_with_one_integer_option__read__returns_config_with_one_category_and_the_option(
+    fn given_config_with_one_category_with_one_integer_option_when_read_then_returns_config_with_one_category_and_the_option(
     ) {
         let mut file = std::io::Cursor::new(
             b"\
@@ -737,7 +742,7 @@ mod tests {
     }
 
     #[test]
-    fn config_with_one_category_with_one_integer_option_ending_on_new_line__read__returns_config_with_one_category_and_the_option(
+    fn given_config_with_one_category_with_one_integer_option_ending_on_new_line_when_read_then_returns_config_with_one_category_and_the_option(
     ) {
         let mut file = std::io::Cursor::new(
             b"\
@@ -761,7 +766,7 @@ mod tests {
     }
 
     #[test]
-    fn config_with_one_category_with_one_float_option__read__returns_config_with_one_category_and_the_option(
+    fn given_config_with_one_category_with_one_float_option_when_read_then_returns_config_with_one_category_and_the_option(
     ) {
         let mut file = std::io::Cursor::new(
             b"\
@@ -785,7 +790,7 @@ mod tests {
     }
 
     #[test]
-    fn config_with_one_category_with_one_float_option_ending_on_new_line__read__returns_config_with_one_category_and_the_option(
+    fn given_config_with_one_category_with_one_float_option_ending_on_new_line_when_read_then_returns_config_with_one_category_and_the_option(
     ) {
         let mut file = std::io::Cursor::new(
             b"\
@@ -809,7 +814,7 @@ mod tests {
     }
 
     #[test]
-    fn config_with_one_category_with_one_boolean_option__read__returns_config_with_one_category_and_the_option(
+    fn given_config_with_one_category_with_one_boolean_option_when_read_then_returns_config_with_one_category_and_the_option(
     ) {
         let mut file = std::io::Cursor::new(
             b"\
@@ -830,7 +835,7 @@ mod tests {
     }
 
     #[test]
-    fn config_with_one_category_with_one_boolean_option_ending_on_new_line__read__returns_config_with_one_category_and_the_option(
+    fn given_config_with_one_category_with_one_boolean_option_ending_on_new_line_when_read_then_returns_config_with_one_category_and_the_option(
     ) {
         let mut file = std::io::Cursor::new(
             b"\
@@ -851,7 +856,7 @@ mod tests {
     }
 
     #[test]
-    fn config_with_one_category_with_one_array_option__read__returns_config_with_one_category_and_the_option(
+    fn given_config_with_one_category_with_one_array_option_when_read_then_returns_config_with_one_category_and_the_option(
     ) {
         let mut file = std::io::Cursor::new(
             b"\
@@ -875,7 +880,7 @@ mod tests {
     }
 
     #[test]
-    fn config_with_one_category_with_one_array_option_ending_on_new_line__read__returns_config_with_one_category_and_the_option(
+    fn given_config_with_one_category_with_one_array_option_ending_on_new_line_when_read_then_returns_config_with_one_category_and_the_option(
     ) {
         let mut file = std::io::Cursor::new(
             b"\
@@ -899,7 +904,8 @@ mod tests {
     }
 
     #[test]
-    fn complex_config_with_multiple_categories_and_options__read__returns_appropriate_config() {
+    fn given_complex_config_with_multiple_categories_and_options_when_read_then_returns_appropriate_config(
+    ) {
         let mut file = std::io::Cursor::new(
             b"\
             format_version=1\n\
