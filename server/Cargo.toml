@@ -1,8 +1,8 @@
 [package]
 name = "easy-photo-backup-server"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 
 [dependencies]
-common = { path = "../common" , version = "0.2" }
+common = { path = "../common" , version = "0.3.0" }
 rustls = { version = "0.23.23", default-features = true, features = [] }
