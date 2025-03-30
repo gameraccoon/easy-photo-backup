@@ -45,8 +45,8 @@ fn run_server(
     let machine_id = server_config.machine_id.clone();
     let _nsd_thread_handle = thread::spawn(move || {
         nsd_server::run_nsd_server(
-            common::protocol::SERVICE_IDENTIFIER,
-            common::protocol::NSD_PORT,
+            shared_common::protocol::SERVICE_IDENTIFIER,
+            shared_common::protocol::NSD_PORT,
             server_addr.port(),
             machine_id.as_bytes().to_vec(),
         );
@@ -127,7 +127,7 @@ fn handle_client(
             };
 
             match request {
-                common::protocol::Request::Introduce(id, public_key) => {
+                shared_common::protocol::Request::Introduce(id, public_key) => {
                     println!("Introduce request from client '{}'", id);
                     storage
                         .awaiting_approval
@@ -139,7 +139,7 @@ fn handle_client(
 
                     let result = server_requests::send_request_answer(
                         &mut stream,
-                        common::protocol::RequestAnswer::Introduced(
+                        shared_common::protocol::RequestAnswer::Introduced(
                             storage.tls_data.public_key.clone(),
                         ),
                     );
@@ -147,7 +147,7 @@ fn handle_client(
                         println!("Failed to send answer to client: {}", e);
                     }
                 }
-                common::protocol::Request::ConfirmConnection(id) => {
+                shared_common::protocol::Request::ConfirmConnection(id) => {
                     println!("Confirm connection request from client");
 
                     // we don't really need to care about public key here, since this request doesn't mutate the storage
@@ -156,15 +156,15 @@ fn handle_client(
                         .iter()
                         .any(|client| client.id == id)
                     {
-                        common::protocol::RequestAnswer::ConnectionConfirmed
+                        shared_common::protocol::RequestAnswer::ConnectionConfirmed
                     } else if storage
                         .awaiting_approval
                         .iter()
                         .any(|client| client.id == id)
                     {
-                        common::protocol::RequestAnswer::ConnectionAwaitingApproval
+                        shared_common::protocol::RequestAnswer::ConnectionAwaitingApproval
                     } else {
-                        common::protocol::RequestAnswer::UnknownClient
+                        shared_common::protocol::RequestAnswer::UnknownClient
                     };
                     drop(storage);
 
@@ -173,7 +173,7 @@ fn handle_client(
                         println!("Failed to send answer to client: {}", e);
                     }
                 }
-                common::protocol::Request::SendFiles(id) => {
+                shared_common::protocol::Request::SendFiles(id) => {
                     println!("Send files request from client");
 
                     let is_approved = storage
@@ -185,9 +185,9 @@ fn handle_client(
                     let result = server_requests::send_request_answer(
                         &mut stream,
                         if is_approved {
-                            common::protocol::RequestAnswer::ReadyToReceiveFiles
+                            shared_common::protocol::RequestAnswer::ReadyToReceiveFiles
                         } else {
-                            common::protocol::RequestAnswer::UnknownClient
+                            shared_common::protocol::RequestAnswer::UnknownClient
                         },
                     );
                     if let Err(e) = result {
@@ -222,18 +222,19 @@ fn main() {
     let config = ServerConfig::load_or_generate();
     let storage = ServerStorage::load_or_generate();
 
-    let (server_tls_config, approved_raw_keys) = match common::tls::server_config::make_config(
-        storage.tls_data.get_private_key().to_vec(),
-        storage.tls_data.public_key.clone(),
-    ) {
-        Ok(server_tls_config) => server_tls_config,
-        Err(e) => {
-            println!("Failed to initialize TLS config: {}", e);
-            return;
-        }
-    };
+    let (server_tls_config, approved_raw_keys) =
+        match shared_common::tls::server_config::make_config(
+            storage.tls_data.get_private_key().to_vec(),
+            storage.tls_data.public_key.clone(),
+        ) {
+            Ok(server_tls_config) => server_tls_config,
+            Err(e) => {
+                println!("Failed to initialize TLS config: {}", e);
+                return;
+            }
+        };
     for client in &storage.approved_clients {
-        common::tls::approved_raw_keys::add_approved_raw_key(
+        shared_common::tls::approved_raw_keys::add_approved_raw_key(
             client.public_key.clone(),
             approved_raw_keys.clone(),
         );

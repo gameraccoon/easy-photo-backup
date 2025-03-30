@@ -79,7 +79,7 @@ pub fn start_cli_processor(
                 };
                 // this code is the only place where we remove elements, so we know the index didn't change
                 let element = storage_lock.awaiting_approval.remove(idx);
-                common::tls::approved_raw_keys::add_approved_raw_key(
+                shared_common::tls::approved_raw_keys::add_approved_raw_key(
                     element.public_key.clone(),
                     approved_raw_keys.clone(),
                 );
