@@ -26,7 +26,7 @@ pub(crate) fn receive_file(
     reader: &mut Stream<ServerConnection, TcpStream>,
     receive_strategies: &ReceiveStrategies,
 ) -> ReceiveFileResult {
-    let file_path = common::read_string(reader);
+    let file_path = shared_common::read_string(reader);
     let file_path = match file_path {
         Ok(file_path) => file_path,
         Err(e) => {
@@ -40,7 +40,7 @@ pub(crate) fn receive_file(
 
     let destination_file_path = destination_root_folder.join(file_path);
 
-    let file_size_bytes = common::read_u64(reader);
+    let file_size_bytes = shared_common::read_u64(reader);
     let file_size_bytes = match file_size_bytes {
         Ok(file_size_bytes) => file_size_bytes,
         Err(e) => {
@@ -67,7 +67,7 @@ pub(crate) fn receive_file(
             NameCollisionStrategy::Overwrite => destination_file_path,
             NameCollisionStrategy::Skip => {
                 println!("Skipping file '{}'", destination_file_path.display());
-                common::drop_bytes_from_stream(reader, file_size_bytes as usize);
+                shared_common::drop_bytes_from_stream(reader, file_size_bytes as usize);
                 return ReceiveFileResult::FileAlreadyExistsAndSkipped;
             }
             NameCollisionStrategy::Rename => find_non_colliding_file_name(destination_file_path),
@@ -80,7 +80,7 @@ pub(crate) fn receive_file(
     let mut file = match file {
         Ok(file) => file,
         Err(e) => {
-            common::drop_bytes_from_stream(reader, file_size_bytes as usize);
+            shared_common::drop_bytes_from_stream(reader, file_size_bytes as usize);
             println!(
                 "Failed to open file '{}': {}",
                 destination_file_path.display(),
