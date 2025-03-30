@@ -1,14 +1,14 @@
 use std::io::Write;
 
 pub(crate) enum RequestReadResult {
-    Ok(common::protocol::Request),
+    Ok(shared_common::protocol::Request),
     UnknownError(String),
 }
 
 pub(crate) fn read_request(stream: &mut std::net::TcpStream) -> RequestReadResult {
     let buffer = Vec::new();
 
-    let buffer = match common::read_bytes_unbuffered(buffer, stream, 4) {
+    let buffer = match shared_common::read_bytes_unbuffered(buffer, stream, 4) {
         Ok(buffer) => buffer,
         Err(reason) => {
             println!("Unknown error when receiving request header: '{}'", reason);
@@ -36,7 +36,7 @@ pub(crate) fn read_request(stream: &mut std::net::TcpStream) -> RequestReadResul
 
     let request = match request_index {
         0 => {
-            let id = common::read_string(stream);
+            let id = shared_common::read_string(stream);
             let id = match id {
                 Ok(string) => string,
                 Err(err) => {
@@ -44,7 +44,7 @@ pub(crate) fn read_request(stream: &mut std::net::TcpStream) -> RequestReadResul
                     return RequestReadResult::UnknownError(err);
                 }
             };
-            let public_key = common::read_variable_size_bytes(stream);
+            let public_key = shared_common::read_variable_size_bytes(stream);
             let public_key = match public_key {
                 Ok(bytes) => bytes,
                 Err(err) => {
@@ -52,10 +52,10 @@ pub(crate) fn read_request(stream: &mut std::net::TcpStream) -> RequestReadResul
                     return RequestReadResult::UnknownError(err);
                 }
             };
-            common::protocol::Request::Introduce(id, public_key)
+            shared_common::protocol::Request::Introduce(id, public_key)
         }
         1 => {
-            let id = common::read_string(stream);
+            let id = shared_common::read_string(stream);
             let id = match id {
                 Ok(string) => string,
                 Err(err) => {
@@ -63,10 +63,10 @@ pub(crate) fn read_request(stream: &mut std::net::TcpStream) -> RequestReadResul
                     return RequestReadResult::UnknownError(err);
                 }
             };
-            common::protocol::Request::ConfirmConnection(id)
+            shared_common::protocol::Request::ConfirmConnection(id)
         }
         2 => {
-            let id = common::read_string(stream);
+            let id = shared_common::read_string(stream);
             let id = match id {
                 Ok(string) => string,
                 Err(err) => {
@@ -74,7 +74,7 @@ pub(crate) fn read_request(stream: &mut std::net::TcpStream) -> RequestReadResul
                     return RequestReadResult::UnknownError(err);
                 }
             };
-            common::protocol::Request::SendFiles(id)
+            shared_common::protocol::Request::SendFiles(id)
         }
         _ => {
             println!("Unknown request type: {}", request_index);
@@ -90,7 +90,7 @@ pub(crate) fn read_request(stream: &mut std::net::TcpStream) -> RequestReadResul
 
 pub(crate) fn send_request_answer(
     stream: &mut std::net::TcpStream,
-    answer: common::protocol::RequestAnswer,
+    answer: shared_common::protocol::RequestAnswer,
 ) -> Result<(), String> {
     let header_bytes: [u8; 4] = answer.discriminant().to_be_bytes();
     let result = stream.write_all(&header_bytes);
@@ -100,17 +100,17 @@ pub(crate) fn send_request_answer(
     }
 
     match answer {
-        common::protocol::RequestAnswer::UnknownClient => {}
-        common::protocol::RequestAnswer::Introduced(public_key) => {
-            let result = common::write_variable_size_bytes(stream, &public_key);
+        shared_common::protocol::RequestAnswer::UnknownClient => {}
+        shared_common::protocol::RequestAnswer::Introduced(public_key) => {
+            let result = shared_common::write_variable_size_bytes(stream, &public_key);
             if let Err(e) = result {
                 println!("Failed to write public key to socket: {}", e);
                 return Err(format!("Failed to write public key to socket: {}", e));
             }
         }
-        common::protocol::RequestAnswer::ConnectionAwaitingApproval => {}
-        common::protocol::RequestAnswer::ConnectionConfirmed => {}
-        common::protocol::RequestAnswer::ReadyToReceiveFiles => {}
+        shared_common::protocol::RequestAnswer::ConnectionAwaitingApproval => {}
+        shared_common::protocol::RequestAnswer::ConnectionConfirmed => {}
+        shared_common::protocol::RequestAnswer::ReadyToReceiveFiles => {}
     };
 
     Ok(())

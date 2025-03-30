@@ -3,23 +3,23 @@
 use crate::service_address::ServiceAddress;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket};
 
-pub(crate) enum DiscoveryState {
+pub enum DiscoveryState {
     Added,
     Removed,
 }
 
 #[derive(Clone)]
-pub(crate) struct ServiceInfo {
+pub struct ServiceInfo {
     pub address: ServiceAddress,
     pub extra_data: Vec<u8>,
 }
 
-pub(crate) struct DiscoveryResult {
+pub struct DiscoveryResult {
     pub service_info: ServiceInfo,
     pub state: DiscoveryState,
 }
 
-pub(crate) fn start_service_discovery_thread(
+pub fn start_service_discovery_thread(
     service_identifier: String,
     broadcast_port: u16,
     broadcast_period: std::time::Duration,

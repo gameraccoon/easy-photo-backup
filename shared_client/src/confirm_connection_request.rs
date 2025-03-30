@@ -1,18 +1,20 @@
+use std::net::TcpStream;
+use crate::{client_handshake, client_requests};
 use crate::client_handshake::HandshakeResult;
 use crate::client_requests::RequestWriteResult;
 use crate::service_address::ServiceAddress;
-use crate::{client_handshake, client_requests};
-use std::net::TcpStream;
 
-pub(crate) struct ServerIntroductionInfo {
-    pub public_key: Vec<u8>,
+#[derive(PartialEq)]
+pub enum ConfirmConnectionResult {
+    Approved,
+    AwaitingApproval,
+    Rejected,
 }
 
-pub(crate) fn introduction_request(
+pub fn confirm_connection_request(
     destination: ServiceAddress,
     current_device_id: String,
-    client_public_key: Vec<u8>,
-) -> Result<ServerIntroductionInfo, String> {
+) -> Result<ConfirmConnectionResult, String> {
     let mut stream = match TcpStream::connect(format!("{}:{}", destination.ip, destination.port)) {
         Ok(stream) => stream,
         Err(e) => {
@@ -37,7 +39,7 @@ pub(crate) fn introduction_request(
 
     let request_result = client_requests::make_request(
         &mut stream,
-        common::protocol::Request::Introduce(current_device_id, client_public_key),
+        shared_common::protocol::Request::ConfirmConnection(current_device_id),
     );
 
     let result = stream.shutdown(std::net::Shutdown::Both);
@@ -54,10 +56,15 @@ pub(crate) fn introduction_request(
     };
 
     match request_result {
-        common::protocol::RequestAnswer::Introduced(public_key) => {
-            println!("Introduced to server");
-            Ok(ServerIntroductionInfo { public_key })
+        shared_common::protocol::RequestAnswer::ConnectionConfirmed => {
+            println!("The server has accepted this client");
+            Ok(ConfirmConnectionResult::Approved)
         }
+        shared_common::protocol::RequestAnswer::ConnectionAwaitingApproval => {
+            println!("The client is awaiting approval, please confirm it on the server side");
+            Ok(ConfirmConnectionResult::AwaitingApproval)
+        }
+        shared_common::protocol::RequestAnswer::UnknownClient => Ok(ConfirmConnectionResult::Rejected),
         _ => Err("Unexpected answer from server".to_string()),
     }
 }

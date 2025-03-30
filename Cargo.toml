@@ -1,7 +1,9 @@
 [workspace]
 members = [
     "server",
-    "client-cli",
-    "common"
+    "client_cli",
+    "shared_common",
+    "shared_client",
+    "client_ffi",
 ]
 resolver = "2"

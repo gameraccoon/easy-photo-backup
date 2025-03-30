@@ -1,20 +1,18 @@
 use crate::client_handshake::HandshakeResult;
 use crate::client_requests::RequestWriteResult;
 use crate::service_address::ServiceAddress;
-use crate::{client_handshake, client_requests};
 use std::net::TcpStream;
+use crate::{client_handshake, client_requests};
 
-#[derive(PartialEq)]
-pub(crate) enum ConfirmConnectionResult {
-    Approved,
-    AwaitingApproval,
-    Rejected,
+pub struct ServerIntroductionInfo {
+    pub public_key: Vec<u8>,
 }
 
-pub(crate) fn confirm_connection_request(
+pub fn introduction_request(
     destination: ServiceAddress,
     current_device_id: String,
-) -> Result<ConfirmConnectionResult, String> {
+    client_public_key: Vec<u8>,
+) -> Result<ServerIntroductionInfo, String> {
     let mut stream = match TcpStream::connect(format!("{}:{}", destination.ip, destination.port)) {
         Ok(stream) => stream,
         Err(e) => {
@@ -39,7 +37,7 @@ pub(crate) fn confirm_connection_request(
 
     let request_result = client_requests::make_request(
         &mut stream,
-        common::protocol::Request::ConfirmConnection(current_device_id),
+        shared_common::protocol::Request::Introduce(current_device_id, client_public_key),
     );
 
     let result = stream.shutdown(std::net::Shutdown::Both);
@@ -56,15 +54,10 @@ pub(crate) fn confirm_connection_request(
     };
 
     match request_result {
-        common::protocol::RequestAnswer::ConnectionConfirmed => {
-            println!("The server has accepted this client");
-            Ok(ConfirmConnectionResult::Approved)
+        shared_common::protocol::RequestAnswer::Introduced(public_key) => {
+            println!("Introduced to server");
+            Ok(ServerIntroductionInfo { public_key })
         }
-        common::protocol::RequestAnswer::ConnectionAwaitingApproval => {
-            println!("The client is awaiting approval, please confirm it on the server side");
-            Ok(ConfirmConnectionResult::AwaitingApproval)
-        }
-        common::protocol::RequestAnswer::UnknownClient => Ok(ConfirmConnectionResult::Rejected),
         _ => Err("Unexpected answer from server".to_string()),
     }
 }

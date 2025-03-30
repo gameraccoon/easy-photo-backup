@@ -3,7 +3,7 @@ use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::path::PathBuf;
 
-pub(crate) enum SendFileResult {
+pub enum SendFileResult {
     Ok,
     CanNotOpenFile,
     CanNotOpenDirectory,
@@ -11,13 +11,13 @@ pub(crate) enum SendFileResult {
     UnknownConnectionError(String),
 }
 
-pub(crate) enum SendDirectoryResult {
+pub enum SendDirectoryResult {
     AllSent(Vec<(PathBuf, SendFileResult)>),
     PartiallySent(Vec<(PathBuf, SendFileResult)>, Vec<PathBuf>),
     Aborted(String),
 }
 
-pub(crate) fn send_file(
+pub fn send_file(
     file_path: &PathBuf,
     root_path: &PathBuf,
     stream: &mut Stream<ClientConnection, TcpStream>,
@@ -72,7 +72,7 @@ pub(crate) fn send_file(
     #[cfg(windows)]
     let path_string_representation = path_string_representation.replace("\\", "/");
 
-    let result = common::write_string(stream, &path_string_representation);
+    let result = shared_common::write_string(stream, &path_string_representation);
     if let Err(e) = result {
         println!("Failed to write file path to socket: {}", e);
         return SendFileResult::UnknownConnectionError(format!(
@@ -228,7 +228,7 @@ fn send_files(
     (send_result, skipped)
 }
 
-pub(crate) fn send_directory(
+pub fn send_directory(
     source_directory_path: &PathBuf,
     stream: &mut Stream<ClientConnection, TcpStream>,
 ) -> SendDirectoryResult {

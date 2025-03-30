@@ -1,7 +1,7 @@
 use std::io::Write;
 use std::net::TcpStream;
 
-pub(crate) enum HandshakeResult {
+pub enum HandshakeResult {
     Ok(u32),                      // The server's version
     UnknownProtocolVersion(u32),  // The server's version
     ObsoleteProtocolVersion(u32), // The server's version
@@ -19,7 +19,7 @@ pub(crate) enum HandshakeResult {
 // This is due to the fact that server executable is usually not updated often,
 // whether the client usually receives updates pretty fast after they released.
 pub fn process_handshake(stream: &mut TcpStream) -> HandshakeResult {
-    let server_version = common::read_u32(stream);
+    let server_version = shared_common::read_u32(stream);
     let server_version = match server_version {
         Ok(server_version) => server_version,
         Err(e) => {
@@ -27,16 +27,16 @@ pub fn process_handshake(stream: &mut TcpStream) -> HandshakeResult {
             return HandshakeResult::UnknownConnectionError(e);
         }
     };
-    if server_version > common::protocol::SERVER_PROTOCOL_VERSION {
+    if server_version > shared_common::protocol::SERVER_PROTOCOL_VERSION {
         println!("Server version is unknown: {}", server_version);
         return HandshakeResult::UnknownProtocolVersion(server_version);
     }
-    if server_version < common::protocol::LAST_CLIENT_SUPPORTED_PROTOCOL_VERSION {
+    if server_version < shared_common::protocol::LAST_CLIENT_SUPPORTED_PROTOCOL_VERSION {
         println!("Server version is not supported: {}", server_version);
         return HandshakeResult::ObsoleteProtocolVersion(server_version);
     }
 
-    let write_result = stream.write_all(&[common::protocol::ACK_BYTE]);
+    let write_result = stream.write_all(&[shared_common::protocol::ACK_BYTE]);
     if let Err(e) = write_result {
         println!("Failed to write to socket: {}", e);
         return HandshakeResult::UnknownConnectionError(format!(
@@ -45,7 +45,7 @@ pub fn process_handshake(stream: &mut TcpStream) -> HandshakeResult {
         ));
     }
 
-    let ack_byte = match common::read_u8(stream) {
+    let ack_byte = match shared_common::read_u8(stream) {
         Ok(ack_byte) => ack_byte,
         Err(e) => {
             println!("Unknown error when receiving ack byte: '{}'", e);
@@ -53,7 +53,7 @@ pub fn process_handshake(stream: &mut TcpStream) -> HandshakeResult {
         }
     };
 
-    if ack_byte != common::protocol::ACK_BYTE {
+    if ack_byte != shared_common::protocol::ACK_BYTE {
         println!("Unexpected ack byte from server: {}", ack_byte);
         return HandshakeResult::UnknownConnectionError(format!(
             "Unexpected ack byte from server: {}",

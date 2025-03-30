@@ -2,12 +2,12 @@ use crate::client_config::ClientConfig;
 use crate::client_handshake::HandshakeResult;
 use crate::client_requests::RequestWriteResult;
 use crate::service_address::ServiceAddress;
-use crate::{client_handshake, client_requests, file_sender};
 use rustls::{ClientConnection, Stream};
 use std::net::TcpStream;
 use std::sync::Arc;
+use crate::{client_handshake, client_requests, file_sender};
 
-pub(crate) fn send_files_request(
+pub fn send_files_request(
     client_tls_config: Arc<rustls::client::ClientConfig>,
     client_config: &ClientConfig,
     destination: ServiceAddress,
@@ -35,7 +35,7 @@ pub(crate) fn send_files_request(
 
     let request_result = client_requests::make_request(
         &mut stream,
-        common::protocol::Request::SendFiles(current_device_id),
+        shared_common::protocol::Request::SendFiles(current_device_id),
     );
     let request_result = match request_result {
         RequestWriteResult::Ok(request_result) => request_result,
@@ -45,7 +45,7 @@ pub(crate) fn send_files_request(
         }
     };
     match request_result {
-        common::protocol::RequestAnswer::ReadyToReceiveFiles => {
+        shared_common::protocol::RequestAnswer::ReadyToReceiveFiles => {
             println!("Server is ready to receive files");
         }
         _ => {

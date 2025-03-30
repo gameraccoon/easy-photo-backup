@@ -31,3 +31,6 @@ Cargo.lock
 # local data files
 client_storage.bin
 server_storage.bin
+
+# output of scripts
+/out/

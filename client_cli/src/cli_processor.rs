@@ -1,9 +1,8 @@
-use crate::client_config::ClientConfig;
-use crate::client_storage::{ClientStorage, ServerInfo};
-use crate::confirm_connection_request;
-use crate::send_files_request::send_files_request;
-use crate::service_address::ServiceAddress;
-use crate::{introduction_request, nsd_client};
+use shared_client::client_config::ClientConfig;
+use shared_client::client_storage::{ClientStorage, ServerInfo};
+use shared_client::{confirm_connection_request, introduction_request, nsd_client};
+use shared_client::send_files_request::send_files_request;
+use shared_client::service_address::ServiceAddress;
 use std::io::Write;
 use std::sync::Arc;
 
@@ -19,7 +18,7 @@ pub fn start_cli_processor(config: ClientConfig, storage: &mut ClientStorage) {
     let mut buffer = String::new();
     let mut online_servers = Vec::new();
 
-    let (client_tls_config, approved_raw_keys) = match common::tls::client_config::make_config(
+    let (client_tls_config, approved_raw_keys) = match shared_common::tls::client_config::make_config(
         storage.tls_data.get_private_key().to_vec(),
         storage.tls_data.public_key.clone(),
     ) {
@@ -30,7 +29,7 @@ pub fn start_cli_processor(config: ClientConfig, storage: &mut ClientStorage) {
         }
     };
     for server in &storage.approved_servers {
-        common::tls::approved_raw_keys::add_approved_raw_key(
+        shared_common::tls::approved_raw_keys::add_approved_raw_key(
             server.public_key.clone(),
             approved_raw_keys.clone(),
         );
@@ -170,7 +169,7 @@ pub fn start_cli_processor(config: ClientConfig, storage: &mut ClientStorage) {
                     }
                 };
                 let element = storage.awaiting_approval_servers.remove(idx);
-                common::tls::approved_raw_keys::add_approved_raw_key(
+                shared_common::tls::approved_raw_keys::add_approved_raw_key(
                     element.public_key.clone(),
                     approved_raw_keys.clone(),
                 );
@@ -210,9 +209,9 @@ fn discover_servers() -> Vec<DiscoveredServer> {
     let (results_sender, results_receiver) = std::sync::mpsc::sync_channel(10);
     let (stop_signal_sender, stop_signal_receiver) = std::sync::mpsc::channel();
 
-    let discovery_thread_handle = nsd_client::start_service_discovery_thread(
-        common::protocol::SERVICE_IDENTIFIER.to_string(),
-        common::protocol::NSD_PORT,
+    let discovery_thread_handle = shared_client::nsd_client::start_service_discovery_thread(
+        shared_common::protocol::SERVICE_IDENTIFIER.to_string(),
+        shared_common::protocol::NSD_PORT,
         NSD_BROADCAST_PERIOD,
         results_sender,
         stop_signal_receiver,
