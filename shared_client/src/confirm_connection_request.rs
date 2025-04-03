@@ -1,8 +1,8 @@
-use std::net::TcpStream;
-use crate::{client_handshake, client_requests};
 use crate::client_handshake::HandshakeResult;
 use crate::client_requests::RequestWriteResult;
 use crate::service_address::ServiceAddress;
+use crate::{client_handshake, client_requests};
+use std::net::TcpStream;
 
 #[derive(PartialEq)]
 pub enum ConfirmConnectionResult {
@@ -64,7 +64,9 @@ pub fn confirm_connection_request(
             println!("The client is awaiting approval, please confirm it on the server side");
             Ok(ConfirmConnectionResult::AwaitingApproval)
         }
-        shared_common::protocol::RequestAnswer::UnknownClient => Ok(ConfirmConnectionResult::Rejected),
+        shared_common::protocol::RequestAnswer::UnknownClient => {
+            Ok(ConfirmConnectionResult::Rejected)
+        }
         _ => Err("Unexpected answer from server".to_string()),
     }
 }

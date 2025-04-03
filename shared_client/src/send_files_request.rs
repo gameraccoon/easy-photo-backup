@@ -2,10 +2,10 @@ use crate::client_config::ClientConfig;
 use crate::client_handshake::HandshakeResult;
 use crate::client_requests::RequestWriteResult;
 use crate::service_address::ServiceAddress;
+use crate::{client_handshake, client_requests, file_sender};
 use rustls::{ClientConnection, Stream};
 use std::net::TcpStream;
 use std::sync::Arc;
-use crate::{client_handshake, client_requests, file_sender};
 
 pub fn send_files_request(
     client_tls_config: Arc<rustls::client::ClientConfig>,

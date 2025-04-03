@@ -1,8 +1,8 @@
 use shared_client::client_config::ClientConfig;
 use shared_client::client_storage::{ClientStorage, ServerInfo};
-use shared_client::{confirm_connection_request, introduction_request, nsd_client};
 use shared_client::send_files_request::send_files_request;
 use shared_client::service_address::ServiceAddress;
+use shared_client::{confirm_connection_request, introduction_request, nsd_client};
 use std::io::Write;
 use std::sync::Arc;
 
@@ -18,16 +18,17 @@ pub fn start_cli_processor(config: ClientConfig, storage: &mut ClientStorage) {
     let mut buffer = String::new();
     let mut online_servers = Vec::new();
 
-    let (client_tls_config, approved_raw_keys) = match shared_common::tls::client_config::make_config(
-        storage.tls_data.get_private_key().to_vec(),
-        storage.tls_data.public_key.clone(),
-    ) {
-        Ok(client_tls_config) => client_tls_config,
-        Err(e) => {
-            println!("Failed to initialize TLS config: {}", e);
-            return;
-        }
-    };
+    let (client_tls_config, approved_raw_keys) =
+        match shared_common::tls::client_config::make_config(
+            storage.tls_data.get_private_key().to_vec(),
+            storage.tls_data.public_key.clone(),
+        ) {
+            Ok(client_tls_config) => client_tls_config,
+            Err(e) => {
+                println!("Failed to initialize TLS config: {}", e);
+                return;
+            }
+        };
     for server in &storage.approved_servers {
         shared_common::tls::approved_raw_keys::add_approved_raw_key(
             server.public_key.clone(),
@@ -209,13 +210,24 @@ fn discover_servers() -> Vec<DiscoveredServer> {
     let (results_sender, results_receiver) = std::sync::mpsc::sync_channel(10);
     let (stop_signal_sender, stop_signal_receiver) = std::sync::mpsc::channel();
 
-    let discovery_thread_handle = shared_client::nsd_client::start_service_discovery_thread(
-        shared_common::protocol::SERVICE_IDENTIFIER.to_string(),
-        shared_common::protocol::NSD_PORT,
-        NSD_BROADCAST_PERIOD,
-        results_sender,
-        stop_signal_receiver,
-    );
+    let discovery_thread_handle = std::thread::spawn(move || {
+        let result = nsd_client::start_service_discovery_thread(
+            shared_common::protocol::SERVICE_IDENTIFIER.to_string(),
+            shared_common::protocol::NSD_PORT,
+            NSD_BROADCAST_PERIOD,
+            Box::new(move |result| {
+                let result = results_sender.send(result);
+                if let Err(e) = result {
+                    println!("Failed to send discovery result: {}", e);
+                }
+            }),
+            stop_signal_receiver,
+        );
+
+        if let Err(e) = result {
+            println!("Failed to start service discovery thread: {}", e);
+        }
+    });
 
     let mut online_servers: Vec<DiscoveredServer> = Vec::new();
 

@@ -222,16 +222,17 @@ fn main() {
     let config = ServerConfig::load_or_generate();
     let storage = ServerStorage::load_or_generate();
 
-    let (server_tls_config, approved_raw_keys) = match shared_common::tls::server_config::make_config(
-        storage.tls_data.get_private_key().to_vec(),
-        storage.tls_data.public_key.clone(),
-    ) {
-        Ok(server_tls_config) => server_tls_config,
-        Err(e) => {
-            println!("Failed to initialize TLS config: {}", e);
-            return;
-        }
-    };
+    let (server_tls_config, approved_raw_keys) =
+        match shared_common::tls::server_config::make_config(
+            storage.tls_data.get_private_key().to_vec(),
+            storage.tls_data.public_key.clone(),
+        ) {
+            Ok(server_tls_config) => server_tls_config,
+            Err(e) => {
+                println!("Failed to initialize TLS config: {}", e);
+                return;
+            }
+        };
     for client in &storage.approved_clients {
         shared_common::tls::approved_raw_keys::add_approved_raw_key(
             client.public_key.clone(),

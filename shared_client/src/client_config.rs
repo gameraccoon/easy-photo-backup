@@ -37,7 +37,9 @@ impl ClientConfig {
                         shared_common::text_config::Config::new(CLIENT_CONFIG_VERSION)
                     } else {
                         if !config.is_ok_for_perf() {
-                            println!("Config file is too big, let's rewrite the storage of text_config.rs");
+                            println!(
+                                "Config file is too big, let's rewrite the storage of text_config.rs"
+                            );
                         }
                         config
                     }

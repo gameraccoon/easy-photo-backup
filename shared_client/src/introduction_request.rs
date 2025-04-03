@@ -1,8 +1,8 @@
 use crate::client_handshake::HandshakeResult;
 use crate::client_requests::RequestWriteResult;
 use crate::service_address::ServiceAddress;
-use std::net::TcpStream;
 use crate::{client_handshake, client_requests};
+use std::net::TcpStream;
 
 pub struct ServerIntroductionInfo {
     pub public_key: Vec<u8>,
