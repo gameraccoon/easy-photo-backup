@@ -42,11 +42,6 @@ dependencies {
     // TODO: Migrate version to TOML (doesn't work). Likely related issue: https://github.com/gradle/gradle/issues/21267
     //noinspection UseTomlInstead
     implementation 'net.java.dev.jna:jna:5.17.0@aar'
-
-    testImplementation libs.junit
-
-    androidTestImplementation libs.androidx.test.junit
-    androidTestImplementation libs.androidx.test.espresso
 }
 
 cargoNdk {
@@ -69,10 +64,6 @@ android.libraryVariants.all { variant ->
     // Some stuff here is broken, since Android Tests don't run after running gradle build,
     // but do otherwise. Also CI is funky.
     tasks.named("compile${variant.name.capitalize()}Kotlin").configure {
-        dependsOn generateBindings
-    }
-
-    tasks.named("connectedDebugAndroidTest").configure {
         dependsOn generateBindings
     }
 

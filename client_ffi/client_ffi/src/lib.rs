@@ -1,9 +1,8 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-// You must call this once
-uniffi::setup_scaffolding!();
 
-// What follows is an intentionally ridiculous whirlwind tour of how you'd expose a complex API to UniFFI.
+// generate uniffi boilerplate
+uniffi::setup_scaffolding!();
 
 #[derive(Debug, PartialEq, uniffi::Enum)]
 pub enum ComputationState {
