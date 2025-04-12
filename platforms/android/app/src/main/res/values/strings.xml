@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Easy Photo Backup</string>
+    <string name="paired_devices_caption">Paired Devices</string>
+    <string name="pair_with_device_caption">Pair With Target Device</string>
+    <string name="manage_sync_folders_caption">Manage Folders To Sync</string>
+    <string name="activity_logs_button_caption">Show Activity Logs</string>
+</resources>
