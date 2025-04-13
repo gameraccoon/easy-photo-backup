@@ -10,11 +10,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
-import com.gameraccoon.core.SafeCalculator
+import com.gameraccoon.core.NSDClient
 import com.gameraccoon.easyphotobackup.ui.theme.EasyPhotoBackupTheme
 
 class MainActivity : ComponentActivity() {
-  private val calculator = SafeCalculator()
+  private val nsdClient = NSDClient()
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
@@ -23,7 +23,7 @@ class MainActivity : ComponentActivity() {
       EasyPhotoBackupTheme {
         // A surface container using the 'background' color from the theme
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-          Greeting("🦀says 1 + 1 = ${calculator.add(1,1)}")
+          Greeting("🦀says 1 + 1 = 2")
         }
       }
     }
