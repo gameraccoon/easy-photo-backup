@@ -13,3 +13,10 @@
 .externalNativeBuild
 .cxx
 local.properties
+# some android studio caches and files
+/android
+/daemon
+/caches
+/kotlin-profile
+/native
+/wrapper
