@@ -1,33 +1,33 @@
 plugins {
-    alias libs.plugins.androidLibrary
-    alias libs.plugins.jetbrainsKotlinAndroid
-    alias libs.plugins.ktfmt
+    alias(libs.plugins.androidLibrary)
+    alias(libs.plugins.jetbrainsKotlinAndroid)
+    alias(libs.plugins.ktfmt)
     // The magic plugin that automates the cargo integration
-    alias libs.plugins.cargo.ndk
+    alias(libs.plugins.cargo.ndk)
 }
 
 android {
-    namespace "com.gameraccoon.easyphotobackup.core"
-    compileSdk 35
-    ndkVersion "26.2.11394342"
+    namespace = "com.gameraccoon.easyphotobackup.core"
+    compileSdk = 35
+    ndkVersion = "26.2.11394342"
 
     defaultConfig {
-        minSdk 29
-        targetSdk 35
+        minSdk = 29
+        targetSdk = 35
 
-        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-        consumerProguardFiles "consumer-rules.pro"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        consumerProguardFiles("consumer-rules.pro")
     }
 
     buildTypes {
         release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+            minifyEnabled = false
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
     }
     kotlinOptions {
         jvmTarget = "1.8"
@@ -35,17 +35,17 @@ android {
 }
 
 dependencies {
-    implementation libs.androidx.ktx
-    implementation libs.androidx.appcompat
+    implementation(libs.androidx.ktx)
+    implementation(libs.androidx.appcompat)
 
     // Essential! Note that UniFFI dictates the minimum supported version, and this may change with new releases
     // TODO: Migrate version to TOML (doesn't work). Likely related issue: https://github.com/gradle/gradle/issues/21267
     //noinspection UseTomlInstead
-    implementation "net.java.dev.jna:jna:5.17.0@aar"
+    implementation("net.java.dev.jna:jna:5.17.0@aar")
 }
 
 cargoNdk {
-    module  = "../../client_ffi"  // Directory containing Cargo.toml
+    module = "../../client_ffi"  // Directory containing Cargo.toml
     librariesNames = ["libclient_ffi.so"]
     extraCargoBuildArguments = ["-p", "client_ffi"]
 }
@@ -53,10 +53,10 @@ cargoNdk {
 android.libraryVariants.all { variant ->
     def bDir = layout.buildDirectory.dir("generated/source/uniffi/${variant.name}/java").get()
     def generateBindings = tasks.register("generate${variant.name.capitalize()}UniFFIBindings", Exec) {
-        workingDir "../../../client_ffi"
-        commandLine "cargo", "run", "-p", "uniffi-bindgen", "generate", "--library", "../platforms/android/core/src/main/jniLibs/arm64-v8a/libclient_ffi.so", "--language", "kotlin", "--out-dir", bDir
+        workingDir("../../../client_ffi")
+        commandLine("cargo", "run", "-p", "uniffi-bindgen", "generate", "--library", "../platforms/android/core/src/main/jniLibs/arm64-v8a/libclient_ffi.so", "--language", "kotlin", "--out-dir", bDir)
 
-        dependsOn "buildCargoNdk${variant.name.capitalize()}"
+        dependsOn("buildCargoNdk${variant.name.capitalize()}")
     }
 
     variant.javaCompileProvider.get().dependsOn(generateBindings)
@@ -64,11 +64,11 @@ android.libraryVariants.all { variant ->
     // Some stuff here is broken, since Android Tests don't run after running gradle build,
     // but do otherwise. Also CI is funky.
     tasks.named("compile${variant.name.capitalize()}Kotlin").configure {
-        dependsOn generateBindings
+        dependsOn(generateBindings)
     }
 
     def sourceSet = variant.sourceSets.find { it.name == variant.name }
-    sourceSet.java.srcDir layout.buildDirectory.file("generated/source/uniffi/${variant.name}/java")
+    sourceSet.java.srcDir(layout.buildDirectory.file("generated/source/uniffi/${variant.name}/java"))
 
     // UniFFI tutorial notes that they made several attempts like this but were unsuccessful coming
     // to a good solution for forcing the directory to be marked as generated (short of checking in
