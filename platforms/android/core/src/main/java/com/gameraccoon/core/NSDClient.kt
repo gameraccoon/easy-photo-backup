@@ -1,15 +1,20 @@
 package com.gameraccoon.core
 
-import uniffi.client_ffi.Calculator
+import uniffi.client_ffi.NetworkServiceDiscoveryClient
+import uniffi.client_ffi.Service
 
 class NSDClient {
-  private var calc = Calculator()
+  private var client = NetworkServiceDiscoveryClient()
 
   fun start_discovery() {
-    calc.start()
+    client.start()
   }
 
   fun stop_discovery(shouldWaitForThreadJoin: Boolean) {
-    calc.stop(shouldWaitForThreadJoin)
+    client.stop(shouldWaitForThreadJoin)
+  }
+
+  fun get_services(): List<Service> {
+    return client.getServices()
   }
 }

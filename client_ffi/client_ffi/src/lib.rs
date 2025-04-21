@@ -22,12 +22,12 @@ impl Service {
 }
 
 #[derive(Debug, Clone, uniffi::Object)]
-pub struct Calculator {
+pub struct NetworkServiceDiscoveryClient {
     online_services: Arc<Mutex<Vec<Service>>>
 }
 
 #[uniffi::export]
-impl Calculator {
+impl NetworkServiceDiscoveryClient {
     #[uniffi::constructor]
     pub fn new() -> Self {
         Self {
