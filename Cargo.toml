@@ -5,5 +5,10 @@ members = [
     "shared_common",
     "shared_client",
     "client_ffi",
+    "uniffi-bindgen",
+    "uniffi-bindgen-swift",
 ]
 resolver = "2"
+
+[workspace.dependencies]
+uniffi = "0.28.3"
