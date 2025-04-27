@@ -15,4 +15,4 @@ shared_common = { path = "./shared_common", version = "0.3.0" }
 shared_client = { path = "./shared_client", version = "0.3.0" }
 uniffi = { version = "0.28.3" }
 rcgen = { version = "0.13.2" }
-rustls = { version = "0.23.23" }
+rustls = { version = "0.23.23", default-features = false, features = [ "std", "ring" ] }

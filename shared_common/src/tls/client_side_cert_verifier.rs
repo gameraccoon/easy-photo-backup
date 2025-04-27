@@ -1,5 +1,5 @@
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
-use rustls::crypto::{aws_lc_rs, verify_tls13_signature_with_raw_key, WebPkiSupportedAlgorithms};
+use rustls::crypto::{ring, verify_tls13_signature_with_raw_key, WebPkiSupportedAlgorithms};
 use rustls::pki_types::{CertificateDer, ServerName, SubjectPublicKeyInfoDer, UnixTime};
 use rustls::{CertificateError, DigitallySignedStruct, PeerIncompatible, SignatureScheme};
 use std::sync::{Arc, Mutex};
@@ -14,7 +14,7 @@ impl SimpleRpkClientSideCertVerifier {
     pub fn new(approved_server_keys: Arc<Mutex<Vec<SubjectPublicKeyInfoDer<'static>>>>) -> Self {
         SimpleRpkClientSideCertVerifier {
             approved_server_keys,
-            supported_algorithms: Arc::new(aws_lc_rs::default_provider())
+            supported_algorithms: Arc::new(ring::default_provider())
                 .clone()
                 .signature_verification_algorithms,
         }

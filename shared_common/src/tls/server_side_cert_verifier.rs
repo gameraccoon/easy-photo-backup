@@ -1,5 +1,5 @@
 use rustls::client::danger::HandshakeSignatureValid;
-use rustls::crypto::{aws_lc_rs, verify_tls13_signature_with_raw_key, WebPkiSupportedAlgorithms};
+use rustls::crypto::{ring, verify_tls13_signature_with_raw_key, WebPkiSupportedAlgorithms};
 use rustls::pki_types::{CertificateDer, SubjectPublicKeyInfoDer, UnixTime};
 use rustls::server::danger::{ClientCertVerified, ClientCertVerifier};
 use rustls::{
@@ -17,7 +17,7 @@ impl SimpleRpkServerSideCertVerifier {
     pub fn new(trusted_server_keys: Arc<Mutex<Vec<SubjectPublicKeyInfoDer<'static>>>>) -> Self {
         Self {
             approved_server_keys: trusted_server_keys,
-            supported_algorithms: Arc::new(aws_lc_rs::default_provider())
+            supported_algorithms: Arc::new(ring::default_provider())
                 .clone()
                 .signature_verification_algorithms,
         }

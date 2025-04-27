@@ -5,4 +5,4 @@ edition = "2021"
 
 [dependencies]
 shared_common.workspace = true
-rustls = { workspace = true, default-features = true, features = [] }
+rustls = { workspace = true, features = [] }
