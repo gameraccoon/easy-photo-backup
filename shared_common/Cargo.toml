@@ -4,5 +4,5 @@ version = "0.3.0"
 edition = "2021"
 
 [dependencies]
-rcgen = { version = "0.13.2", default-features = true, features = ["pem"] }
-rustls = { version = "0.23.23", default-features = true, features = [] }
+rcgen = { workspace = true, default-features = true, features = ["pem"] }
+rustls = { workspace = true, default-features = true, features = [] }

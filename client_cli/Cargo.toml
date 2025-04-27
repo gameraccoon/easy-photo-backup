@@ -4,6 +4,6 @@ version = "0.3.0"
 edition = "2021"
 
 [dependencies]
-shared_common = { path = "../shared_common", version = "0.3.0" }
-shared_client = { path = "../shared_client", version = "0.3.0" }
-rustls = { version = "0.23.23", default-features = true, features = [] }
+shared_common.workspace = true
+shared_client.workspace = true
+rustls = { workspace = true, default-features = true, features = [] }
