@@ -1,6 +1,6 @@
 use crate::tls::client_side_cert_verifier::SimpleRpkClientSideCertVerifier;
 use rustls::client::AlwaysResolvesClientRawPublicKeys;
-use rustls::crypto::aws_lc_rs;
+use rustls::crypto::ring;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, SubjectPublicKeyInfoDer};
 use rustls::sign::CertifiedKey;
 use rustls::version::TLS13;
@@ -25,7 +25,7 @@ pub fn make_config(
             return Err(format!("Failed to parse client private key: {}", e));
         }
     };
-    let client_private_key = Arc::new(aws_lc_rs::default_provider())
+    let client_private_key = Arc::new(ring::default_provider())
         .key_provider
         .load_private_key(client_private_key);
     let client_private_key = match client_private_key {

@@ -1,5 +1,5 @@
 use crate::tls::server_side_cert_verifier::SimpleRpkServerSideCertVerifier;
-use rustls::crypto::aws_lc_rs;
+use rustls::crypto::ring;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, SubjectPublicKeyInfoDer};
 use rustls::server::AlwaysResolvesServerRawPublicKeys;
 use rustls::sign::CertifiedKey;
@@ -17,7 +17,7 @@ pub fn make_config(
     ),
     String,
 > {
-    let server_private_key = aws_lc_rs::default_provider().key_provider.load_private_key(
+    let server_private_key = ring::default_provider().key_provider.load_private_key(
         PrivateKeyDer::try_from(server_private_key).expect("cannot open private key file"),
     );
     let server_private_key = match server_private_key {

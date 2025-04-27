@@ -5,4 +5,4 @@ edition = "2021"
 
 [dependencies]
 rcgen = { workspace = true, default-features = true, features = ["pem"] }
-rustls = { workspace = true, default-features = true, features = [] }
+rustls = { workspace = true }
