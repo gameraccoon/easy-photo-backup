@@ -74,7 +74,7 @@ impl Config {
     pub fn new(version: u32) -> Config {
         Config {
             version,
-            categories: vec![],
+            categories: Vec::new(),
         }
     }
 
@@ -160,7 +160,7 @@ impl Config {
         };
 
         // all other values are inside categories
-        let mut categories = vec![];
+        let mut categories = Vec::new();
         let mut line = String::new();
         loop {
             line.clear();
@@ -195,7 +195,7 @@ impl Config {
                 let category_name = line[1..line.len() - 1].to_string();
                 categories.push(Category {
                     name: category_name,
-                    options: vec![],
+                    options: Vec::new(),
                 });
                 continue;
             }
