@@ -16,3 +16,4 @@ shared_client = { path = "./shared_client", version = "0.3.0" }
 uniffi = { version = "0.28.3" }
 rcgen = { version = "0.13.2" }
 rustls = { version = "0.23.23", default-features = false, features = [ "std", "ring" ] }
+rand = { version = "0.9.0", default-features = true }

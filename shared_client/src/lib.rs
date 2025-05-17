@@ -1,10 +1,9 @@
-pub mod client_config;
 mod client_handshake;
 mod client_requests;
 pub mod client_storage;
-pub mod confirm_connection_request;
 mod file_sender;
-pub mod introduction_request;
+pub mod network_address;
 pub mod nsd_client;
+pub mod number_entered_request;
+pub mod pairing_requests;
 pub mod send_files_request;
-pub mod service_address;

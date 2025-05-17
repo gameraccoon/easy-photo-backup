@@ -1,9 +1,9 @@
-const SERVER_CONFIG_FILE_NAME: &str = "server_config.cfg";
+const SERVER_CONFIG_FILE_NAME: &str = "cli_server_config.cfg";
 const SERVER_CONFIG_VERSION: u32 = 1;
 
 #[derive(Clone)]
 pub(crate) struct ServerConfig {
-    pub machine_id: String,
+    pub server_name: String,
     pub destination_folder: std::path::PathBuf,
 }
 
@@ -25,7 +25,7 @@ impl ServerConfig {
                                 name: "general".to_string(),
                                 options: vec![
                                     shared_common::text_config::OptionFormat {
-                                        name: "machine_id".to_string(),
+                                        name: "server_name".to_string(),
                                         value_type: shared_common::text_config::ValueType::String,
                                         is_required: false,
                                     },
@@ -65,14 +65,14 @@ impl ServerConfig {
             _ => "./destination_folder",
         };
 
-        let machine_id = config.get("general", "machine_id");
-        let machine_id = match machine_id {
-            Some(shared_common::text_config::Value::String(machine_id)) => machine_id,
+        let server_name = config.get("general", "server_name");
+        let server_name = match server_name {
+            Some(shared_common::text_config::Value::String(server_name)) => server_name,
             _ => "unnamed machine",
         };
 
         ServerConfig {
-            machine_id: machine_id.to_string(),
+            server_name: server_name.to_string(),
             destination_folder: std::path::PathBuf::from(destination_folder),
         }
     }

@@ -140,13 +140,3 @@ impl NetworkServiceDiscoveryClient {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn example() {
-        assert_eq!(2, 2);
-    }
-}

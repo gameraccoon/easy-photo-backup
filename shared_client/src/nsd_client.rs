@@ -1,6 +1,6 @@
 // Network Service Discovery (NSD) client
 
-use crate::service_address::ServiceAddress;
+use crate::network_address::NetworkAddress;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket};
 
 pub enum DiscoveryState {
@@ -10,7 +10,7 @@ pub enum DiscoveryState {
 
 #[derive(Clone)]
 pub struct ServiceInfo {
-    pub address: ServiceAddress,
+    pub address: NetworkAddress,
     pub extra_data: Vec<u8>,
 }
 
@@ -60,11 +60,11 @@ pub fn start_service_discovery_thread(
     // we count generations based on our send timer
     // we don't care about when we sent the broadcast that got the server to us
     const GENERATIONS_TO_MISS_TO_REMOVE: usize = 2;
-    let mut discovery_generations: [Vec<ServiceAddress>; GENERATIONS_TO_MISS_TO_REMOVE] =
+    let mut discovery_generations: [Vec<NetworkAddress>; GENERATIONS_TO_MISS_TO_REMOVE] =
         Default::default();
 
-    let mut online_servers: Vec<ServiceAddress> = Vec::new();
-    let mut servers_to_remove: Vec<ServiceAddress> = Vec::new();
+    let mut online_servers: Vec<NetworkAddress> = Vec::new();
+    let mut servers_to_remove: Vec<NetworkAddress> = Vec::new();
 
     let query = format!("aloha:{}\n", service_identifier);
     let mut buf = [0; 1024];
@@ -108,7 +108,7 @@ pub fn start_service_discovery_thread(
             for server in &servers_to_remove {
                 result_lambda(DiscoveryResult {
                     service_info: ServiceInfo {
-                        address: ServiceAddress {
+                        address: NetworkAddress {
                             ip: server.ip.clone(),
                             port: server.port,
                         },
@@ -166,7 +166,7 @@ pub fn start_service_discovery_thread(
 
         let extra_data = response_body[5..5 + extra_data_len].to_vec();
 
-        let address = ServiceAddress { ip: src.ip(), port };
+        let address = NetworkAddress { ip: src.ip(), port };
 
         if !discovery_generations[0].contains(&address) {
             discovery_generations[0].push(address.clone());
@@ -177,7 +177,7 @@ pub fn start_service_discovery_thread(
             online_servers.push(address);
             result_lambda(DiscoveryResult {
                 service_info: ServiceInfo {
-                    address: ServiceAddress { ip: src.ip(), port },
+                    address: NetworkAddress { ip: src.ip(), port },
                     extra_data,
                 },
                 state: DiscoveryState::Added,

@@ -1,3 +1,4 @@
+pub mod crypto;
 pub mod protocol;
 pub mod text_config;
 pub mod tls;
@@ -135,7 +136,10 @@ pub fn read_string_raw<T: std::io::Read>(stream: &mut T, size: usize) -> Result<
     let string = match read_bytes_generic(Vec::new(), stream, size as usize) {
         Ok(buffer) => buffer,
         Err(reason) => {
-            println!("Unknown error when receiving file name: '{}'", reason);
+            println!(
+                "Unknown error when reading string bytes from stream: '{}'",
+                reason
+            );
             return Err(reason);
         }
     };
@@ -144,11 +148,8 @@ pub fn read_string_raw<T: std::io::Read>(stream: &mut T, size: usize) -> Result<
     let string = match string {
         Ok(file_path) => file_path,
         Err(e) => {
-            println!("Failed to convert file name bytes to string: {}", e);
-            return Err(format!(
-                "Failed to convert file name bytes to string: {}",
-                e
-            ));
+            println!("Failed to convert bytes to string: {}", e);
+            return Err(format!("Failed to convert bytes to string: {}", e));
         }
     };
 

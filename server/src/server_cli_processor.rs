@@ -1,12 +1,8 @@
-use crate::server_storage::{ClientInfo, ServerStorage};
-use rustls::pki_types::SubjectPublicKeyInfoDer;
+use crate::server_storage::ServerStorage;
 use std::io::Write;
 use std::sync::{Arc, Mutex};
 
-pub fn start_cli_processor(
-    storage: Arc<Mutex<ServerStorage>>,
-    approved_raw_keys: Arc<Mutex<Vec<SubjectPublicKeyInfoDer<'static>>>>,
-) {
+pub fn start_cli_processor(storage: Arc<Mutex<ServerStorage>>) {
     let mut buffer = String::new();
     loop {
         print!("> ");
@@ -40,54 +36,77 @@ pub fn start_cli_processor(
             }
             "help" => {
                 println!("Available commands:");
-                println!("approve - approve a client to receive files from");
-            }
-            "approve" => {
-                let storage_lock = storage.lock();
-                let storage_lock = match storage_lock {
-                    Ok(storage) => storage,
-                    Err(e) => {
-                        println!("Failed to lock server storage: {}", e);
-                        continue;
-                    }
-                };
+                println!("exit - exit the program");
 
-                let awaiting_approval_clients = storage_lock.awaiting_approval.clone();
-                drop(storage_lock);
+                {
+                    let storage = storage.lock();
+                    let storage = match storage {
+                        Ok(storage) => storage,
+                        Err(e) => {
+                            println!("Failed to lock client storage: {}", e);
+                            return;
+                        }
+                    };
 
-                if awaiting_approval_clients.len() == 0 {
-                    println!("We don't have any clients that are waiting approval");
-                    continue;
+                    if let Some(awaiting_pairing_client) =
+                        &storage.non_serialized.awaiting_pairing_client
+                    {
+                        if awaiting_pairing_client.client_nonce.is_some() {
+                            println!("confirm - confirm the client entered the code and the code matched");
+                        }
+                    };
                 }
 
-                let result = approve_client(&awaiting_approval_clients);
-                let idx = match result {
-                    Ok(idx) => idx,
-                    Err(e) => {
-                        println!("Failed to approve client: {}", e);
-                        continue;
-                    }
-                };
-
-                let storage_lock = storage.lock();
-                let mut storage_lock = match storage_lock {
+                println!("help - show this help");
+            }
+            "confirm" => {
+                let storage = storage.lock();
+                let mut storage = match storage {
                     Ok(storage) => storage,
                     Err(e) => {
-                        println!("Failed to lock server storage: {}", e);
-                        continue;
+                        println!("Failed to lock client storage: {}", e);
+                        return;
                     }
                 };
-                // this code is the only place where we remove elements, so we know the index didn't change
-                let element = storage_lock.awaiting_approval.remove(idx);
-                shared_common::tls::approved_raw_keys::add_approved_raw_key(
-                    element.public_key.clone(),
-                    approved_raw_keys.clone(),
-                );
-                storage_lock.approved_clients.push(element);
 
-                let result = storage_lock.save();
+                let Some(awaiting_pairing_client) =
+                    storage.non_serialized.awaiting_pairing_client.take()
+                else {
+                    println!("No client is awaiting pairing");
+                    return;
+                };
+
+                storage
+                    .paired_clients
+                    .push(awaiting_pairing_client.client_info);
+                println!("The client added to the list of accepted clients");
+
+                let result = storage.save();
                 if let Err(e) = result {
-                    println!("Failed to save server storage: {}", e);
+                    println!("Failed to save client storage: {}", e);
+                }
+            }
+            "reject" => {
+                let storage = storage.lock();
+                let mut storage = match storage {
+                    Ok(storage) => storage,
+                    Err(e) => {
+                        println!("Failed to lock client storage: {}", e);
+                        return;
+                    }
+                };
+
+                if storage.non_serialized.awaiting_pairing_client.is_some() {
+                    storage.non_serialized.awaiting_pairing_client = None;
+                } else {
+                    println!("No client is awaiting pairing");
+                    return;
+                };
+                println!("Aborted pairing");
+
+                let result = storage.save();
+                if let Err(e) = result {
+                    println!("Failed to save client storage: {}", e);
                 }
             }
             _ => {
@@ -95,39 +114,5 @@ pub fn start_cli_processor(
                 println!("Type 'help' for a list of available commands");
             }
         }
-    }
-}
-
-fn approve_client(awaiting_approval_clients: &Vec<ClientInfo>) -> Result<usize, String> {
-    println!("Choose a client to approve:");
-    for (index, client) in awaiting_approval_clients.iter().enumerate() {
-        println!("{}: {}'", index + 1, client.id);
-    }
-
-    let mut buffer = String::new();
-    match std::io::stdin().read_line(&mut buffer) {
-        Ok(bytes_read) => {
-            if bytes_read == 0 {
-                return Err("Failed to read from stdin, closing the client connection".to_string());
-            }
-
-            let number = buffer.trim();
-            let number = match number.parse::<usize>() {
-                Ok(number) => number,
-                Err(_) => {
-                    return Err("Invalid number".to_string());
-                }
-            };
-
-            if number == 0 || number > awaiting_approval_clients.len() {
-                return Err("Invalid number".to_string());
-            }
-
-            Ok(number - 1)
-        }
-        Err(e) => Err(format!(
-            "Failed to read from stdin, closing the client connection: {}",
-            e
-        )),
     }
 }

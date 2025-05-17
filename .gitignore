@@ -25,8 +25,8 @@ Cargo.lock
 /destination_folder
 
 # Config files
-/client_config.cfg
-/server_config.cfg
+/cli_client_config.cfg
+/cli_server_config.cfg
 
 # local data files
 client_storage.bin

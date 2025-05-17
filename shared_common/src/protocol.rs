@@ -8,28 +8,34 @@ pub enum ProtocolVersion {
     TransferConfirmations = 3,
     ConfirmationsEachFile = 4,
     IntroductionRequests = 5,
+    PairingProtocol = 6,
 }
 
-pub const SERVER_PROTOCOL_VERSION: u32 = ProtocolVersion::IntroductionRequests as u32;
-pub const LAST_CLIENT_SUPPORTED_PROTOCOL_VERSION: u32 =
-    ProtocolVersion::IntroductionRequests as u32;
+pub const SERVER_PROTOCOL_VERSION: u32 = ProtocolVersion::PairingProtocol as u32;
+pub const LAST_CLIENT_SUPPORTED_PROTOCOL_VERSION: u32 = ProtocolVersion::PairingProtocol as u32;
 
 pub const NSD_PORT: u16 = 5354;
 pub const SERVICE_IDENTIFIER: &str = "_easy-photo-backup._tcp";
 
+pub const NONCE_LENGTH_BYTES: usize = 32; // 256 bits
+
 // Changing existing indexes will break compatibility
 #[repr(u32)]
 pub enum Request {
-    // The client sees the server for the first time
+    // The client asks to pair with the server
     // The client doesn't yet know the server's public key
-    // It sends its name and public key to the server
-    Introduce(String, Vec<u8>) = 0,
-    // The client already sent the public key and got server's public key
-    // the client wants to check that the server agrees to establish a connection
-    ConfirmConnection(String) = 1,
+    // It sends its public key and its name to the server
+    ExchangePublicKeys(Vec<u8>, String) = 0,
+    // The client got server's public key and confirmation value
+    // the client sends its nonce
+    ExchangeNonces(Vec<u8>) = 1,
+    // Notify the server that the client has entered the numeric comparison value
+    // It doesn't matter if the number matches or not, this is just a notification
+    // No answer is expected
+    NumberEntered = 2,
     // The client and server established a connection before
-    // The client is ready to send files
-    SendFiles(String) = 2,
+    // The client wants to send files, and sends its public key
+    SendFiles(Vec<u8>) = 3,
 }
 
 impl Request {
@@ -45,15 +51,13 @@ pub enum RequestAnswer {
     // Introduction is required to proceed
     UnknownClient = 0,
     // The server received the client's name and public key
-    // The server sends its public key to the client
-    Introduced(Vec<u8>) = 1,
-    // The connection is awaiting approval
-    ConnectionAwaitingApproval = 2,
-    // The user confirmed the server identity
-    // The server will accept receiving files
-    ConnectionConfirmed = 3,
+    // The server sends its public key, the confirmation value, its id and name
+    AnswerExchangePublicKeys(Vec<u8>, Vec<u8>, Vec<u8>, String) = 1,
+    // The server received the client's nonce
+    // The server sends its nonce
+    AnswerExchangeNonces(Vec<u8>) = 2,
     // The server is ready to receive files
-    ReadyToReceiveFiles = 4,
+    ReadyToReceiveFiles = 3,
 }
 
 impl RequestAnswer {
@@ -61,3 +65,6 @@ impl RequestAnswer {
         unsafe { *(self as *const Self as *const u32) }
     }
 }
+
+pub const NUMERIC_COMPARISON_VALUE_DIGITS: u32 = 6;
+pub const MAC_SIZE_BYTES: usize = 128 / 8;

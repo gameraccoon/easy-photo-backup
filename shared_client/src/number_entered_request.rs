@@ -1,18 +1,10 @@
 use crate::client_handshake::HandshakeResult;
 use crate::client_requests::RequestWriteResult;
-use crate::service_address::ServiceAddress;
+use crate::network_address::NetworkAddress;
 use crate::{client_handshake, client_requests};
 use std::net::TcpStream;
 
-pub struct ServerIntroductionInfo {
-    pub public_key: Vec<u8>,
-}
-
-pub fn introduction_request(
-    destination: ServiceAddress,
-    current_device_id: String,
-    client_public_key: Vec<u8>,
-) -> Result<ServerIntroductionInfo, String> {
+pub fn number_entered_request(destination: NetworkAddress) -> Result<(), String> {
     let mut stream = match TcpStream::connect(format!("{}:{}", destination.ip, destination.port)) {
         Ok(stream) => stream,
         Err(e) => {
@@ -33,31 +25,24 @@ pub fn introduction_request(
         println!("Failed to handshake with server");
         return Err("Failed to handshake with server".to_string());
     };
-    println!("Connected to server version {}", server_version);
 
-    let request_result = client_requests::make_request(
-        &mut stream,
-        shared_common::protocol::Request::Introduce(current_device_id, client_public_key),
-    );
+    let request_result =
+        client_requests::make_request(&mut stream, shared_common::protocol::Request::NumberEntered);
 
     let result = stream.shutdown(std::net::Shutdown::Both);
     if let Err(e) = result {
         println!("Failed to shutdown the connection: {}", e);
     }
 
-    let request_result = match request_result {
-        RequestWriteResult::Ok(request_result) => request_result,
+    match request_result {
+        RequestWriteResult::Ok(_) => {
+            println!("Unexpected response value, the protocol is corrupted");
+            Err("Unexpected response value, the protocol is corrupted".to_string())
+        }
+        RequestWriteResult::OkNoAnswer => Ok(()),
         RequestWriteResult::UnknownError(error_text) => {
             println!("Failed to write request to server: {}", error_text);
-            return Err(error_text);
+            Err(error_text)
         }
-    };
-
-    match request_result {
-        shared_common::protocol::RequestAnswer::Introduced(public_key) => {
-            println!("Introduced to server");
-            Ok(ServerIntroductionInfo { public_key })
-        }
-        _ => Err("Unexpected answer from server".to_string()),
     }
 }

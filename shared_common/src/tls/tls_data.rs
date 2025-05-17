@@ -1,3 +1,4 @@
+#[derive(Clone)]
 pub struct TlsData {
     private_key: Vec<u8>,
     // the public key that we send to other parties

@@ -1,9 +1,10 @@
-const CLIENT_CONFIG_FILE_NAME: &str = "client_config.cfg";
+const CLIENT_CONFIG_FILE_NAME: &str = "cli_client_config.cfg";
 const CLIENT_CONFIG_VERSION: u32 = 1;
 
 #[derive(Clone)]
 pub struct ClientConfig {
     pub folder_to_sync: std::path::PathBuf,
+    pub client_name: String,
 }
 
 impl ClientConfig {
@@ -22,11 +23,18 @@ impl ClientConfig {
                             version: CLIENT_CONFIG_VERSION,
                             categories: vec![shared_common::text_config::CategoryFormat {
                                 name: "general".to_string(),
-                                options: vec![shared_common::text_config::OptionFormat {
-                                    name: "folder_to_sync".to_string(),
-                                    value_type: shared_common::text_config::ValueType::String,
-                                    is_required: false,
-                                }],
+                                options: vec![
+                                    shared_common::text_config::OptionFormat {
+                                        name: "folder_to_sync".to_string(),
+                                        value_type: shared_common::text_config::ValueType::String,
+                                        is_required: false,
+                                    },
+                                    shared_common::text_config::OptionFormat {
+                                        name: "client_name".to_string(),
+                                        value_type: shared_common::text_config::ValueType::String,
+                                        is_required: false,
+                                    },
+                                ],
                                 is_required: false,
                             }],
                         };
@@ -59,8 +67,15 @@ impl ClientConfig {
             _ => "./folder_to_sync",
         };
 
+        let client_name = config.get("general", "client_name");
+        let client_name = match client_name {
+            Some(shared_common::text_config::Value::String(client_name)) => client_name.clone(),
+            _ => "unnamed device".to_string(),
+        };
+
         ClientConfig {
             folder_to_sync: std::path::PathBuf::from(folder_to_sync),
+            client_name,
         }
     }
 }

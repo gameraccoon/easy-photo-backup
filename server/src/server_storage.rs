@@ -5,14 +5,34 @@ const SERVER_STORAGE_FILE_NAME: &str = "server_storage.bin";
 
 #[derive(Clone)]
 pub(crate) struct ClientInfo {
-    pub id: String,
-    pub public_key: Vec<u8>,
+    pub name: String,
+    pub client_public_key: Vec<u8>,
+    pub server_keys: shared_common::tls::tls_data::TlsData,
+}
+
+pub(crate) struct AwaitingPairingClient {
+    pub client_info: ClientInfo,
+    pub server_nonce: Vec<u8>,
+    pub client_nonce: Option<Vec<u8>>,
+}
+
+pub(crate) struct NonSerializedServerStorage {
+    pub awaiting_pairing_client: Option<AwaitingPairingClient>,
 }
 
 pub(crate) struct ServerStorage {
-    pub approved_clients: Vec<ClientInfo>,
-    pub awaiting_approval: Vec<ClientInfo>,
-    pub tls_data: shared_common::tls::tls_data::TlsData,
+    // a unique identifier of the machine, would require repairing all clients if changed
+    pub machine_id: Vec<u8>,
+    pub paired_clients: Vec<ClientInfo>,
+    pub non_serialized: NonSerializedServerStorage,
+}
+
+impl NonSerializedServerStorage {
+    fn new() -> NonSerializedServerStorage {
+        NonSerializedServerStorage {
+            awaiting_pairing_client: None,
+        }
+    }
 }
 
 impl ServerStorage {
@@ -28,16 +48,10 @@ impl ServerStorage {
             );
         }
 
-        let tls_data = shared_common::tls::tls_data::TlsData::generate();
-        let tls_data = tls_data.unwrap_or_else(|e| {
-            println!("Failed to generate TLS data: {}", e);
-            shared_common::tls::tls_data::TlsData::uninitialized()
-        });
-
         let storage = ServerStorage {
-            approved_clients: vec![],
-            awaiting_approval: vec![],
-            tls_data,
+            machine_id: vec![],
+            paired_clients: Vec::new(),
+            non_serialized: NonSerializedServerStorage::new(),
         };
 
         let result = storage.save();
@@ -69,17 +83,13 @@ impl ServerStorage {
             return Err("Server storage version mismatch".to_string());
         }
 
-        let public_key = shared_common::read_variable_size_bytes(&mut file)?;
-        let private_key = shared_common::read_variable_size_bytes(&mut file)?;
-        let tls_data = shared_common::tls::tls_data::TlsData::new(public_key, private_key);
-
-        let approved_clients = read_client_info_vec(&mut file)?;
-        let awaiting_approval = read_client_info_vec(&mut file)?;
+        let machine_id = shared_common::read_variable_size_bytes(&mut file)?;
+        let paired_clients = read_client_info_vec(&mut file)?;
 
         Ok(Some(ServerStorage {
-            approved_clients,
-            awaiting_approval,
-            tls_data,
+            machine_id,
+            paired_clients,
+            non_serialized: NonSerializedServerStorage::new(),
         }))
     }
 
@@ -99,11 +109,8 @@ impl ServerStorage {
 
         shared_common::write_u32(&mut file, SERVER_STORAGE_VERSION)?;
 
-        shared_common::write_variable_size_bytes(&mut file, &self.tls_data.public_key)?;
-        shared_common::write_variable_size_bytes(&mut file, &self.tls_data.get_private_key())?;
-
-        write_client_info_vec(&mut file, &self.approved_clients)?;
-        write_client_info_vec(&mut file, &self.awaiting_approval)?;
+        shared_common::write_variable_size_bytes(&mut file, &self.machine_id)?;
+        write_client_info_vec(&mut file, &self.paired_clients)?;
 
         Ok(())
     }
@@ -115,8 +122,11 @@ fn write_client_info_vec<T: Write>(
 ) -> Result<(), String> {
     shared_common::write_u32(file, client_info_vec.len() as u32)?;
     for client in client_info_vec {
-        shared_common::write_string(file, &client.id)?;
-        shared_common::write_variable_size_bytes(file, &client.public_key)?;
+        shared_common::write_string(file, &client.name)?;
+        shared_common::write_variable_size_bytes(file, &client.client_public_key)?;
+
+        shared_common::write_variable_size_bytes(file, &client.server_keys.public_key)?;
+        shared_common::write_variable_size_bytes(file, &client.server_keys.get_private_key())?;
     }
 
     Ok(())
@@ -127,10 +137,19 @@ fn read_client_info_vec<T: Read>(file: &mut T) -> Result<Vec<ClientInfo>, String
 
     let mut client_info_vec = Vec::with_capacity(len as usize);
     for _ in 0..len {
-        let id = shared_common::read_string(file)?;
-        let public_key = shared_common::read_variable_size_bytes(file)?;
+        let name = shared_common::read_string(file)?;
+        let client_public_key = shared_common::read_variable_size_bytes(file)?;
 
-        client_info_vec.push(ClientInfo { id, public_key });
+        let server_public_key = shared_common::read_variable_size_bytes(file)?;
+        let server_private_key = shared_common::read_variable_size_bytes(file)?;
+        let server_keys =
+            shared_common::tls::tls_data::TlsData::new(server_public_key, server_private_key);
+
+        client_info_vec.push(ClientInfo {
+            name,
+            client_public_key,
+            server_keys,
+        });
     }
 
     Ok(client_info_vec)

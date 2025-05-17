@@ -6,3 +6,4 @@ edition = "2021"
 [dependencies]
 shared_common.workspace = true
 rustls = { workspace = true, features = [] }
+rand = { workspace = true }

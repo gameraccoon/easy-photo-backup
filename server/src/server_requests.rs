@@ -36,14 +36,6 @@ pub(crate) fn read_request(stream: &mut std::net::TcpStream) -> RequestReadResul
 
     let request = match request_index {
         0 => {
-            let id = shared_common::read_string(stream);
-            let id = match id {
-                Ok(string) => string,
-                Err(err) => {
-                    println!("Failed to read name from socket: {}", err);
-                    return RequestReadResult::UnknownError(err);
-                }
-            };
             let public_key = shared_common::read_variable_size_bytes(stream);
             let public_key = match public_key {
                 Ok(bytes) => bytes,
@@ -52,29 +44,42 @@ pub(crate) fn read_request(stream: &mut std::net::TcpStream) -> RequestReadResul
                     return RequestReadResult::UnknownError(err);
                 }
             };
-            shared_common::protocol::Request::Introduce(id, public_key)
+
+            let name = shared_common::read_string(stream);
+            let name = match name {
+                Ok(string) => string,
+                Err(err) => {
+                    println!("Failed to read name from socket: {}", err);
+                    return RequestReadResult::UnknownError(err);
+                }
+            };
+
+            shared_common::protocol::Request::ExchangePublicKeys(public_key, name)
         }
         1 => {
-            let id = shared_common::read_string(stream);
-            let id = match id {
-                Ok(string) => string,
+            let nonce = shared_common::read_variable_size_bytes(stream);
+            let nonce = match nonce {
+                Ok(bytes) => bytes,
                 Err(err) => {
-                    println!("Failed to read name from socket: {}", err);
+                    println!("Failed to read nonce from socket: {}", err);
                     return RequestReadResult::UnknownError(err);
                 }
             };
-            shared_common::protocol::Request::ConfirmConnection(id)
+
+            shared_common::protocol::Request::ExchangeNonces(nonce)
         }
-        2 => {
-            let id = shared_common::read_string(stream);
-            let id = match id {
-                Ok(string) => string,
+        2 => shared_common::protocol::Request::NumberEntered,
+        3 => {
+            let public_key = shared_common::read_variable_size_bytes(stream);
+            let public_key = match public_key {
+                Ok(bytes) => bytes,
                 Err(err) => {
-                    println!("Failed to read name from socket: {}", err);
+                    println!("Failed to read public key from socket: {}", err);
                     return RequestReadResult::UnknownError(err);
                 }
             };
-            shared_common::protocol::Request::SendFiles(id)
+
+            shared_common::protocol::Request::SendFiles(public_key)
         }
         _ => {
             println!("Unknown request type: {}", request_index);
@@ -101,15 +106,46 @@ pub(crate) fn send_request_answer(
 
     match answer {
         shared_common::protocol::RequestAnswer::UnknownClient => {}
-        shared_common::protocol::RequestAnswer::Introduced(public_key) => {
+        shared_common::protocol::RequestAnswer::AnswerExchangePublicKeys(
+            public_key,
+            confirmation_value,
+            server_id,
+            server_name,
+        ) => {
             let result = shared_common::write_variable_size_bytes(stream, &public_key);
             if let Err(e) = result {
                 println!("Failed to write public key to socket: {}", e);
                 return Err(format!("Failed to write public key to socket: {}", e));
             }
+
+            let result = shared_common::write_variable_size_bytes(stream, &confirmation_value);
+            if let Err(e) = result {
+                println!("Failed to write confirmation value to socket: {}", e);
+                return Err(format!(
+                    "Failed to write confirmation value to socket: {}",
+                    e
+                ));
+            }
+
+            let result = shared_common::write_variable_size_bytes(stream, &server_id);
+            if let Err(e) = result {
+                println!("Failed to write server id to socket: {}", e);
+                return Err(format!("Failed to write server id to socket: {}", e));
+            }
+
+            let result = shared_common::write_string(stream, &server_name);
+            if let Err(e) = result {
+                println!("Failed to write server name to socket: {}", e);
+                return Err(format!("Failed to write server name to socket: {}", e));
+            }
         }
-        shared_common::protocol::RequestAnswer::ConnectionAwaitingApproval => {}
-        shared_common::protocol::RequestAnswer::ConnectionConfirmed => {}
+        shared_common::protocol::RequestAnswer::AnswerExchangeNonces(nonce) => {
+            let result = shared_common::write_variable_size_bytes(stream, &nonce);
+            if let Err(e) = result {
+                println!("Failed to write nonce to socket: {}", e);
+                return Err(format!("Failed to write nonce to socket: {}", e));
+            }
+        }
         shared_common::protocol::RequestAnswer::ReadyToReceiveFiles => {}
     };
 

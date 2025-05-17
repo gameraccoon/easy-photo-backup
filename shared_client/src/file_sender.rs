@@ -236,8 +236,8 @@ pub fn send_directory(
     let mut skipped = Vec::new();
     collect_files(source_directory_path, &mut files, &mut skipped);
 
-    if files.len() == 0 {
-        return SendDirectoryResult::AllSent(Vec::new());
+    for file in files.iter() {
+        println!("Sending file {}", file.display());
     }
 
     let source_directory_path_copy = source_directory_path.clone();
@@ -259,6 +259,7 @@ fn collect_files(
     let dir = match dir {
         Ok(dir) => dir,
         Err(_) => {
+            println!("Failed to read directory {}", directory_path.display());
             in_out_skipped.push(directory_path.clone());
             return;
         }
