@@ -42,8 +42,8 @@ pub fn start_service_discovery_thread(
         }
     };
 
-    // 1 second means that every second we will check if the stop signal has been received
-    let result = socket.set_read_timeout(Some(std::time::Duration::new(1, 0)));
+    // 200 milliseconds means that 5 times per second we will check if the stop signal has been received
+    let result = socket.set_read_timeout(Some(std::time::Duration::from_millis(200)));
     if let Err(e) = result {
         println!("Failed to set read timeout on UDP socket: {}", e);
         return Err(format!("Failed to set read timeout on UDP socket: {}", e));
