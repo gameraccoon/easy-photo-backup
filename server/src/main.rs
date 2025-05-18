@@ -222,7 +222,6 @@ fn handle_client(
                                 server_public_key,
                                 confirmation_value,
                                 server_id,
-                                server_config.server_name.clone(),
                             ),
                         );
                         if let Err(e) = result {
@@ -359,6 +358,18 @@ fn handle_client(
                                     e
                                 );
                             }
+                        }
+                        break;
+                    }
+                    shared_common::protocol::Request::GetServerName => {
+                        let result = server_requests::send_request_answer(
+                            &mut stream,
+                            shared_common::protocol::RequestAnswer::AnswerGetServerName(
+                                server_config.server_name.clone(),
+                            ),
+                        );
+                        if let Err(e) = result {
+                            println!("Failed to send answer to client: {}", e);
                         }
                         break;
                     }

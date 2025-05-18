@@ -64,6 +64,7 @@ pub fn make_request(
                 ));
             }
         }
+        shared_common::protocol::Request::GetServerName => {}
     }
 
     // read the answer
@@ -127,26 +128,10 @@ pub fn make_request(
                 }
             };
 
-            let name = shared_common::read_string(
-                stream,
-                shared_common::protocol::DEVICE_NAME_MAX_LENGTH_BYTES,
-            );
-            let name = match name {
-                Ok(name) => name,
-                Err(e) => {
-                    println!("Failed to read name from socket: {}", e);
-                    return RequestWriteResult::UnknownError(format!(
-                        "Failed to read name from socket: {}",
-                        e
-                    ));
-                }
-            };
-
             shared_common::protocol::RequestAnswer::AnswerExchangePublicKeys(
                 public_key,
                 confirmation_value,
                 server_id,
-                name,
             )
         }
         2 => {
@@ -168,6 +153,24 @@ pub fn make_request(
             shared_common::protocol::RequestAnswer::AnswerExchangeNonces(nonce)
         }
         3 => shared_common::protocol::RequestAnswer::ReadyToReceiveFiles,
+        4 => {
+            let name = shared_common::read_string(
+                stream,
+                shared_common::protocol::DEVICE_NAME_MAX_LENGTH_BYTES,
+            );
+            let name = match name {
+                Ok(name) => name,
+                Err(e) => {
+                    println!("Failed to read name from socket: {}", e);
+                    return RequestWriteResult::UnknownError(format!(
+                        "Failed to read name from socket: {}",
+                        e
+                    ));
+                }
+            };
+
+            shared_common::protocol::RequestAnswer::AnswerGetServerName(name)
+        }
         _ => {
             println!("Unknown answer: {}", answer);
             return RequestWriteResult::UnknownError(format!("Unknown answer: {}", answer));

@@ -11,6 +11,7 @@ const NSD_BROADCAST_PERIOD: std::time::Duration = std::time::Duration::from_secs
 struct DiscoveredServer {
     server_id: Vec<u8>,
     address: NetworkAddress,
+    name: String,
 }
 
 pub fn start_cli_processor(config: ClientConfig, storage: &mut ClientStorage) {
@@ -148,6 +149,7 @@ fn discover_servers(time_seconds: u64) -> Vec<DiscoveredServer> {
                     online_servers.push(DiscoveredServer {
                         server_id,
                         address: result.service_info.address,
+                        name: String::new(),
                     });
                 }
                 nsd_client::DiscoveryState::Removed => {
@@ -179,7 +181,23 @@ fn discover_servers(time_seconds: u64) -> Vec<DiscoveredServer> {
 }
 
 fn pair_to_server(client_storage: &ClientStorage) -> Result<ServerInfo, String> {
-    let online_servers = discover_servers(2);
+    let mut online_servers = discover_servers(2);
+
+    for server in online_servers.iter_mut() {
+        let name = match shared_client::get_server_name_request::get_server_name_request(
+            server.address.clone(),
+        ) {
+            Ok(name) => name,
+            Err(e) => {
+                println!("Failed to get server name: {}", e);
+                continue;
+            }
+        };
+
+        server.name = name;
+    }
+
+    let online_servers = online_servers;
 
     println!("Choose a server to pair with:");
     let server_info = read_server_info(&online_servers);
@@ -200,6 +218,7 @@ fn pair_to_server(client_storage: &ClientStorage) -> Result<ServerInfo, String> 
     let result = pairing_requests::process_key_and_nonce_exchange(
         server_info.address.clone(),
         client_storage.client_name.clone(),
+        server_info.name.clone(),
     );
     let awaiting_pairing_server = match result {
         Ok(result) => result,
@@ -302,10 +321,11 @@ fn read_server_info(online_servers: &Vec<DiscoveredServer>) -> Result<Discovered
     println!("0: enter manually");
     for (index, server) in online_servers.iter().enumerate() {
         println!(
-            "{}: {}:{}",
+            "{}: {}:{} ({})",
             index + 1,
             server.address.ip,
             server.address.port,
+            server.name,
         );
     }
 
@@ -381,6 +401,7 @@ fn read_server_info(online_servers: &Vec<DiscoveredServer>) -> Result<Discovered
             Ok(DiscoveredServer {
                 address: NetworkAddress { ip, port },
                 server_id: Vec::new(),
+                name: String::new(),
             })
         } else {
             Err("Invalid address, the format should be IP:PORT".to_string())

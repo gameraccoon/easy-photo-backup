@@ -17,13 +17,14 @@ pub enum ProtocolVersion {
     ConfirmationsEachFile = 4,
     IntroductionRequests = 5,
     PairingProtocol = 6,
+    GetServerNameRequest = 7,
 }
 
 // current version of the server protocol
-pub const SERVER_PROTOCOL_VERSION: u32 = ProtocolVersion::PairingProtocol as u32;
+pub const SERVER_PROTOCOL_VERSION: u32 = ProtocolVersion::GetServerNameRequest as u32;
 // first version of the protocol that the client supports, we make sure to support older servers
 // as long as we can, to make it less annoying for the user
-pub const FIRST_PROTOCOL_VERSION_SUPPORTED: u32 = ProtocolVersion::PairingProtocol as u32;
+pub const FIRST_PROTOCOL_VERSION_SUPPORTED: u32 = ProtocolVersion::GetServerNameRequest as u32;
 
 // changing existing indexes will break compatibility
 #[repr(u32)]
@@ -42,6 +43,8 @@ pub enum Request {
     // The client and server established a connection before
     // The client wants to send files, and sends its public key
     SendFiles(Vec<u8>) = 3,
+    // Get the human-readable name of the server
+    GetServerName = 4,
 }
 
 impl Request {
@@ -57,13 +60,15 @@ pub enum RequestAnswer {
     // Introduction is required to proceed
     UnknownClient = 0,
     // The server received the client's name and public key
-    // The server sends its public key, the confirmation value, its id and name
-    AnswerExchangePublicKeys(Vec<u8>, Vec<u8>, Vec<u8>, String) = 1,
+    // The server sends its public key, the confirmation value, and its id
+    AnswerExchangePublicKeys(Vec<u8>, Vec<u8>, Vec<u8>) = 1,
     // The server received the client's nonce
     // The server sends its nonce
     AnswerExchangeNonces(Vec<u8>) = 2,
     // The server is ready to receive files
     ReadyToReceiveFiles = 3,
+    // The server responds with the human-readable name of the server
+    AnswerGetServerName(String) = 4,
 }
 
 impl RequestAnswer {

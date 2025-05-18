@@ -93,6 +93,7 @@ pub(crate) fn read_request(stream: &mut std::net::TcpStream) -> RequestReadResul
 
             shared_common::protocol::Request::SendFiles(public_key)
         }
+        4 => shared_common::protocol::Request::GetServerName,
         _ => {
             println!("Unknown request type: {}", request_index);
             return RequestReadResult::UnknownError(format!(
@@ -122,7 +123,6 @@ pub(crate) fn send_request_answer(
             public_key,
             confirmation_value,
             server_id,
-            server_name,
         ) => {
             let result = shared_common::write_variable_size_bytes(stream, &public_key);
             if let Err(e) = result {
@@ -144,12 +144,6 @@ pub(crate) fn send_request_answer(
                 println!("Failed to write server id to socket: {}", e);
                 return Err(format!("Failed to write server id to socket: {}", e));
             }
-
-            let result = shared_common::write_string(stream, &server_name);
-            if let Err(e) = result {
-                println!("Failed to write server name to socket: {}", e);
-                return Err(format!("Failed to write server name to socket: {}", e));
-            }
         }
         shared_common::protocol::RequestAnswer::AnswerExchangeNonces(nonce) => {
             let result = shared_common::write_variable_size_bytes(stream, &nonce);
@@ -159,6 +153,13 @@ pub(crate) fn send_request_answer(
             }
         }
         shared_common::protocol::RequestAnswer::ReadyToReceiveFiles => {}
+        shared_common::protocol::RequestAnswer::AnswerGetServerName(server_name) => {
+            let result = shared_common::write_string(stream, &server_name);
+            if let Err(e) = result {
+                println!("Failed to write server name to socket: {}", e);
+                return Err(format!("Failed to write server name to socket: {}", e));
+            }
+        }
     };
 
     Ok(())

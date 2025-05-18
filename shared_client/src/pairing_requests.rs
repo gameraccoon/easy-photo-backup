@@ -8,6 +8,7 @@ use std::net::TcpStream;
 pub fn process_key_and_nonce_exchange(
     server_address: NetworkAddress,
     client_name: String,
+    server_name: String,
 ) -> Result<AwaitingPairingServer, String> {
     let mut stream =
         match TcpStream::connect(format!("{}:{}", server_address.ip, server_address.port)) {
@@ -63,16 +64,14 @@ pub fn process_key_and_nonce_exchange(
         }
     };
 
-    let (server_public_key, server_confirmation_value, server_id, server_name) =
-        match request_result {
-            shared_common::protocol::RequestAnswer::AnswerExchangePublicKeys(
-                public_key,
-                confirmation_value,
-                server_id,
-                server_name,
-            ) => (public_key, confirmation_value, server_id, server_name),
-            _ => return Err("Unexpected answer from server for public key exchange".to_string()),
-        };
+    let (server_public_key, server_confirmation_value, server_id) = match request_result {
+        shared_common::protocol::RequestAnswer::AnswerExchangePublicKeys(
+            public_key,
+            confirmation_value,
+            server_id,
+        ) => (public_key, confirmation_value, server_id),
+        _ => return Err("Unexpected answer from server for public key exchange".to_string()),
+    };
 
     if server_confirmation_value.len() != shared_common::protocol::MAC_SIZE_BYTES {
         println!("Server confirmation value is not the correct length");
