@@ -166,6 +166,11 @@ fn handle_client(
                             }
                         };
 
+                        if server_nonce.len() != shared_common::protocol::NONCE_LENGTH_BYTES {
+                            println!("Server nonce is not the correct length");
+                            return;
+                        }
+
                         let confirmation_value = shared_common::crypto::compute_confirmation_value(
                             &server_keys.public_key,
                             &client_public_key,
@@ -180,10 +185,10 @@ fn handle_client(
                             }
                         };
 
-                        println!("Client public key: {:?}", client_public_key);
-                        println!("Server public key: {:?}", server_public_key);
-                        println!("Server nonce: {:?}", server_nonce);
-                        println!("Confirmation value1: {:?}", confirmation_value);
+                        if confirmation_value.len() != shared_common::protocol::MAC_SIZE_BYTES {
+                            println!("Confirmation value is not the correct length");
+                            return;
+                        }
 
                         let new_client_info = AwaitingPairingClient {
                             client_info: ClientInfo {
@@ -222,6 +227,11 @@ fn handle_client(
                     }
                     shared_common::protocol::Request::ExchangeNonces(client_nonce) => {
                         println!("Confirm connection request from client");
+
+                        if client_nonce.len() != shared_common::protocol::NONCE_LENGTH_BYTES {
+                            println!("Client nonce is not the correct length");
+                            return;
+                        }
 
                         let answer = match storage.non_serialized.awaiting_pairing_client.as_mut() {
                             Some(client) => {

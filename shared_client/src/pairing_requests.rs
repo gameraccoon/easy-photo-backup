@@ -74,6 +74,11 @@ pub fn process_key_and_nonce_exchange(
             _ => return Err("Unexpected answer from server for public key exchange".to_string()),
         };
 
+    if server_confirmation_value.len() != shared_common::protocol::MAC_SIZE_BYTES {
+        println!("Server confirmation value is not the correct length");
+        return Err("Server confirmation value is not the correct length".to_string());
+    }
+
     let client_nonce = shared_common::crypto::generate_random_nonce();
 
     let client_nonce = match client_nonce {
@@ -83,6 +88,11 @@ pub fn process_key_and_nonce_exchange(
             return Err(e);
         }
     };
+
+    if client_nonce.len() != shared_common::protocol::NONCE_LENGTH_BYTES {
+        println!("Client nonce is not the correct length");
+        return Err("Client nonce is not the correct length".to_string());
+    }
 
     let request_result = client_requests::make_request(
         &mut stream,
@@ -114,6 +124,11 @@ pub fn process_key_and_nonce_exchange(
         _ => return Err("Unexpected answer from server for nonce exchange".to_string()),
     };
 
+    if server_nonce.len() != shared_common::protocol::NONCE_LENGTH_BYTES {
+        println!("Server nonce is not the correct length");
+        return Err("Server nonce is not the correct length".to_string());
+    }
+
     let computed_confirmation_value = shared_common::crypto::compute_confirmation_value(
         &server_public_key,
         &client_keys.public_key,
@@ -129,11 +144,6 @@ pub fn process_key_and_nonce_exchange(
     };
 
     if computed_confirmation_value != server_confirmation_value {
-        println!("Client public key: {:?}", client_keys.public_key);
-        println!("Server public key: {:?}", server_public_key);
-        println!("Server nonce: {:?}", server_nonce);
-        println!("Confirmation value1: {:?}", computed_confirmation_value);
-        println!("Confirmation value2: {:?}", server_confirmation_value);
         return Err("Confirmation value doesn't match".to_string());
     }
 
