@@ -82,7 +82,10 @@ pub fn make_request(
     RequestWriteResult::Ok(match answer {
         0 => shared_common::protocol::RequestAnswer::UnknownClient,
         1 => {
-            let public_key = shared_common::read_variable_size_bytes(stream);
+            let public_key = shared_common::read_variable_size_bytes(
+                stream,
+                shared_common::protocol::MAX_PUBLIC_KEY_LENGTH_BYTES as u32,
+            );
             let public_key = match public_key {
                 Ok(public_key) => public_key,
                 Err(e) => {
@@ -94,7 +97,10 @@ pub fn make_request(
                 }
             };
 
-            let confirmation_value = shared_common::read_variable_size_bytes(stream);
+            let confirmation_value = shared_common::read_variable_size_bytes(
+                stream,
+                shared_common::protocol::MAC_SIZE_BYTES as u32,
+            );
             let confirmation_value = match confirmation_value {
                 Ok(confirmation_value) => confirmation_value,
                 Err(e) => {
@@ -106,7 +112,10 @@ pub fn make_request(
                 }
             };
 
-            let server_id = shared_common::read_variable_size_bytes(stream);
+            let server_id = shared_common::read_variable_size_bytes(
+                stream,
+                shared_common::protocol::SERVER_ID_LENGTH_BYTES as u32,
+            );
             let server_id = match server_id {
                 Ok(server_id) => server_id,
                 Err(e) => {
@@ -118,7 +127,10 @@ pub fn make_request(
                 }
             };
 
-            let name = shared_common::read_string(stream);
+            let name = shared_common::read_string(
+                stream,
+                shared_common::protocol::DEVICE_NAME_MAX_LENGTH_BYTES,
+            );
             let name = match name {
                 Ok(name) => name,
                 Err(e) => {
@@ -138,7 +150,10 @@ pub fn make_request(
             )
         }
         2 => {
-            let nonce = shared_common::read_variable_size_bytes(stream);
+            let nonce = shared_common::read_variable_size_bytes(
+                stream,
+                shared_common::protocol::NONCE_LENGTH_BYTES as u32,
+            );
             let nonce = match nonce {
                 Ok(nonce) => nonce,
                 Err(e) => {

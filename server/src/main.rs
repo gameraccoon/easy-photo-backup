@@ -46,13 +46,17 @@ fn run_server(server_config: ServerConfig, server_storage: Arc<Mutex<ServerStora
         }
     };
 
+    let mut nsd_payload = server_id;
+    nsd_payload.push(shared_common::protocol::NSD_DATA_PROTOCOL_VERSION);
+    nsd_payload.rotate_right(1);
+
     // we don't have a way to stop the NSD thread for now, but it is something we should do in the future
     let _nsd_thread_handle = thread::spawn(move || {
         nsd_server::run_nsd_server(
             shared_common::protocol::SERVICE_IDENTIFIER,
             shared_common::protocol::NSD_PORT,
             server_addr.port(),
-            server_id,
+            nsd_payload,
         );
     });
 
@@ -395,7 +399,8 @@ fn main() {
     let mut storage = ServerStorage::load_or_generate();
 
     if storage.machine_id.len() == 0 {
-        let random_bytes: [u8; 16] = rand::rng().random();
+        let random_bytes: [u8; shared_common::protocol::SERVER_ID_LENGTH_BYTES] =
+            rand::rng().random();
         storage.machine_id = random_bytes.to_vec();
     }
 

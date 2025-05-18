@@ -31,7 +31,7 @@ pub fn process_handshake(stream: &mut TcpStream) -> HandshakeResult {
         println!("Server version is unknown: {}", server_version);
         return HandshakeResult::UnknownProtocolVersion(server_version);
     }
-    if server_version < shared_common::protocol::LAST_CLIENT_SUPPORTED_PROTOCOL_VERSION {
+    if server_version < shared_common::protocol::FIRST_PROTOCOL_VERSION_SUPPORTED {
         println!("Server version is not supported: {}", server_version);
         return HandshakeResult::ObsoleteProtocolVersion(server_version);
     }

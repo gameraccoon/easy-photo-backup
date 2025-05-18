@@ -36,7 +36,10 @@ pub(crate) fn read_request(stream: &mut std::net::TcpStream) -> RequestReadResul
 
     let request = match request_index {
         0 => {
-            let public_key = shared_common::read_variable_size_bytes(stream);
+            let public_key = shared_common::read_variable_size_bytes(
+                stream,
+                shared_common::protocol::MAX_PUBLIC_KEY_LENGTH_BYTES as u32,
+            );
             let public_key = match public_key {
                 Ok(bytes) => bytes,
                 Err(err) => {
@@ -45,7 +48,10 @@ pub(crate) fn read_request(stream: &mut std::net::TcpStream) -> RequestReadResul
                 }
             };
 
-            let name = shared_common::read_string(stream);
+            let name = shared_common::read_string(
+                stream,
+                shared_common::protocol::DEVICE_NAME_MAX_LENGTH_BYTES,
+            );
             let name = match name {
                 Ok(string) => string,
                 Err(err) => {
@@ -57,7 +63,10 @@ pub(crate) fn read_request(stream: &mut std::net::TcpStream) -> RequestReadResul
             shared_common::protocol::Request::ExchangePublicKeys(public_key, name)
         }
         1 => {
-            let nonce = shared_common::read_variable_size_bytes(stream);
+            let nonce = shared_common::read_variable_size_bytes(
+                stream,
+                shared_common::protocol::NONCE_LENGTH_BYTES as u32,
+            );
             let nonce = match nonce {
                 Ok(bytes) => bytes,
                 Err(err) => {
@@ -70,7 +79,10 @@ pub(crate) fn read_request(stream: &mut std::net::TcpStream) -> RequestReadResul
         }
         2 => shared_common::protocol::Request::NumberEntered,
         3 => {
-            let public_key = shared_common::read_variable_size_bytes(stream);
+            let public_key = shared_common::read_variable_size_bytes(
+                stream,
+                shared_common::protocol::MAX_PUBLIC_KEY_LENGTH_BYTES as u32,
+            );
             let public_key = match public_key {
                 Ok(bytes) => bytes,
                 Err(err) => {

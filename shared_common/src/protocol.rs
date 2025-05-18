@@ -1,5 +1,13 @@
 pub const ACK_BYTE: u8 = 0xC1;
 
+pub const NSD_PORT: u16 = 5354;
+pub const SERVICE_IDENTIFIER: &str = "_easy-photo-backup._tcp";
+// protocol version controls the payload that we get from the server
+// the NSD implementation itself has its own versioning
+pub const NSD_DATA_PROTOCOL_VERSION: u8 = 1;
+pub const SERVER_ID_LENGTH_BYTES: usize = 16;
+
+// the history of the protocol versions
 #[derive(Debug, PartialEq)]
 pub enum ProtocolVersion {
     InitialHandshake = 0,
@@ -11,15 +19,13 @@ pub enum ProtocolVersion {
     PairingProtocol = 6,
 }
 
+// current version of the server protocol
 pub const SERVER_PROTOCOL_VERSION: u32 = ProtocolVersion::PairingProtocol as u32;
-pub const LAST_CLIENT_SUPPORTED_PROTOCOL_VERSION: u32 = ProtocolVersion::PairingProtocol as u32;
+// first version of the protocol that the client supports, we make sure to support older servers
+// as long as we can, to make it less annoying for the user
+pub const FIRST_PROTOCOL_VERSION_SUPPORTED: u32 = ProtocolVersion::PairingProtocol as u32;
 
-pub const NSD_PORT: u16 = 5354;
-pub const SERVICE_IDENTIFIER: &str = "_easy-photo-backup._tcp";
-
-pub const NONCE_LENGTH_BYTES: usize = 32; // 256 bits
-
-// Changing existing indexes will break compatibility
+// changing existing indexes will break compatibility
 #[repr(u32)]
 pub enum Request {
     // The client asks to pair with the server
@@ -66,5 +72,12 @@ impl RequestAnswer {
     }
 }
 
+pub const NONCE_LENGTH_BYTES: usize = 32;
 pub const NUMERIC_COMPARISON_VALUE_DIGITS: u32 = 6;
 pub const MAC_SIZE_BYTES: usize = 128 / 8;
+pub const DEVICE_NAME_MAX_LENGTH_BYTES: u32 = 1000;
+pub const MAX_FILE_PATH_LENGTH_BYTES: u32 = 65536;
+
+// limits for reading data
+pub const MAX_PUBLIC_KEY_LENGTH_BYTES: usize = 256;
+pub const MAX_PRIVATE_KEY_LENGTH_BYTES: usize = 256;

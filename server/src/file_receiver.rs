@@ -26,7 +26,8 @@ pub(crate) fn receive_file(
     reader: &mut Stream<ServerConnection, TcpStream>,
     receive_strategies: &ReceiveStrategies,
 ) -> ReceiveFileResult {
-    let file_path = shared_common::read_string(reader);
+    let file_path =
+        shared_common::read_string(reader, shared_common::protocol::MAX_FILE_PATH_LENGTH_BYTES);
     let file_path = match file_path {
         Ok(file_path) => file_path,
         Err(e) => {

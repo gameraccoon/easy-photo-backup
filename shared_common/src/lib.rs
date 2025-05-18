@@ -156,7 +156,7 @@ pub fn read_string_raw<T: std::io::Read>(stream: &mut T, size: usize) -> Result<
     Ok(string.to_string())
 }
 
-pub fn read_string<T: std::io::Read>(stream: &mut T) -> Result<String, String> {
+pub fn read_string<T: std::io::Read>(stream: &mut T, max_length: u32) -> Result<String, String> {
     let string_len = read_u32(stream);
     let string_len = match string_len {
         Ok(string_len) => string_len,
@@ -168,6 +168,14 @@ pub fn read_string<T: std::io::Read>(stream: &mut T) -> Result<String, String> {
             return Err(reason);
         }
     };
+
+    if string_len > max_length {
+        println!(
+            "String length is too long (max length is {}, actual length is {})",
+            max_length, string_len
+        );
+        return Err("String length is too long".to_string());
+    }
 
     read_string_raw(stream, string_len as usize)
 }
@@ -231,7 +239,10 @@ pub fn write_variable_size_bytes<T: std::io::Write>(
     Ok(())
 }
 
-pub fn read_variable_size_bytes<T: std::io::Read>(stream: &mut T) -> Result<Vec<u8>, String> {
+pub fn read_variable_size_bytes<T: std::io::Read>(
+    stream: &mut T,
+    max_length: u32,
+) -> Result<Vec<u8>, String> {
     let len = read_u32(stream);
     let len = match len {
         Ok(len) => len,
@@ -243,6 +254,14 @@ pub fn read_variable_size_bytes<T: std::io::Read>(stream: &mut T) -> Result<Vec<
 
     if len == 0 {
         return Ok(Vec::new());
+    }
+
+    if len > max_length {
+        println!(
+            "Variable size data length is too long (max length is {}, actual length is {})",
+            max_length, len
+        );
+        return Err("Variable size data length is too long".to_string());
     }
 
     let result = read_bytes_generic(Vec::new(), stream, len as usize);

@@ -70,7 +70,10 @@ impl ClientStorage {
             return Err("Client storage version mismatch".to_string());
         }
 
-        let client_name = shared_common::read_string(&mut file)?;
+        let client_name = shared_common::read_string(
+            &mut file,
+            shared_common::protocol::DEVICE_NAME_MAX_LENGTH_BYTES,
+        )?;
 
         let paired_servers = read_server_info_vec(&mut file)?;
 
@@ -126,12 +129,27 @@ fn read_server_info_vec<T: Read>(file: &mut T) -> Result<Vec<ServerInfo>, String
 
     let mut server_info_vec = Vec::with_capacity(len as usize);
     for _ in 0..len {
-        let id = shared_common::read_variable_size_bytes(file)?;
-        let name = shared_common::read_string(file)?;
-        let server_public_key = shared_common::read_variable_size_bytes(file)?;
+        let id = shared_common::read_variable_size_bytes(
+            file,
+            shared_common::protocol::SERVER_ID_LENGTH_BYTES as u32,
+        )?;
+        let name = shared_common::read_string(
+            file,
+            shared_common::protocol::DEVICE_NAME_MAX_LENGTH_BYTES,
+        )?;
+        let server_public_key = shared_common::read_variable_size_bytes(
+            file,
+            shared_common::protocol::MAX_PUBLIC_KEY_LENGTH_BYTES as u32,
+        )?;
 
-        let client_public_key = shared_common::read_variable_size_bytes(file)?;
-        let client_private_key = shared_common::read_variable_size_bytes(file)?;
+        let client_public_key = shared_common::read_variable_size_bytes(
+            file,
+            shared_common::protocol::MAX_PUBLIC_KEY_LENGTH_BYTES as u32,
+        )?;
+        let client_private_key = shared_common::read_variable_size_bytes(
+            file,
+            shared_common::protocol::MAX_PRIVATE_KEY_LENGTH_BYTES as u32,
+        )?;
         let client_keys =
             shared_common::tls::tls_data::TlsData::new(client_public_key, client_private_key);
 

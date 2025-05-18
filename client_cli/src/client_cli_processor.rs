@@ -74,7 +74,7 @@ pub fn start_cli_processor(config: ClientConfig, storage: &mut ClientStorage) {
 
                 storage.paired_servers.push(result);
 
-                println!("Pairing succeeded");
+                println!("Pairing succeeded, confirm on the other device");
 
                 let result = storage.save();
                 if let Err(e) = result {
@@ -127,8 +127,26 @@ fn discover_servers(time_seconds: u64) -> Vec<DiscoveredServer> {
         match result {
             Ok(result) => match result.state {
                 nsd_client::DiscoveryState::Added => {
+                    if result.service_info.extra_data.len()
+                        != 1 + shared_common::protocol::SERVER_ID_LENGTH_BYTES
+                    {
+                        println!("Server id is not the correct length");
+                        continue;
+                    }
+
+                    if result.service_info.extra_data[0]
+                        != shared_common::protocol::NSD_DATA_PROTOCOL_VERSION
+                    {
+                        println!("NSD data protocol version is not supported");
+                        continue;
+                    }
+
+                    let mut server_id = result.service_info.extra_data;
+                    server_id.rotate_left(1);
+                    server_id.truncate(shared_common::protocol::SERVER_ID_LENGTH_BYTES);
+
                     online_servers.push(DiscoveredServer {
-                        server_id: result.service_info.extra_data,
+                        server_id,
                         address: result.service_info.address,
                     });
                 }
