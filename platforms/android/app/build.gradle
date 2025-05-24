@@ -58,6 +58,8 @@ dependencies {
     implementation libs.androidx.appcompat
     implementation libs.material
     implementation libs.androidx.material3
+    implementation libs.androidx.activity
+    implementation libs.androidx.constraintlayout
 
     debugImplementation libs.androidx.compose.ui.tooling
     debugImplementation libs.androidx.compose.ui.test.manifest

@@ -1,62 +1,86 @@
 package com.gameraccoon.easyphotobackup
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.runtime.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
-import com.gameraccoon.core.NSDClient
 import com.gameraccoon.easyphotobackup.ui.theme.EasyPhotoBackupTheme
-import kotlinx.coroutines.delay
-import uniffi.client_ffi.Service
 
 class MainActivity : ComponentActivity() {
-  private val nsdClient = NSDClient()
-
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
 
-    nsdClient.start_discovery()
-
     setContent {
-      EasyPhotoBackupTheme {
-        var status by remember { mutableStateOf("Loading...") }
-
-        // Coroutine that runs once on composition and loops forever
-        LaunchedEffect(Unit) {
-          while (true) {
-            val services: List<Service> = nsdClient.get_services()
-            status =
-                if (services.isEmpty()) {
-                  "No services found"
-                } else {
-                  services[0].ip
-                }
-            delay(100)
-          }
-        }
-
-        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-          Greeting(status)
-        }
-      }
+      Layout(
+        onAddDeviceClicked = {
+          val context = this
+          val intent = Intent(context, DiscoverDevicesActivity::class.java)
+          context.startActivity(intent)
+        },
+        onDebugSendFilesClicked = {
+        })
     }
   }
 }
 
 @Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-  Text(text = "Status: $name", modifier = modifier)
+fun DeviceButton(name: String, modifier: Modifier = Modifier) {
+  Button(onClick = {
+    println("Button 1 clicked")
+  }) {
+    Text(text = name, modifier = modifier)
+  }
+}
+
+@Composable
+fun ListOfDevices(modifier: Modifier = Modifier) {
+  for (i in 1..10) {
+    Column(modifier = modifier) {
+      DeviceButton("Test device $i")
+    }
+  }
+}
+
+@Composable
+fun AddDeviceButton(onClicked: () -> Unit, modifier: Modifier = Modifier) {
+  Button(onClick = onClicked) {
+    Text(text = "Add Device", modifier = modifier)
+  }
+}
+
+@Composable
+fun DebugSendFilesButton(onClicked: () -> Unit, modifier: Modifier = Modifier) {
+  Button(onClick = onClicked) {
+    Text(text = "Send files [Debug]", modifier = modifier)
+  }
+}
+
+@Composable
+fun Layout(onAddDeviceClicked: () -> Unit, onDebugSendFilesClicked: () -> Unit) {
+  EasyPhotoBackupTheme {
+    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+      Column(Modifier.verticalScroll(rememberScrollState())) {
+        ListOfDevices()
+        AddDeviceButton(onAddDeviceClicked)
+        DebugSendFilesButton(onDebugSendFilesClicked)
+      }
+    }
+  }
 }
 
 @Preview(showBackground = true)
 @Composable
-fun GreetingPreview() {
-  EasyPhotoBackupTheme { Greeting("test") }
+fun ListOfDevicesPreview() {
+  Layout({}, {})
 }

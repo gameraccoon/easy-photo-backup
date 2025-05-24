@@ -1,4 +1,8 @@
 <resources>
-    <string name="app_name">Easy Photo Backup</string>
-    <string name="title_activity_main">Easy Photo Backup</string>
+    <string name="app_name" translatable="false">Easy Photo Backup</string>
+    <string name="title_activity_main">Devices</string>
+    <string name="title_activity_discover_devices">Devices in the network</string>
+    <string name="discovery_device_button">Connect</string>
+    <string name="add_by_ip_button">Add by IP</string>
+    <string name="discovered_time_now">seen: now</string>
 </resources>
