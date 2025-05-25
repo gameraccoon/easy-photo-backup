@@ -1,10 +1,11 @@
 [workspace]
 members = [
-    "server",
     "client_cli",
-    "shared_common",
-    "shared_client",
     "client_ffi",
+    "server",
+    "server_digits_gui",
+    "shared_client",
+    "shared_common",
     "uniffi-bindgen",
     "uniffi-bindgen-swift",
 ]
