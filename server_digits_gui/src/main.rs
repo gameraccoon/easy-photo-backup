@@ -1,9 +1,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::env;
-use std::process::exit;
 use eframe::egui;
 use eframe::egui::{Align, FontId, Layout, RichText};
+use std::env;
+use std::process::exit;
 
 const AFTER_CONFIRMATION_CLOSE_TIME: std::time::Duration = std::time::Duration::from_secs(1);
 
@@ -32,11 +32,13 @@ fn main() -> eframe::Result {
     eframe::run_native(
         "Pairing request",
         options,
-        Box::new(|_cc| Ok(Box::<ServerDigitGui>::new(ServerDigitGui{
-            code_to_display,
-            code_entering_is_done: false,
-            user_confirmation: None,
-        }))),
+        Box::new(|_cc| {
+            Ok(Box::<ServerDigitGui>::new(ServerDigitGui {
+                code_to_display,
+                code_entering_is_done: false,
+                user_confirmation: None,
+            }))
+        }),
     )
 }
 
@@ -55,32 +57,44 @@ struct ServerDigitGui {
 impl eframe::App for ServerDigitGui {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
+            ui.style_mut().interaction.selectable_labels = false;
+            ui.style_mut().text_styles.insert(
+                egui::TextStyle::Button,
+                FontId::new(18.0, eframe::epaint::FontFamily::Proportional),
+            );
             ui.vertical_centered(|ui| {
                 if !self.code_entering_is_done {
-                    ui.add_space(20.0);
+                    ui.add_space(15.0);
                     ui.heading("Enter this code on the device you want to pair");
-                    ui.label(RichText::new(self.code_to_display.as_str()).font(FontId::proportional(40.0)));
-                    ui.add_space(30.0);
-                    if ui.button("Done").clicked() {
-                        self.code_entering_is_done = true;
-                    }
+                    ui.add_space(15.0);
+                    ui.label(
+                        RichText::new(self.code_to_display.as_str())
+                            .font(FontId::proportional(40.0)),
+                    );
+                    ui.add_space(20.0);
+                    ui.centered_and_justified(|ui| {
+                        if ui.button("Done").clicked() {
+                            self.code_entering_is_done = true;
+                        }
+                    });
                 } else {
                     match &self.user_confirmation {
                         None => {
-                            ui.add_space(20.0);
-                            ui.heading("Has the other device confirmed pairing");
+                            ui.add_space(40.0);
+                            ui.heading("Has the other device confirmed pairing?");
+                            ui.add_space(50.0);
 
                             ui.columns(2, |columns| {
-                                columns[0].with_layout(Layout::right_to_left(Align::Center), |ui| {
-                                    if ui.button("Yes").clicked() {
+                                columns[0].centered_and_justified(|ui| {
+                                    if ui.button("Confirmed").clicked() {
                                         self.user_confirmation = Some(UserConfirmation {
                                             is_successful: true,
                                             confirmation_time: std::time::Instant::now(),
                                         });
                                     }
                                 });
-                                columns[1].with_layout(Layout::left_to_right(Align::Center), |ui| {
-                                    if ui.button("No").clicked() {
+                                columns[1].centered_and_justified(|ui| {
+                                    if ui.button("Not confirmed").clicked() {
                                         self.user_confirmation = Some(UserConfirmation {
                                             is_successful: false,
                                             confirmation_time: std::time::Instant::now(),
@@ -90,12 +104,22 @@ impl eframe::App for ServerDigitGui {
                             });
                         }
                         Some(user_confirmation) => {
-                            if user_confirmation.confirmation_time.elapsed() < AFTER_CONFIRMATION_CLOSE_TIME {
+                            if user_confirmation.confirmation_time.elapsed()
+                                < AFTER_CONFIRMATION_CLOSE_TIME
+                            {
                                 ui.centered_and_justified(|ui| {
-                                    ui.heading(if user_confirmation.is_successful { "Pairing confirmed" } else { "Aborting" });
+                                    ui.heading(if user_confirmation.is_successful {
+                                        "Pairing confirmed"
+                                    } else {
+                                        "Aborting"
+                                    });
                                 });
                             } else {
-                                exit(if user_confirmation.is_successful { ExitCodes::Confirmed } else { ExitCodes::Aborted } as i32)
+                                exit(if user_confirmation.is_successful {
+                                    ExitCodes::Confirmed
+                                } else {
+                                    ExitCodes::Aborted
+                                } as i32)
                             }
                         }
                     }
