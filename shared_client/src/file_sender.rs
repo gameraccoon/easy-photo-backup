@@ -155,7 +155,6 @@ fn send_files(
     let mut send_result = Vec::new();
     let mut first_skipped_index = files.len();
     for i in 0..files.len() {
-        println!("Sending file {}", i);
         send_continuation_marker(true, stream);
 
         let mut file_path = PathBuf::new();
@@ -220,7 +219,6 @@ fn send_files(
         }
     }
 
-    println!("Sending stop marker");
     send_continuation_marker(false, &mut stream);
 
     skipped.extend(files.drain(first_skipped_index..));
@@ -235,10 +233,6 @@ pub fn send_directory(
     let mut files = Vec::new();
     let mut skipped = Vec::new();
     collect_files(source_directory_path, &mut files, &mut skipped);
-
-    for file in files.iter() {
-        println!("Sending file {}", file.display());
-    }
 
     let source_directory_path_copy = source_directory_path.clone();
 

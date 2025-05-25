@@ -75,8 +75,6 @@ pub(crate) fn receive_file(
         }
     };
 
-    println!("destination file path: {}", destination_file_path.display());
-
     let file = std::fs::File::create(destination_file_path.clone());
     let mut file = match file {
         Ok(file) => file,

@@ -104,9 +104,7 @@ fn handle_client(
     let handshake_result = server_handshake::process_handshake(&mut stream);
 
     match handshake_result {
-        HandshakeResult::Ok => {
-            println!("Client handshake succeeded");
-        }
+        HandshakeResult::Ok => {}
         HandshakeResult::UnknownConnectionError(error_text) => {
             println!("Client handshake failed: '{}'", error_text);
             return;
@@ -135,7 +133,7 @@ fn handle_client(
                         client_public_key,
                         name,
                     ) => {
-                        println!("Introduce request from client '{}'", name);
+                        println!("Pairing request from client '{}'", name);
 
                         if storage.non_serialized.awaiting_pairing_client.is_some() {
                             println!("There is already a pairing request from another client");
@@ -230,8 +228,6 @@ fn handle_client(
                         }
                     }
                     shared_common::protocol::Request::ExchangeNonces(client_nonce) => {
-                        println!("Confirm connection request from client");
-
                         if client_nonce.len() != shared_common::protocol::NONCE_LENGTH_BYTES {
                             println!("Client nonce is not the correct length");
                             return;
@@ -279,8 +275,6 @@ fn handle_client(
                         break;
                     }
                     shared_common::protocol::Request::SendFiles(public_key) => {
-                        println!("Send files request from client");
-
                         let paired_client = storage
                             .paired_clients
                             .iter()
