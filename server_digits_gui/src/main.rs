@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use eframe::egui;
-use eframe::egui::{Align, FontId, Layout, RichText};
+use eframe::egui::{FontId, RichText};
 use std::env;
 use std::process::exit;
 

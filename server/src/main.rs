@@ -1,7 +1,7 @@
+mod digit_confirmation_ui;
 mod file_receiver;
 mod nsd_server;
 mod send_files_request;
-mod server_cli_processor;
 mod server_config;
 mod server_handshake;
 mod server_requests;
@@ -202,6 +202,7 @@ fn handle_client(
                             },
                             server_nonce: server_nonce.clone(),
                             client_nonce: None,
+                            awaiting_digit_confirmation: false,
                         };
 
                         storage.non_serialized.awaiting_pairing_client = Some(new_client_info);
@@ -239,28 +240,8 @@ fn handle_client(
                         let answer = match storage.non_serialized.awaiting_pairing_client.as_mut() {
                             Some(client) => {
                                 if just_exchanged_public_keys {
-                                    let numeric_comparison_value = shared_common::crypto::compute_numeric_comparison_value(
-                                        &client.client_info.server_keys.public_key,
-                                        &client.client_info.client_public_key,
-                                        &client.server_nonce,
-                                        &client_nonce,
-                                        shared_common::protocol::NUMERIC_COMPARISON_VALUE_DIGITS,
-                                    );
-
-                                    let numeric_comparison_value = match numeric_comparison_value {
-                                        Ok(numeric_comparison_value) => numeric_comparison_value,
-                                        Err(e) => {
-                                            println!("Failed to compute numeric comparison value, aborting: {}", e);
-                                            return;
-                                        }
-                                    };
-
-                                    println!(
-                                        "Enter this code on the other device: {}",
-                                        numeric_comparison_value
-                                    );
-
                                     client.client_nonce = Some(client_nonce);
+                                    client.awaiting_digit_confirmation = true;
 
                                     shared_common::protocol::RequestAnswer::AnswerExchangeNonces(
                                         client.server_nonce.clone(),
@@ -295,8 +276,6 @@ fn handle_client(
                         }
 
                         drop(storage);
-
-                        println!("The client entered the number, type 'confirm' to continue or 'reject' to abort");
                         break;
                     }
                     shared_common::protocol::Request::SendFiles(public_key) => {
@@ -427,7 +406,7 @@ fn main() {
         run_server(config, storage_clone);
     });
 
-    server_cli_processor::start_cli_processor(storage);
+    digit_confirmation_ui::process_pairing_requests(storage.clone());
 
     let result = thread.join();
     if let Err(_) = result {

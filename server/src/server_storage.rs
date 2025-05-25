@@ -14,6 +14,7 @@ pub(crate) struct AwaitingPairingClient {
     pub client_info: ClientInfo,
     pub server_nonce: Vec<u8>,
     pub client_nonce: Option<Vec<u8>>,
+    pub awaiting_digit_confirmation: bool,
 }
 
 pub(crate) struct NonSerializedServerStorage {
