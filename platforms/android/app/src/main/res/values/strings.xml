@@ -4,5 +4,6 @@
     <string name="title_activity_discover_devices">Devices in the network</string>
     <string name="discovery_device_button">Connect</string>
     <string name="add_by_ip_button">Add by IP</string>
-    <string name="discovered_time_now">seen: now</string>
+    <string name="status_online">Online</string>
+    <string name="status_offline">Offline</string>
 </resources>

@@ -15,9 +15,12 @@
         android:theme="@style/Theme.EasyPhotoBackup"
         tools:targetApi="31">
         <activity
-            android:name=".DiscoverDevicesActivity"
-            android:label="@string/title_activity_discover_devices"
+            android:name=".PairDeviceActivity"
             android:exported="false" />
+        <activity
+            android:name=".DiscoverDevicesActivity"
+            android:exported="false"
+            android:label="@string/title_activity_discover_devices" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

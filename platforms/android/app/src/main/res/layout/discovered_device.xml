@@ -17,20 +17,19 @@
         android:contentDescription="@string/platform_icon"
         app:srcCompat="@drawable/ic_launcher_foreground" />
 
-    <Button
-        android:id="@+id/discovered_device_button"
-        android:layout_width="0dp"
+    <TextView
+        android:id="@+id/discovered_device_text"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:text="@string/discovery_device_button" />
+        android:layout_weight="0" />
 
     <TextView
-        android:id="@+id/last_seen_text"
+        android:id="@+id/online_text"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_weight="0"
         android:paddingStart="5pt"
         android:paddingEnd="0pt"
-        android:text="@string/discovered_time_now" />
+        android:text="@string/status_offline" />
 
 </LinearLayout>

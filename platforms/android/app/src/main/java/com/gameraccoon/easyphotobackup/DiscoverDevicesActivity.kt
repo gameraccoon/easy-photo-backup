@@ -1,5 +1,6 @@
 package com.gameraccoon.easyphotobackup
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
@@ -20,7 +21,8 @@ class DiscoverDevicesActivity : AppCompatActivity() {
     @OptIn(DelicateCoroutinesApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        nsdClient.startDiscovery()
+        // for UI we can update it a bit faster than usual to get better responsiveness
+        nsdClient.startDiscovery(1000u)
         enableEdgeToEdge()
         setContentView(R.layout.activity_discover_devices)
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
@@ -48,19 +50,22 @@ class DiscoverDevicesActivity : AppCompatActivity() {
         // go through the list of displayed devices and update the ones we found
         for (i in 0 until deviceList.childCount) {
             val device = deviceList.getChildAt(i) as DiscoveredDeviceView
-            var foundServiceIndex = -1
-            for (j in 0 until services.size) {
-                if (device.service == services[j].port.toInt()) {
-                    foundServiceIndex = j
-                    break
+            var serviceFound = false
+            for (j in services.size - 1 downTo 0) {
+                // we consider servers with the same IP but different port to be the same as long as they have the same ID
+                // there may be multiple servers that match this criteria if a server was restarted with a different port
+                if (device.ip == services[j].ip && device.id contentEquals services[j].id) {
+                    serviceFound = true
+                    // just in case the port has changed
+                    device.port = services[j].port.toInt()
+                    services.removeAt(j)
                 }
             }
 
-            if (foundServiceIndex != -1) {
-                // ToDo: update the text field with "Seen: now"
-                services.removeAt(foundServiceIndex)
+            if (serviceFound) {
+                device.updateOnline(true)
             } else {
-                // ToDo: update the text with the last seen time
+                device.updateOnline(false)
             }
         }
 
@@ -77,10 +82,15 @@ class DiscoverDevicesActivity : AppCompatActivity() {
 
     fun addDiscoveredDevice(deviceList: ViewGroup, service: Service) {
         val device = DiscoveredDeviceView(this)
-        device.service = service.port.toInt()
+        device.ip = service.ip
+        device.port = service.port.toInt()
+        device.id = service.id
         device.setOnClickListener { v ->
-            println("device clicked")
+            val context = this
+            val intent = Intent(context, PairDeviceActivity::class.java)
+            context.startActivity(intent)
         }
+        device.updateOnline(true)
         deviceList.addView(device)
     }
 

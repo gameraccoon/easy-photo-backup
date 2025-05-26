@@ -386,6 +386,10 @@ fn main() {
         let random_bytes: [u8; shared_common::protocol::SERVER_ID_LENGTH_BYTES] =
             rand::rng().random();
         storage.machine_id = random_bytes.to_vec();
+        let result = storage.save();
+        if let Err(e) = result {
+            println!("Failed to save server storage: {}", e);
+        }
     }
 
     if storage.machine_id.len() > 64 {

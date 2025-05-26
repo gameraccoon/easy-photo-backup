@@ -6,8 +6,8 @@ import uniffi.client_ffi.Service
 class NSDClient {
   private var client = NetworkServiceDiscoveryClient()
 
-  fun startDiscovery() {
-    client.start()
+  fun startDiscovery(discoveryPeriodMs: kotlin.ULong) {
+    client.start(discoveryPeriodMs)
   }
 
   fun stopDiscovery(shouldWaitForThreadJoin: Boolean) {
