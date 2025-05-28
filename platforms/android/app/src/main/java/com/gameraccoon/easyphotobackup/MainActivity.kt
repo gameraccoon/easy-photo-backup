@@ -23,47 +23,36 @@ class MainActivity : ComponentActivity() {
 
     setContent {
       Layout(
-        onAddDeviceClicked = {
-          val context = this
-          val intent = Intent(context, DiscoverDevicesActivity::class.java)
-          context.startActivity(intent)
-        },
-        onDebugSendFilesClicked = {
-        })
+          onAddDeviceClicked = {
+            val context = this
+            val intent = Intent(context, DiscoverDevicesActivity::class.java)
+            context.startActivity(intent)
+          },
+          onDebugSendFilesClicked = {})
     }
   }
 }
 
 @Composable
 fun DeviceButton(name: String, modifier: Modifier = Modifier) {
-  Button(onClick = {
-    println("Button 1 clicked")
-  }) {
-    Text(text = name, modifier = modifier)
-  }
+  Button(onClick = { println("Button 1 clicked") }) { Text(text = name, modifier = modifier) }
 }
 
 @Composable
 fun ListOfDevices(modifier: Modifier = Modifier) {
   for (i in 1..10) {
-    Column(modifier = modifier) {
-      DeviceButton("Test device $i")
-    }
+    Column(modifier = modifier) { DeviceButton("Test device $i") }
   }
 }
 
 @Composable
 fun AddDeviceButton(onClicked: () -> Unit, modifier: Modifier = Modifier) {
-  Button(onClick = onClicked) {
-    Text(text = "Add Device", modifier = modifier)
-  }
+  Button(onClick = onClicked) { Text(text = "Add Device", modifier = modifier) }
 }
 
 @Composable
 fun DebugSendFilesButton(onClicked: () -> Unit, modifier: Modifier = Modifier) {
-  Button(onClick = onClicked) {
-    Text(text = "Send files [Debug]", modifier = modifier)
-  }
+  Button(onClick = onClicked) { Text(text = "Send files [Debug]", modifier = modifier) }
 }
 
 @Composable
