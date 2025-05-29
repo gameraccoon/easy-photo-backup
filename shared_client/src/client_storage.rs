@@ -11,6 +11,7 @@ pub struct ServerInfo {
     pub client_keys: shared_common::tls::tls_data::TlsData,
 }
 
+#[derive(Clone)]
 pub struct AwaitingPairingServer {
     pub server_info: ServerInfo,
     pub server_address: crate::network_address::NetworkAddress,

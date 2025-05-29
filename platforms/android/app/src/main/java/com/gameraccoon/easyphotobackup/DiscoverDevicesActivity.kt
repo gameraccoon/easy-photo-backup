@@ -13,7 +13,7 @@ import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import uniffi.client_ffi.Service
+import uniffi.client_ffi.DiscoveredService
 
 class DiscoverDevicesActivity : AppCompatActivity() {
   val nsdClient = NSDClient()
@@ -56,10 +56,10 @@ class DiscoverDevicesActivity : AppCompatActivity() {
         // have the same ID
         // there may be multiple servers that match this criteria if a server was restarted with a
         // different port
-        if (device.ip == services[j].ip && device.id contentEquals services[j].id) {
+        if (device.ip == services[j].getIp() && device.id contentEquals services[j].getId()) {
           serviceFound = true
           // just in case the port has changed
-          device.port = services[j].port.toInt()
+          device.port = services[j].getPort().toInt()
           services.removeAt(j)
         }
       }
@@ -82,11 +82,11 @@ class DiscoverDevicesActivity : AppCompatActivity() {
     super.onDestroy()
   }
 
-  fun addDiscoveredDevice(deviceList: ViewGroup, service: Service) {
+  fun addDiscoveredDevice(deviceList: ViewGroup, service: DiscoveredService) {
     val device = DiscoveredDeviceView(this)
-    device.ip = service.ip
-    device.port = service.port.toInt()
-    device.id = service.id
+    device.ip = service.getIp()
+    device.port = service.getPort().toInt()
+    device.id = service.getId()
     device.setOnClickListener { v ->
       val context = this
       val intent = Intent(context, PairDeviceActivity::class.java)

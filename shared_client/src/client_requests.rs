@@ -51,9 +51,6 @@ pub fn make_request(
                 ));
             }
         }
-        shared_common::protocol::Request::NumberEntered => {
-            return RequestWriteResult::OkNoAnswer;
-        }
         shared_common::protocol::Request::SendFiles(public_key) => {
             let result = shared_common::write_variable_size_bytes(stream, &public_key);
             if let Err(e) = result {

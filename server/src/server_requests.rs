@@ -77,8 +77,7 @@ pub(crate) fn read_request(stream: &mut std::net::TcpStream) -> RequestReadResul
 
             shared_common::protocol::Request::ExchangeNonces(nonce)
         }
-        2 => shared_common::protocol::Request::NumberEntered,
-        3 => {
+        2 => {
             let public_key = shared_common::read_variable_size_bytes(
                 stream,
                 shared_common::protocol::MAX_PUBLIC_KEY_LENGTH_BYTES as u32,
@@ -93,7 +92,7 @@ pub(crate) fn read_request(stream: &mut std::net::TcpStream) -> RequestReadResul
 
             shared_common::protocol::Request::SendFiles(public_key)
         }
-        4 => shared_common::protocol::Request::GetServerName,
+        3 => shared_common::protocol::Request::GetServerName,
         _ => {
             println!("Unknown request type: {}", request_index);
             return RequestReadResult::UnknownError(format!(

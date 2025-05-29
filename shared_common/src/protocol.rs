@@ -18,13 +18,15 @@ pub enum ProtocolVersion {
     IntroductionRequests = 5,
     PairingProtocol = 6,
     GetServerNameRequest = 7,
+    RemoveNumberEnteredRequest = 8,
 }
 
 // current version of the server protocol
-pub const SERVER_PROTOCOL_VERSION: u32 = ProtocolVersion::GetServerNameRequest as u32;
+pub const SERVER_PROTOCOL_VERSION: u32 = ProtocolVersion::RemoveNumberEnteredRequest as u32;
 // first version of the protocol that the client supports, we make sure to support older servers
 // as long as we can, to make it less annoying for the user
-pub const FIRST_PROTOCOL_VERSION_SUPPORTED: u32 = ProtocolVersion::GetServerNameRequest as u32;
+pub const FIRST_PROTOCOL_VERSION_SUPPORTED: u32 =
+    ProtocolVersion::RemoveNumberEnteredRequest as u32;
 
 // changing existing indexes will break compatibility
 #[repr(u32)]
@@ -36,15 +38,11 @@ pub enum Request {
     // The client got server's public key and confirmation value
     // the client sends its nonce
     ExchangeNonces(Vec<u8>) = 1,
-    // Notify the server that the client has entered the numeric comparison value
-    // It doesn't matter if the number matches or not, this is just a notification
-    // No answer is expected
-    NumberEntered = 2,
     // The client and server established a connection before
     // The client wants to send files, and sends its public key
-    SendFiles(Vec<u8>) = 3,
+    SendFiles(Vec<u8>) = 2,
     // Get the human-readable name of the server
-    GetServerName = 4,
+    GetServerName = 3,
 }
 
 impl Request {

@@ -4,28 +4,69 @@ use std::sync::{Arc, Mutex};
 // generate uniffi boilerplate
 uniffi::setup_scaffolding!();
 
-#[derive(Debug, Clone, uniffi::Record)]
-pub struct Service {
-    pub name: String,
-    pub id: Vec<u8>,
-    pub ip: String,
-    pub port: u16,
+#[derive(uniffi::Object, Clone)]
+pub struct DiscoveredService {
+    internals: shared_client::discovered_server::DiscoveredServer,
 }
 
-impl Service {
+#[uniffi::export]
+impl DiscoveredService {
+    #[uniffi::constructor]
     pub fn new() -> Self {
         Self {
-            name: String::new(),
-            id: Vec::new(),
-            ip: String::new(),
-            port: 0,
+            internals: shared_client::discovered_server::DiscoveredServer {
+                server_id: Vec::new(),
+                address: shared_client::network_address::NetworkAddress {
+                    ip: std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0)),
+                    port: 0,
+                },
+                name: String::new(),
+            },
         }
+    }
+
+    pub fn get_id(&self) -> Vec<u8> {
+        self.internals.server_id.clone()
+    }
+
+    pub fn get_ip(&self) -> String {
+        self.internals.address.ip.to_string()
+    }
+
+    pub fn get_port(&self) -> u16 {
+        self.internals.address.port
+    }
+
+    pub fn get_name(&self) -> String {
+        self.internals.name.clone()
+    }
+
+    pub fn fetch_name_sync(&self) -> Option<String> {
+        let result = shared_client::get_server_name_request::get_server_name_request(
+            self.internals.address.clone(),
+        );
+        if let Ok(name) = result {
+            Some(name)
+        } else {
+            None
+        }
+    }
+
+    pub fn set_port(&self, port: u16) -> Self {
+        let mut clone = self.clone();
+        clone.internals.address.port = port;
+        clone
+    }
+
+    pub fn set_name(&self, name: String) -> Self {
+        let mut clone = self.clone();
+        clone.internals.name = name;
+        clone
     }
 }
 
-#[derive(Debug)]
 struct NSDClientInternals {
-    online_services: Arc<Mutex<Vec<Service>>>,
+    online_services: Arc<Mutex<Vec<Arc<DiscoveredService>>>>,
     thread_handle: Option<std::thread::JoinHandle<()>>,
     stop_signal_sender: Option<std::sync::mpsc::Sender<()>>,
 }
@@ -40,7 +81,7 @@ impl NSDClientInternals {
     }
 }
 
-#[derive(Debug, uniffi::Object)]
+#[derive(uniffi::Object)]
 pub struct NetworkServiceDiscoveryClient {
     // we have to have the bound object immutable for FFI
     internals: Arc<Mutex<NSDClientInternals>>,
@@ -89,18 +130,22 @@ impl NetworkServiceDiscoveryClient {
                                     server_id
                                         .truncate(shared_common::protocol::SERVER_ID_LENGTH_BYTES);
 
-                                    services.push(Service {
-                                        id: server_id,
-                                        name: String::new(), // we will get the name with a
-                                        // separate request
-                                        ip: result.service_info.address.ip.to_string(),
-                                        port: result.service_info.address.port,
-                                    });
+                                    services.push(Arc::new(DiscoveredService {
+                                        internals:
+                                            shared_client::discovered_server::DiscoveredServer {
+                                                server_id,
+                                                name: String::new(), // we will get the name with a
+                                                // separate request
+                                                address: result.service_info.address,
+                                            },
+                                    }));
                                 }
                                 nsd_client::DiscoveryState::Removed => {
                                     services.retain(|server| {
-                                        server.ip != result.service_info.address.ip.to_string()
-                                            || server.port != result.service_info.address.port
+                                        server.internals.address.ip
+                                            != result.service_info.address.ip
+                                            || server.internals.address.port
+                                                != result.service_info.address.port
                                     });
                                 }
                             }
@@ -142,17 +187,159 @@ impl NetworkServiceDiscoveryClient {
         }
     }
 
-    pub fn get_services(&self) -> Vec<Service> {
+    pub fn get_services(&self) -> Vec<Arc<DiscoveredService>> {
         if let Ok(internals) = self.internals.lock() {
             let services = internals.online_services.lock();
             if let Ok(services) = services {
-                services.clone()
+                services
+                    .iter()
+                    .map(|service| {
+                        Arc::new(DiscoveredService {
+                            internals: service.internals.clone(),
+                        })
+                    })
+                    .collect()
             } else {
                 vec![]
             }
         } else {
             println!("Can't lock internals of NSD client");
             vec![]
+        }
+    }
+}
+
+#[derive(uniffi::Object)]
+struct ServerInfo {
+    internals: shared_client::client_storage::ServerInfo,
+}
+
+#[uniffi::export]
+impl ServerInfo {
+    #[uniffi::constructor]
+    pub fn new() -> Self {
+        Self {
+            internals: shared_client::client_storage::ServerInfo {
+                id: Vec::new(),
+                name: String::new(),
+                server_public_key: Vec::new(),
+                client_keys: shared_common::tls::tls_data::TlsData::new(Vec::new(), Vec::new()),
+            },
+        }
+    }
+}
+
+#[derive(uniffi::Object)]
+struct ClientStorage {
+    internals: Arc<Mutex<shared_client::client_storage::ClientStorage>>,
+}
+
+#[uniffi::export]
+impl ClientStorage {
+    #[uniffi::constructor]
+    pub fn new() -> Self {
+        Self {
+            internals: Arc::new(Mutex::new(
+                shared_client::client_storage::ClientStorage::load_or_generate(),
+            )),
+        }
+    }
+
+    pub fn save(&self) {
+        if let Ok(internals) = self.internals.lock() {
+            let result = internals.save();
+            if let Err(e) = result {
+                println!("Failed to save client storage: {}", e);
+            }
+        } else {
+            println!("Can't lock internals of client storage");
+        }
+    }
+
+    pub fn is_paired(&self, server_public_key: Vec<u8>) -> bool {
+        if let Ok(internals) = self.internals.lock() {
+            internals
+                .paired_servers
+                .iter()
+                .any(|client| client.server_public_key == server_public_key)
+        } else {
+            println!("Can't lock internals of client storage");
+            false
+        }
+    }
+
+    pub fn add_paired_server(&self, server_info: &ServerInfo) {
+        if let Ok(mut internals) = self.internals.lock() {
+            internals.paired_servers.push(server_info.internals.clone());
+        } else {
+            println!("Can't lock internals of client storage");
+        }
+    }
+}
+
+#[derive(uniffi::Object)]
+struct PairingProcessor {
+    internals: Arc<Mutex<shared_client::pairing_processor::PairingProcessor>>,
+}
+
+#[uniffi::export]
+impl PairingProcessor {
+    #[uniffi::constructor]
+    pub fn new() -> Self {
+        Self {
+            internals: Arc::new(Mutex::new(
+                shared_client::pairing_processor::PairingProcessor::new(),
+            )),
+        }
+    }
+
+    pub fn pair_to_server(
+        &self,
+        discovered_service: &DiscoveredService,
+        client_storage: &ClientStorage,
+    ) {
+        if let Ok(mut internals) = self.internals.lock() {
+            if let Ok(client_storage) = client_storage.internals.lock() {
+                let result =
+                    internals.pair_to_server(&discovered_service.internals, &client_storage);
+                if let Err(e) = result {
+                    println!("Failed to pair to server: {}", e);
+                }
+            } else {
+                println!("Can't lock internals of server info");
+            }
+        } else {
+            println!("Can't lock internals of pairing processor");
+        }
+    }
+
+    pub fn compute_numeric_comparison_value(&self) -> Option<u32> {
+        if let Ok(mut internals) = self.internals.lock() {
+            match internals.compute_numeric_comparison_value() {
+                Ok(value) => Some(value),
+                Err(err) => {
+                    println!("Failed to compute numeric comparison value: {}", err);
+                    None
+                }
+            }
+        } else {
+            println!("Can't lock internals of pairing processor");
+            None
+        }
+    }
+
+    pub fn add_as_paired(&self, client_storage: &ClientStorage) {
+        if let Ok(internals) = self.internals.lock() {
+            let server_info = internals.clone_server_info();
+            if let Some(server_info) = server_info {
+                if let Ok(mut client_storage) = client_storage.internals.lock() {
+                    client_storage.paired_servers.push(server_info);
+                }
+            } else {
+                println!("We don't have a paired server");
+            }
+        } else {
+            println!("Can't lock internals of pairing processor");
         }
     }
 }

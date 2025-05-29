@@ -1,12 +1,12 @@
 package com.gameraccoon.core
 
+import uniffi.client_ffi.DiscoveredService
 import uniffi.client_ffi.NetworkServiceDiscoveryClient
-import uniffi.client_ffi.Service
 
 class NSDClient {
   private var client = NetworkServiceDiscoveryClient()
 
-  fun startDiscovery(discoveryPeriodMs: kotlin.ULong) {
+  fun startDiscovery(discoveryPeriodMs: ULong) {
     client.start(discoveryPeriodMs)
   }
 
@@ -14,7 +14,7 @@ class NSDClient {
     client.stop(shouldWaitForThreadJoin)
   }
 
-  fun getServices(): List<Service> {
+  fun getServices(): List<DiscoveredService> {
     return client.getServices()
   }
 }

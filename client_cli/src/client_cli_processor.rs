@@ -2,17 +2,10 @@ use crate::client_config::ClientConfig;
 use shared_client::client_storage::{ClientStorage, ServerInfo};
 use shared_client::network_address::NetworkAddress;
 use shared_client::send_files_request::{send_files_request, FoldersToSync};
-use shared_client::{nsd_client, number_entered_request, pairing_requests};
+use shared_client::{discovered_server::DiscoveredServer, nsd_client, pairing_processor};
 use std::io::Write;
 
-const NSD_BROADCAST_PERIOD: std::time::Duration = std::time::Duration::from_secs(3);
-
-#[derive(Clone)]
-struct DiscoveredServer {
-    server_id: Vec<u8>,
-    address: NetworkAddress,
-    name: String,
-}
+const NSD_BROADCAST_PERIOD: std::time::Duration = std::time::Duration::from_secs(1);
 
 pub fn start_cli_processor(config: ClientConfig, storage: &mut ClientStorage) {
     let mut buffer = String::new();
@@ -214,26 +207,8 @@ fn pair_to_server(client_storage: &ClientStorage) -> Result<ServerInfo, String> 
         server_info.address.ip, server_info.address.port,
     );
 
-    // synchronous for now
-    let result = pairing_requests::process_key_and_nonce_exchange(
-        server_info.address.clone(),
-        client_storage.client_name.clone(),
-        server_info.name.clone(),
-    );
-    let awaiting_pairing_server = match result {
-        Ok(result) => result,
-        Err(e) => {
-            println!("Failed to start pairing with the server: {}", e);
-            return Err(e);
-        }
-    };
-
-    if awaiting_pairing_server.server_info.id != server_info.server_id
-        && !server_info.server_id.is_empty()
-    {
-        // this is not a fatal error, but means we may have a bug somewhere
-        println!("Server id doesn't match the discovered server id");
-    }
+    let mut pair_processor = pairing_processor::PairingProcessor::new();
+    pair_processor.pair_to_server(&server_info, client_storage)?;
 
     println!("Enter the code that is shown on the other device");
     let mut buffer = String::new();
@@ -250,27 +225,20 @@ fn pair_to_server(client_storage: &ClientStorage) -> Result<ServerInfo, String> 
             ));
         }
     };
-    let numeric_comparison_value = buffer.trim();
+    let entered_numeric_comparison_value = buffer.trim();
 
-    let result = number_entered_request::number_entered_request(server_info.address);
-    if let Err(e) = result {
-        println!("Failed to send number entered request to server: {}", e);
-        return Err(e);
-    }
-
-    if numeric_comparison_value.len()
+    if entered_numeric_comparison_value.len()
         != shared_common::protocol::NUMERIC_COMPARISON_VALUE_DIGITS as usize
     {
         return Err("Invalid numeric comparison value length".to_string());
     }
 
-    let computed_numeric_comparison_value = shared_common::crypto::compute_numeric_comparison_value(
-        &awaiting_pairing_server.server_info.server_public_key,
-        &awaiting_pairing_server.server_info.client_keys.public_key,
-        &awaiting_pairing_server.server_nonce,
-        &awaiting_pairing_server.client_nonce,
-        shared_common::protocol::NUMERIC_COMPARISON_VALUE_DIGITS,
-    );
+    let Ok(entered_numeric_comparison_value) = entered_numeric_comparison_value.parse::<u32>()
+    else {
+        return Err("Numeric comparison value is not a number".to_string());
+    };
+
+    let computed_numeric_comparison_value = pair_processor.compute_numeric_comparison_value();
 
     let computed_numeric_comparison_value = match computed_numeric_comparison_value {
         Ok(computed_numeric_comparison_value) => computed_numeric_comparison_value,
@@ -283,15 +251,15 @@ fn pair_to_server(client_storage: &ClientStorage) -> Result<ServerInfo, String> 
         }
     };
 
-    let Ok(numeric_comparison_value) = numeric_comparison_value.parse::<u32>() else {
-        return Err("Numeric comparison value is not a number".to_string());
-    };
-
-    if computed_numeric_comparison_value != numeric_comparison_value {
+    if computed_numeric_comparison_value != entered_numeric_comparison_value {
         return Err("Numeric comparison value doesn't match".to_string());
     }
 
-    Ok(awaiting_pairing_server.server_info)
+    let Some(server_info) = pair_processor.consume_server_info() else {
+        return Err("Failed to consume server info".to_string());
+    };
+
+    Ok(server_info)
 }
 
 fn send_files(storage: &ClientStorage, folders_to_sync: &FoldersToSync) {

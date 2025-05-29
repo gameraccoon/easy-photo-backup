@@ -264,16 +264,6 @@ fn handle_client(
 
                         break;
                     }
-                    shared_common::protocol::Request::NumberEntered => {
-                        // there is a chance that we get this request from another client, but we don't care
-                        if storage.non_serialized.awaiting_pairing_client.is_none() {
-                            println!("We got notification about the number entered, but we didn't start pairing yet");
-                            return;
-                        }
-
-                        drop(storage);
-                        break;
-                    }
                     shared_common::protocol::Request::SendFiles(public_key) => {
                         let paired_client = storage
                             .paired_clients
