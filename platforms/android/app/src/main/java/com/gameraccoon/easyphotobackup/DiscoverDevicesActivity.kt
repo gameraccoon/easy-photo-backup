@@ -52,14 +52,19 @@ class DiscoverDevicesActivity : AppCompatActivity() {
       val device = deviceList.getChildAt(i) as DiscoveredDeviceView
       var serviceFound = false
       for (j in services.size - 1 downTo 0) {
+        var uiService = device.service
+        if (uiService == null) {
+          continue
+        }
+
         // we consider servers with the same IP but different port to be the same as long as they
         // have the same ID
         // there may be multiple servers that match this criteria if a server was restarted with a
         // different port
-        if (device.ip == services[j].getIp() && device.id contentEquals services[j].getId()) {
+        if (uiService.getIp() == services[j].getIp() &&
+            uiService.getId() contentEquals services[j].getId()) {
           serviceFound = true
-          // just in case the port has changed
-          device.port = services[j].getPort().toInt()
+          device.service = services[j]
           services.removeAt(j)
         }
       }
@@ -84,12 +89,14 @@ class DiscoverDevicesActivity : AppCompatActivity() {
 
   fun addDiscoveredDevice(deviceList: ViewGroup, service: DiscoveredService) {
     val device = DiscoveredDeviceView(this)
-    device.ip = service.getIp()
-    device.port = service.getPort().toInt()
-    device.id = service.getId()
+    device.service = service
     device.setOnClickListener { v ->
       val context = this
       val intent = Intent(context, PairDeviceActivity::class.java)
+      intent.putExtra("id", service.getId())
+      intent.putExtra("ip", service.getIp())
+      intent.putExtra("port", service.getPort().toInt())
+      intent.putExtra("name", service.getName())
       context.startActivity(intent)
     }
     device.updateOnline(true)

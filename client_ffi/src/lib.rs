@@ -25,6 +25,22 @@ impl DiscoveredService {
         }
     }
 
+    #[uniffi::constructor]
+    pub fn from(server_id: Vec<u8>, ip: String, port: i32, name: String) -> Self {
+        Self {
+            internals: shared_client::discovered_server::DiscoveredServer {
+                server_id,
+                address: shared_client::network_address::NetworkAddress {
+                    ip: ip
+                        .parse()
+                        .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0))),
+                    port: port as u16,
+                },
+                name,
+            },
+        }
+    }
+
     pub fn get_id(&self) -> Vec<u8> {
         self.internals.server_id.clone()
     }
@@ -273,6 +289,16 @@ impl ClientStorage {
             internals.paired_servers.push(server_info.internals.clone());
         } else {
             println!("Can't lock internals of client storage");
+        }
+    }
+
+    pub fn set_device_name(&self, device_name: String) {
+        if let Ok(mut internals) = self.internals.lock() {
+            internals.client_name = device_name;
+            let result = internals.save();
+            if let Err(e) = result {
+                println!("Failed to save client name to storage: {}", e);
+            }
         }
     }
 }

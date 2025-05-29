@@ -7,4 +7,31 @@
     android:layout_height="match_parent"
     tools:context=".PairDeviceActivity">
 
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" >
+
+            <TextView
+                android:id="@+id/waiting_for_code_text"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/waiting_for_code_text" />
+
+            <EditText
+                android:id="@+id/numeric_code_input"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:autofillHints="numeric code"
+                android:ems="10"
+                android:hint="@string/numeric_comparison_value_description"
+                android:inputType="number"
+                android:visibility="gone" />
+        </LinearLayout>
+    </ScrollView>
+
 </androidx.constraintlayout.widget.ConstraintLayout>
