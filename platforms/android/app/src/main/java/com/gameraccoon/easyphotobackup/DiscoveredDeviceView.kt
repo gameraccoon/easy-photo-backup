@@ -19,11 +19,13 @@ constructor(context: Context, attrs: AttributeSet? = null) :
 
   @SuppressLint("SetTextI18n")
   fun updateOnline(online: Boolean) {
-    val onlineText = findViewById<TextView>(R.id.online_text)
-    val text = findViewById<TextView>(R.id.discovered_device_text)
+    val onlineText = findViewById<TextView>(R.id.presense_text)
+    val address = findViewById<TextView>(R.id.device_address)
+    val deviceName = findViewById<TextView>(R.id.device_name)
     if (online) {
       onlineText.text = context.getString(R.string.status_online)
-      text.text = "$ip:$port"
+      address.text = "$ip:$port"
+      deviceName.text = id.toString()
       isEnabled = true
     } else {
       onlineText.text = context.getString(R.string.status_offline)

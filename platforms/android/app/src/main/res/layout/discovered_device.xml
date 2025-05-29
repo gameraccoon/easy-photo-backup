@@ -2,34 +2,46 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/discovered_device"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
+    android:layout_height="wrap_content"
     android:orientation="horizontal"
-    tools:showIn="@layout/activity_discover_devices">
+    android:padding="2pt">
 
     <ImageView
         android:id="@+id/platform_icon"
-        android:layout_width="40dp"
-        android:layout_height="40dp"
-        android:layout_gravity="center"
-        android:layout_weight="0"
+        android:layout_width="16pt"
+        android:layout_height="16pt"
         android:contentDescription="@string/platform_icon"
         app:srcCompat="@drawable/ic_launcher_foreground" />
 
-    <TextView
-        android:id="@+id/discovered_device_text"
-        android:layout_width="wrap_content"
+    <LinearLayout
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_weight="0" />
+        android:layout_weight="1"
+        android:gravity="start"
+        android:orientation="vertical"
+        android:paddingStart="2pt"
+        android:paddingEnd="2pt">
+
+        <TextView
+            android:id="@+id/device_name"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/test_string" />
+
+        <TextView
+            android:id="@+id/device_address"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/test_string" />
+
+    </LinearLayout>
 
     <TextView
-        android:id="@+id/online_text"
+        android:id="@+id/presense_text"
         android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_weight="0"
-        android:paddingStart="5pt"
-        android:paddingEnd="0pt"
-        android:text="@string/status_offline" />
+        android:layout_height="match_parent"
+        android:gravity="bottom"
+        android:text="@string/status_online" />
 
 </LinearLayout>
