@@ -81,8 +81,7 @@ class PairDeviceActivity : AppCompatActivity() {
     if (enteredNumericCode == expectedNumericCode.toInt()) {
       println("Numeric code is correct")
       numericCodeInput.visibility = View.GONE
-    }
-    else {
+    } else {
       println("Numeric code is incorrect")
       numericCodeInput.visibility = View.GONE
     }
