@@ -243,27 +243,34 @@ impl ServerInfo {
             },
         }
     }
+
+    pub fn get_name(&self) -> String {
+        self.internals.name.clone()
+    }
 }
 
 #[derive(uniffi::Object)]
 struct ClientStorage {
     internals: Arc<Mutex<shared_client::client_storage::ClientStorage>>,
+    file_path: std::path::PathBuf,
 }
 
 #[uniffi::export]
 impl ClientStorage {
     #[uniffi::constructor]
-    pub fn new() -> Self {
+    pub fn new(file_path: String) -> Self {
+        let file_path = std::path::PathBuf::from(file_path);
         Self {
             internals: Arc::new(Mutex::new(
-                shared_client::client_storage::ClientStorage::load_or_generate(),
+                shared_client::client_storage::ClientStorage::load_or_generate(&file_path),
             )),
+            file_path,
         }
     }
 
     pub fn save(&self) {
         if let Ok(internals) = self.internals.lock() {
-            let result = internals.save();
+            let result = internals.save(&self.file_path);
             if let Err(e) = result {
                 println!("Failed to save client storage: {}", e);
             }
@@ -272,33 +279,27 @@ impl ClientStorage {
         }
     }
 
-    pub fn is_paired(&self, server_public_key: Vec<u8>) -> bool {
-        if let Ok(internals) = self.internals.lock() {
-            internals
-                .paired_servers
-                .iter()
-                .any(|client| client.server_public_key == server_public_key)
-        } else {
-            println!("Can't lock internals of client storage");
-            false
-        }
-    }
-
-    pub fn add_paired_server(&self, server_info: &ServerInfo) {
-        if let Ok(mut internals) = self.internals.lock() {
-            internals.paired_servers.push(server_info.internals.clone());
-        } else {
-            println!("Can't lock internals of client storage");
-        }
-    }
-
     pub fn set_device_name(&self, device_name: String) {
         if let Ok(mut internals) = self.internals.lock() {
             internals.client_name = device_name;
-            let result = internals.save();
+            let result = internals.save(&self.file_path);
             if let Err(e) = result {
                 println!("Failed to save client name to storage: {}", e);
             }
+        }
+    }
+
+    pub fn get_paired_servers(&self) -> Vec<Arc<ServerInfo>> {
+        if let Ok(internals) = self.internals.lock() {
+            let mut result = Vec::with_capacity(internals.paired_servers.len());
+            for server in internals.paired_servers.iter() {
+                result.push(Arc::new(ServerInfo {
+                    internals: server.clone(),
+                }));
+            }
+            result
+        } else {
+            Vec::new()
         }
     }
 }
@@ -358,8 +359,12 @@ impl PairingProcessor {
         if let Ok(internals) = self.internals.lock() {
             let server_info = internals.clone_server_info();
             if let Some(server_info) = server_info {
-                if let Ok(mut client_storage) = client_storage.internals.lock() {
-                    client_storage.paired_servers.push(server_info);
+                if let Ok(mut client_storage_internals) = client_storage.internals.lock() {
+                    client_storage_internals.paired_servers.push(server_info);
+                    let result = client_storage_internals.save(&client_storage.file_path);
+                    if result.is_err() {
+                        println!("Failed to save client storage");
+                    }
                 }
             } else {
                 println!("We don't have a paired server");

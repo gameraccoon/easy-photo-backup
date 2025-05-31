@@ -8,4 +8,6 @@
     <string name="status_offline">Offline</string>
     <string name="test_string">Test Text</string>
     <string name="waiting_for_code_text">Connecting to the device</string>
+    <string name="number_code_success_text">The confirmation code matched\nTo finish pairing, confirm on the target machine.</string>
+    <string name="numeric_code_failure_text">Security code didn\'t match\nMake sure you are connecting to the expected device</string>
 </resources>

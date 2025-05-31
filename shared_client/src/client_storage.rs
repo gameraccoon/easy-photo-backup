@@ -1,7 +1,6 @@
 use std::io::{Read, Write};
 
 const CLIENT_STORAGE_VERSION: u32 = 1;
-const CLIENT_STORAGE_FILE_NAME: &str = "client_storage.bin";
 
 #[derive(Clone)]
 pub struct ServerInfo {
@@ -25,8 +24,8 @@ pub struct ClientStorage {
 }
 
 impl ClientStorage {
-    pub fn load_or_generate() -> ClientStorage {
-        let storage = ClientStorage::load();
+    pub fn load_or_generate(file_path: &std::path::Path) -> ClientStorage {
+        let storage = ClientStorage::load(file_path);
         if let Ok(Some(storage)) = storage {
             return storage;
         }
@@ -42,7 +41,7 @@ impl ClientStorage {
             paired_servers: Vec::new(),
         };
 
-        let result = storage.save();
+        let result = storage.save(file_path);
         if let Err(e) = result {
             println!("Failed to save client storage: {}", e);
         }
@@ -50,14 +49,14 @@ impl ClientStorage {
         storage
     }
 
-    pub fn load() -> Result<Option<ClientStorage>, String> {
-        let file = std::fs::File::open(CLIENT_STORAGE_FILE_NAME);
+    pub fn load(file_path: &std::path::Path) -> Result<Option<ClientStorage>, String> {
+        let file = std::fs::File::open(file_path);
         let file = match file {
             Ok(file) => file,
             Err(_) => {
                 println!(
                     "Failed to open client storage file '{}'",
-                    CLIENT_STORAGE_FILE_NAME
+                    file_path.to_str().unwrap_or("[incorrect_name_format]")
                 );
                 return Ok(None);
             }
@@ -84,14 +83,15 @@ impl ClientStorage {
         }))
     }
 
-    pub fn save(&self) -> Result<(), String> {
-        let file = std::fs::File::create(CLIENT_STORAGE_FILE_NAME);
+    pub fn save(&self, file_path: &std::path::Path) -> Result<(), String> {
+        let file = std::fs::File::create(file_path);
         let file = match file {
             Ok(file) => file,
             Err(e) => {
                 return Err(format!(
                     "Failed to open client storage file '{}': {}",
-                    CLIENT_STORAGE_FILE_NAME, e
+                    file_path.to_str().unwrap_or("[incorrect_name_format]"),
+                    e
                 ));
             }
         };

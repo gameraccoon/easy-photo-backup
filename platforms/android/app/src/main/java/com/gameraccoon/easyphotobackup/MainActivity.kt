@@ -16,10 +16,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import com.gameraccoon.easyphotobackup.ui.theme.EasyPhotoBackupTheme
+import uniffi.client_ffi.ClientStorage
 
 class MainActivity : ComponentActivity() {
+
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+
+    val easyPhotoBackupApplication = application as EasyPhotoBackupApplication
+    var clientStorage = easyPhotoBackupApplication.getClientStorage()
 
     setContent {
       Layout(
@@ -28,7 +33,9 @@ class MainActivity : ComponentActivity() {
             val intent = Intent(context, DiscoverDevicesActivity::class.java)
             context.startActivity(intent)
           },
-          onDebugSendFilesClicked = {})
+          onDebugSendFilesClicked = {},
+          clientStorage,
+      )
     }
   }
 }
@@ -39,9 +46,13 @@ fun DeviceButton(name: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun ListOfDevices(modifier: Modifier = Modifier) {
-  for (i in 1..10) {
-    Column(modifier = modifier) { DeviceButton("Test device $i") }
+fun ListOfDevices(clientStorage: ClientStorage?, modifier: Modifier = Modifier) {
+  if (clientStorage == null) {
+    return
+  }
+
+  clientStorage.getPairedServers().forEach { device ->
+    Column(modifier = modifier) { DeviceButton(device.getName()) }
   }
 }
 
@@ -56,11 +67,15 @@ fun DebugSendFilesButton(onClicked: () -> Unit, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun Layout(onAddDeviceClicked: () -> Unit, onDebugSendFilesClicked: () -> Unit) {
+fun Layout(
+    onAddDeviceClicked: () -> Unit,
+    onDebugSendFilesClicked: () -> Unit,
+    clientStorage: ClientStorage?
+) {
   EasyPhotoBackupTheme {
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
       Column(Modifier.verticalScroll(rememberScrollState())) {
-        ListOfDevices()
+        ListOfDevices(clientStorage)
         AddDeviceButton(onAddDeviceClicked)
         DebugSendFilesButton(onDebugSendFilesClicked)
       }
@@ -71,5 +86,5 @@ fun Layout(onAddDeviceClicked: () -> Unit, onDebugSendFilesClicked: () -> Unit) 
 @Preview(showBackground = true)
 @Composable
 fun ListOfDevicesPreview() {
-  Layout({}, {})
+  Layout({}, {}, null)
 }
