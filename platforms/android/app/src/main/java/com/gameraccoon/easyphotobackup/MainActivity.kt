@@ -2,89 +2,40 @@ package com.gameraccoon.easyphotobackup
 
 import android.content.Intent
 import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
-import com.gameraccoon.easyphotobackup.ui.theme.EasyPhotoBackupTheme
-import uniffi.client_ffi.ClientStorage
+import android.view.View
+import android.view.ViewGroup
+import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 
-class MainActivity : ComponentActivity() {
-
+class MainActivity : AppCompatActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+    enableEdgeToEdge()
+    setContentView(R.layout.activity_main)
+    ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
+      val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+      v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
+      insets
+    }
 
     val easyPhotoBackupApplication = application as EasyPhotoBackupApplication
     var clientStorage = easyPhotoBackupApplication.getClientStorage()
-
-    setContent {
-      Layout(
-          onAddDeviceClicked = {
-            val context = this
-            val intent = Intent(context, DiscoverDevicesActivity::class.java)
-            context.startActivity(intent)
-          },
-          onDebugSendFilesClicked = {},
-          clientStorage,
-      )
-    }
-  }
-}
-
-@Composable
-fun DeviceButton(name: String, modifier: Modifier = Modifier) {
-  Button(onClick = { println("Button 1 clicked") }) { Text(text = name, modifier = modifier) }
-}
-
-@Composable
-fun ListOfDevices(clientStorage: ClientStorage?, modifier: Modifier = Modifier) {
-  if (clientStorage == null) {
-    return
-  }
-
-  clientStorage.getPairedServers().forEach { device ->
-    Column(modifier = modifier) { DeviceButton(device.getName()) }
-  }
-}
-
-@Composable
-fun AddDeviceButton(onClicked: () -> Unit, modifier: Modifier = Modifier) {
-  Button(onClick = onClicked) { Text(text = "Add Device", modifier = modifier) }
-}
-
-@Composable
-fun DebugSendFilesButton(onClicked: () -> Unit, modifier: Modifier = Modifier) {
-  Button(onClick = onClicked) { Text(text = "Send files [Debug]", modifier = modifier) }
-}
-
-@Composable
-fun Layout(
-    onAddDeviceClicked: () -> Unit,
-    onDebugSendFilesClicked: () -> Unit,
-    clientStorage: ClientStorage?
-) {
-  EasyPhotoBackupTheme {
-    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-      Column(Modifier.verticalScroll(rememberScrollState())) {
-        ListOfDevices(clientStorage)
-        AddDeviceButton(onAddDeviceClicked)
-        DebugSendFilesButton(onDebugSendFilesClicked)
+    if (clientStorage != null) {
+      val pairedDevices = findViewById<ViewGroup>(R.id.paired_devices)
+      pairedDevices.visibility = View.VISIBLE
+      clientStorage.getPairedServers().forEach { serverInfo ->
+        val pairedDeviceView = PairedDeviceView(this)
+        pairedDeviceView.setServerInfo(serverInfo)
+        pairedDevices.addView(pairedDeviceView)
       }
     }
   }
-}
 
-@Preview(showBackground = true)
-@Composable
-fun ListOfDevicesPreview() {
-  Layout({}, {}, null)
+  fun addDeviceButtonClicked(view: View) {
+    val context = this
+    val intent = Intent(context, DiscoverDevicesActivity::class.java)
+    context.startActivity(intent)
+  }
 }

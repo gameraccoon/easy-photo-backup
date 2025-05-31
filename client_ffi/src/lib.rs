@@ -6,7 +6,7 @@ uniffi::setup_scaffolding!();
 
 #[derive(uniffi::Object, Clone)]
 pub struct DiscoveredService {
-    internals: shared_client::discovered_server::DiscoveredServer,
+    internals: Arc<Mutex<shared_client::discovered_server::DiscoveredServer>>,
 }
 
 #[uniffi::export]
@@ -14,70 +14,127 @@ impl DiscoveredService {
     #[uniffi::constructor]
     pub fn new() -> Self {
         Self {
-            internals: shared_client::discovered_server::DiscoveredServer {
-                server_id: Vec::new(),
-                address: shared_client::network_address::NetworkAddress {
-                    ip: std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0)),
-                    port: 0,
+            internals: Arc::new(Mutex::new(
+                shared_client::discovered_server::DiscoveredServer {
+                    server_id: Vec::new(),
+                    address: shared_client::network_address::NetworkAddress {
+                        ip: std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0)),
+                        port: 0,
+                    },
+                    name: String::new(),
                 },
-                name: String::new(),
-            },
+            )),
         }
     }
 
     #[uniffi::constructor]
     pub fn from(server_id: Vec<u8>, ip: String, port: i32, name: String) -> Self {
         Self {
-            internals: shared_client::discovered_server::DiscoveredServer {
-                server_id,
-                address: shared_client::network_address::NetworkAddress {
-                    ip: ip
-                        .parse()
-                        .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0))),
-                    port: port as u16,
+            internals: Arc::new(Mutex::new(
+                shared_client::discovered_server::DiscoveredServer {
+                    server_id,
+                    address: shared_client::network_address::NetworkAddress {
+                        ip: ip
+                            .parse()
+                            .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0))),
+                        port: port as u16,
+                    },
+                    name,
                 },
-                name,
-            },
+            )),
         }
     }
 
     pub fn get_id(&self) -> Vec<u8> {
-        self.internals.server_id.clone()
-    }
-
-    pub fn get_ip(&self) -> String {
-        self.internals.address.ip.to_string()
-    }
-
-    pub fn get_port(&self) -> u16 {
-        self.internals.address.port
-    }
-
-    pub fn get_name(&self) -> String {
-        self.internals.name.clone()
-    }
-
-    pub fn fetch_name_sync(&self) -> Option<String> {
-        let result = shared_client::get_server_name_request::get_server_name_request(
-            self.internals.address.clone(),
-        );
-        if let Ok(name) = result {
-            Some(name)
-        } else {
-            None
+        match self.internals.lock() {
+            Ok(internals) => internals.server_id.clone(),
+            Err(err) => {
+                println!("Failed to lock service to get id: {}", err);
+                Vec::new()
+            }
         }
     }
 
-    pub fn set_port(&self, port: u16) -> Self {
-        let mut clone = self.clone();
-        clone.internals.address.port = port;
-        clone
+    pub fn get_ip(&self) -> String {
+        match self.internals.lock() {
+            Ok(internals) => internals.address.ip.to_string(),
+            Err(err) => {
+                println!("Failed to lock service to get ip: {}", err);
+                String::new()
+            }
+        }
     }
 
-    pub fn set_name(&self, name: String) -> Self {
-        let mut clone = self.clone();
-        clone.internals.name = name;
-        clone
+    pub fn get_port(&self) -> u16 {
+        match self.internals.lock() {
+            Ok(internals) => internals.address.port,
+            Err(err) => {
+                println!("Failed to lock service to get port: {}", err);
+                0
+            }
+        }
+    }
+
+    pub fn get_name(&self) -> String {
+        match self.internals.lock() {
+            Ok(internals) => internals.name.clone(),
+            Err(err) => {
+                println!("Failed to lock service to get name: {}", err);
+                String::new()
+            }
+        }
+    }
+
+    pub fn fetch_name_sync(&self) -> Option<String> {
+        let address = match self.internals.lock() {
+            Ok(internals) => internals.address.clone(),
+            Err(err) => {
+                println!("Failed to lock service to get address: {}", err);
+                return None;
+            }
+        };
+        let result = shared_client::get_server_name_request::get_server_name_request(address);
+
+        match result {
+            Ok(name) => {
+                match self.internals.lock().as_mut() {
+                    Ok(internals) => {
+                        internals.name = name.clone();
+                    }
+                    Err(err) => {
+                        println!("Failed to get name: {}", err);
+                        return None;
+                    }
+                }
+                Some(name)
+            }
+            Err(err) => {
+                println!("Failed to fetch name: {}", err);
+                None
+            }
+        }
+    }
+
+    pub fn set_port(&self, port: u16) {
+        match self.internals.lock().as_mut() {
+            Ok(internals) => {
+                internals.address.port = port;
+            }
+            Err(err) => {
+                println!("Failed to lock service get port: {}", err);
+            }
+        }
+    }
+
+    pub fn set_name(&self, name: String) {
+        match self.internals.lock().as_mut() {
+            Ok(internals) => {
+                internals.name = name;
+            }
+            Err(err) => {
+                println!("Failed to lock service to set name: {}", err);
+            }
+        }
     }
 }
 
@@ -147,21 +204,27 @@ impl NetworkServiceDiscoveryClient {
                                         .truncate(shared_common::protocol::SERVER_ID_LENGTH_BYTES);
 
                                     services.push(Arc::new(DiscoveredService {
-                                        internals:
+                                        internals: Arc::new(Mutex::new(
                                             shared_client::discovered_server::DiscoveredServer {
                                                 server_id,
                                                 name: String::new(), // we will get the name with a
                                                 // separate request
                                                 address: result.service_info.address,
                                             },
+                                        )),
                                     }));
                                 }
                                 nsd_client::DiscoveryState::Removed => {
-                                    services.retain(|server| {
-                                        server.internals.address.ip
-                                            != result.service_info.address.ip
-                                            || server.internals.address.port
-                                                != result.service_info.address.port
+                                    services.retain(|server| match server.internals.lock() {
+                                        Ok(internals) => {
+                                            internals.address.ip != result.service_info.address.ip
+                                                || internals.address.port
+                                                    != result.service_info.address.port
+                                        }
+                                        Err(err) => {
+                                            println!("Failed to lock service: {}", err);
+                                            false
+                                        }
                                     });
                                 }
                             }
@@ -327,10 +390,16 @@ impl PairingProcessor {
     ) {
         if let Ok(mut internals) = self.internals.lock() {
             if let Ok(client_storage) = client_storage.internals.lock() {
-                let result =
-                    internals.pair_to_server(&discovered_service.internals, &client_storage);
-                if let Err(e) = result {
-                    println!("Failed to pair to server: {}", e);
+                match discovered_service.internals.lock() {
+                    Ok(service_internals) => {
+                        let result = internals.pair_to_server(&service_internals, &client_storage);
+                        if let Err(e) = result {
+                            println!("Failed to pair to server: {}", e);
+                        }
+                    }
+                    Err(e) => {
+                        println!("Failed to lock service to pair to server: {}", e);
+                    }
                 }
             } else {
                 println!("Can't lock internals of server info");

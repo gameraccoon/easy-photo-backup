@@ -17,7 +17,7 @@ import kotlinx.coroutines.launch
 import uniffi.client_ffi.DiscoveredService
 
 class DiscoverDevicesActivity : AppCompatActivity() {
-  val nsdClient = NSDClient()
+  private val nsdClient = NSDClient()
 
   @OptIn(DelicateCoroutinesApi::class)
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -53,7 +53,7 @@ class DiscoverDevicesActivity : AppCompatActivity() {
       val device = deviceList.getChildAt(i) as DiscoveredDeviceView
       var serviceFound = false
       for (j in services.size - 1 downTo 0) {
-        var uiService = device.service
+        var uiService = device.getService()
         if (uiService == null) {
           continue
         }
@@ -65,7 +65,7 @@ class DiscoverDevicesActivity : AppCompatActivity() {
         if (uiService.getIp() == services[j].getIp() &&
             uiService.getId() contentEquals services[j].getId()) {
           serviceFound = true
-          device.service = services[j]
+          device.updatePort(services[j].getPort())
           services.removeAt(j)
         }
       }
@@ -90,7 +90,7 @@ class DiscoverDevicesActivity : AppCompatActivity() {
 
   fun addDiscoveredDevice(deviceList: ViewGroup, service: DiscoveredService) {
     val device = DiscoveredDeviceView(this)
-    device.service = service
+    device.setService(service, this)
     device.setOnClickListener { v ->
       val context = this
       val intent = Intent(context, PairDeviceActivity::class.java)

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/paired_device"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="horizontal">
+
+    <ImageView
+        android:id="@+id/imageView"
+        android:layout_width="16pt"
+        android:layout_height="16pt"
+        android:contentDescription="@string/platform_icon"
+        app:srcCompat="@drawable/ic_launcher_foreground" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/paired_device_name"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/test_string" />
+
+        <TextView
+            android:id="@+id/last_sync_time"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/test_string" />
+    </LinearLayout>
+</LinearLayout>
