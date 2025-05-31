@@ -6,6 +6,7 @@ use shared_client::{discovered_server::DiscoveredServer, nsd_client, pairing_pro
 use std::io::Write;
 
 const NSD_BROADCAST_PERIOD: std::time::Duration = std::time::Duration::from_secs(1);
+pub const CLIENT_STORAGE_FILE_NAME: &str = "client_storage";
 
 pub fn start_cli_processor(config: ClientConfig, storage: &mut ClientStorage) {
     let mut buffer = String::new();
@@ -70,7 +71,7 @@ pub fn start_cli_processor(config: ClientConfig, storage: &mut ClientStorage) {
 
                 println!("Pairing succeeded, confirm on the other device");
 
-                let result = storage.save();
+                let result = storage.save(std::path::Path::new(CLIENT_STORAGE_FILE_NAME));
                 if let Err(e) = result {
                     println!("Failed to save client storage: {}", e);
                 }
