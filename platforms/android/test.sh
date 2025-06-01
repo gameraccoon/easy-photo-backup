@@ -1,0 +1,2 @@
+./fmt.sh
+./gradlew build
