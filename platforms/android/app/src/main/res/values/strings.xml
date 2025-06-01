@@ -6,6 +6,7 @@
     <string name="add_by_ip_button">Add by IP</string>
     <string name="status_online">Online</string>
     <string name="status_offline">Offline</string>
+    <string name="status_paired">%s [paired]</string>
     <string name="test_string">Test Text</string>
     <string name="waiting_for_code_text">Connecting to the device</string>
     <string name="number_code_success_text">The one-time security code matched\n\nTo finish pairing, confirm on the target machine</string>
@@ -23,4 +24,5 @@
     <string name="dependent_checkbox_title">Dependent checkbox title</string>
     <string name="checkbox_summary_on">Checkbox summary on</string>
     <string name="checkbox_summary_off">Checkbox summary off</string>
+    <string name="remove_device_btn">Remove device</string>
 </resources>

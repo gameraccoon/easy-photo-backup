@@ -15,6 +15,7 @@ class DiscoveredDeviceView
 constructor(context: Context, attrs: AttributeSet? = null) :
     androidx.appcompat.widget.LinearLayoutCompat(context, attrs) {
   private var service: DiscoveredService? = null
+  private var isPaired = false
 
   init {
     inflate(context, R.layout.discovered_device, this)
@@ -28,40 +29,44 @@ constructor(context: Context, attrs: AttributeSet? = null) :
   fun setService(service: DiscoveredService, activity: Activity) {
     this.service = service
 
+    val easyPhotoBackupApplication = activity.application as EasyPhotoBackupApplication
+    var clientStorage = easyPhotoBackupApplication.getClientStorage()
+    if (clientStorage != null) {
+      isPaired = clientStorage.isDevicePaired(service.getId())
+    }
+
     // request device name
-    if (service.getName().isEmpty()) {
+    val serviceName = service.getName()
+    if (serviceName.isEmpty()) {
       GlobalScope.launch {
         val deviceName = service.fetchNameSync()
-        if (deviceName != null) {
-          service.setName(deviceName)
-        }
-        activity.runOnUiThread {
-          deviceName?.let { deviceName ->
-            val deviceNameField = findViewById<TextView>(R.id.device_name)
-            deviceNameField.text = deviceName
-          }
-        }
+        activity.runOnUiThread { deviceName?.let { deviceName -> setDeviceName(deviceName) } }
       }
     } else {
-      val deviceName = findViewById<TextView>(R.id.device_name)
-      deviceName.text = service.getName()
+      setDeviceName(serviceName)
+    }
+  }
+
+  private fun setDeviceName(name: String) {
+    val deviceName = findViewById<TextView>(R.id.device_name)
+    if (isPaired) {
+      deviceName.text = context.getString(R.string.status_paired).format(name)
+    } else {
+      deviceName.text = name
     }
   }
 
   @SuppressLint("SetTextI18n")
-  fun updatePort(port: UShort) {
+  fun setPort(port: UShort) {
     findViewById<TextView>(R.id.device_address).text = "${service?.getIp()}:$port"
   }
 
   @SuppressLint("SetTextI18n")
   fun updateOnline(online: Boolean) {
     val onlineText = findViewById<TextView>(R.id.presense_text)
-    val address = findViewById<TextView>(R.id.device_address)
-    if (online && service != null) {
+    if (online) {
       onlineText.text = context.getString(R.string.status_online)
-      var service = service!!
-      address.text = "${service.getIp()}:${service.getPort()}"
-      isEnabled = true
+      isEnabled = !isPaired
     } else {
       onlineText.text = context.getString(R.string.status_offline)
       isEnabled = false

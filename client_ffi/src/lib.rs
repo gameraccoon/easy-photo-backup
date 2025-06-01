@@ -125,17 +125,6 @@ impl DiscoveredService {
             }
         }
     }
-
-    pub fn set_name(&self, name: String) {
-        match self.internals.lock().as_mut() {
-            Ok(internals) => {
-                internals.name = name;
-            }
-            Err(err) => {
-                println!("Failed to lock service to set name: {}", err);
-            }
-        }
-    }
 }
 
 struct NSDClientInternals {
@@ -367,6 +356,26 @@ impl ClientStorage {
             result
         } else {
             Vec::new()
+        }
+    }
+
+    pub fn is_device_paired(&self, device_id: Vec<u8>) -> bool {
+        if let Ok(mut internals) = self.internals.lock() {
+            internals
+                .paired_servers
+                .iter()
+                .any(|server| server.id == device_id)
+        } else {
+            println!("Can't lock internals of pairing processor");
+            false
+        }
+    }
+
+    pub fn remove_paired_server(&self, device_id: Vec<u8>) {
+        if let Ok(mut internals) = self.internals.lock() {
+            internals
+                .paired_servers
+                .retain(|server| server.id != device_id)
         }
     }
 }

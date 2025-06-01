@@ -67,7 +67,7 @@ class DiscoverDevicesActivity : AppCompatActivity() {
         if (uiService.getIp() == services[j].getIp() &&
             uiService.getId() contentEquals services[j].getId()) {
           serviceFound = true
-          device.updatePort(services[j].getPort())
+          device.setPort(services[j].getPort())
           services.removeAt(j)
         }
       }
@@ -103,6 +103,7 @@ class DiscoverDevicesActivity : AppCompatActivity() {
       context.startActivity(intent)
     }
     device.updateOnline(true)
+    device.setPort(service.getPort())
     deviceList.addView(device)
   }
 

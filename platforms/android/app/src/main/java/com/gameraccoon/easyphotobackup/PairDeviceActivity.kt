@@ -42,14 +42,11 @@ class PairDeviceActivity : AppCompatActivity() {
       var service = discoveredService!!
       var context = this
 
-      // start a coroutine to listen for new devices once in 100ms
       GlobalScope.launch {
-        // ToDo: this should be set globally
         val easyPhotoBackupApplication = application as EasyPhotoBackupApplication
         var clientStorage = easyPhotoBackupApplication.getClientStorage()
         if (clientStorage != null) {
           pairingProcessor.pairToServer(service, clientStorage)
-          // run in main thread
           runOnUiThread { showPairingCodeInput() }
         } else {
           Toast.makeText(context, "Client storage is null", Toast.LENGTH_SHORT).show()
@@ -77,6 +74,7 @@ class PairDeviceActivity : AppCompatActivity() {
   @OptIn(DelicateCoroutinesApi::class)
   fun validateNumericCode(numericCodeInput: EditText) {
     val enteredNumericCode = numericCodeInput.text.toString().toIntOrNull()
+    val numericCodeBlock = findViewById<View>(R.id.numeric_code_block)
     if (enteredNumericCode == null) {
       Toast.makeText(
               this, "Entered numeric code is not a number, cannot continue", Toast.LENGTH_LONG)
@@ -91,7 +89,7 @@ class PairDeviceActivity : AppCompatActivity() {
       return
     }
     if (enteredNumericCode == expectedNumericCode.toInt()) {
-      numericCodeInput.visibility = View.GONE
+      numericCodeBlock.visibility = View.GONE
       findViewById<View>(R.id.confirmed_message).visibility = View.VISIBLE
 
       val easyPhotoBackupApplication = application as EasyPhotoBackupApplication

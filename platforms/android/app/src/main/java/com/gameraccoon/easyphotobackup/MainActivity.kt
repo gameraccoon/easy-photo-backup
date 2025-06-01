@@ -39,7 +39,7 @@ class MainActivity : AppCompatActivity() {
     }
   }
 
-  fun addDeviceButtonClicked(view: View) {
+  fun onAddDeviceButtonClicked(view: View) {
     val context = this
     val intent = Intent(context, DiscoverDevicesActivity::class.java)
     context.startActivity(intent)
