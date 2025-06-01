@@ -44,7 +44,7 @@ fn main() -> eframe::Result {
 
 struct UserConfirmation {
     is_successful: bool,
-    confirmation_time: std::time::Instant,
+    close_time: std::time::Instant,
 }
 
 #[derive(Default)]
@@ -89,7 +89,8 @@ impl eframe::App for ServerDigitGui {
                                     if ui.button("Confirmed").clicked() {
                                         self.user_confirmation = Some(UserConfirmation {
                                             is_successful: true,
-                                            confirmation_time: std::time::Instant::now(),
+                                            close_time: std::time::Instant::now()
+                                                + AFTER_CONFIRMATION_CLOSE_TIME,
                                         });
                                     }
                                 });
@@ -97,16 +98,18 @@ impl eframe::App for ServerDigitGui {
                                     if ui.button("Not confirmed").clicked() {
                                         self.user_confirmation = Some(UserConfirmation {
                                             is_successful: false,
-                                            confirmation_time: std::time::Instant::now(),
+                                            close_time: std::time::Instant::now()
+                                                + AFTER_CONFIRMATION_CLOSE_TIME,
                                         });
                                     }
                                 });
                             });
                         }
                         Some(user_confirmation) => {
-                            if user_confirmation.confirmation_time.elapsed()
-                                < AFTER_CONFIRMATION_CLOSE_TIME
-                            {
+                            // make sure this code being called at least 10 times per second even if the user not moving the mouse
+                            ui.ctx()
+                                .request_repaint_after(std::time::Duration::from_millis(100));
+                            if std::time::Instant::now() < user_confirmation.close_time {
                                 ui.centered_and_justified(|ui| {
                                     ui.heading(if user_confirmation.is_successful {
                                         "Pairing confirmed"
