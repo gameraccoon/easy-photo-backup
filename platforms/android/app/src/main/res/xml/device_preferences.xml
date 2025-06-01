@@ -1,0 +1,35 @@
+<PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory app:title="@string/category_1_header">
+
+        <EditTextPreference
+            app:key="test_setting_1"
+            app:title="@string/text_edit_title"
+            app:useSimpleSummaryProvider="true" />
+
+        <ListPreference
+            app:defaultValue="test_value_1"
+            app:entries="@array/test_setting_entries"
+            app:entryValues="@array/test_setting_values"
+            app:key="test_setting_2"
+            app:title="@string/combo_box_title"
+            app:useSimpleSummaryProvider="true" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="@string/category_2_header">
+
+        <SwitchPreferenceCompat
+            app:key="test_setting_3"
+            app:title="@string/checkbox_title" />
+
+        <SwitchPreferenceCompat
+            app:dependency="test_setting_3"
+            app:key="test_setting_4"
+            app:summaryOff="@string/checkbox_summary_off"
+            app:summaryOn="@string/checkbox_summary_on"
+            app:title="@string/dependent_checkbox_title" />
+
+    </PreferenceCategory>
+
+</PreferenceScreen>

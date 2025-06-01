@@ -1,6 +1,6 @@
 <resources>
     <string name="app_name" translatable="false">Easy Photo Backup</string>
-    <string name="title_activity_main">Devices</string>
+    <string name="title_activity_main">Paired devices</string>
     <string name="title_activity_discover_devices">Devices in the network</string>
     <string name="add_device">Add device</string>
     <string name="add_by_ip_button">Add by IP</string>
@@ -8,6 +8,19 @@
     <string name="status_offline">Offline</string>
     <string name="test_string">Test Text</string>
     <string name="waiting_for_code_text">Connecting to the device</string>
-    <string name="number_code_success_text">The confirmation code matched\nTo finish pairing, confirm on the target machine.</string>
-    <string name="numeric_code_failure_text">Security code didn\'t match\nMake sure you are connecting to the expected device</string>
+    <string name="number_code_success_text">The one-time security code matched\n\nTo finish pairing, confirm on the target machine</string>
+    <string name="numeric_code_failure_text">One-time security code didn\'t match\n\nMake sure you are connecting to the expected device</string>
+    <string name="title_activity_device_settings">Device settings</string>
+    <string name="title_activity_pair_device">Pair device</string>
+    <string name="numeric_comparison_value_label">Enter one-time security code displayed on the target device</string>
+
+    <!-- Settings temp values -->
+    <string name="category_1_header">Header 1</string>
+    <string name="category_2_header">Header 2</string>
+    <string name="text_edit_title">Text edit title</string>
+    <string name="combo_box_title">Combo box title</string>
+    <string name="checkbox_title">Checkbox title</string>
+    <string name="dependent_checkbox_title">Dependent checkbox title</string>
+    <string name="checkbox_summary_on">Checkbox summary on</string>
+    <string name="checkbox_summary_off">Checkbox summary off</string>
 </resources>

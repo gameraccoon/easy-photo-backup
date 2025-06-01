@@ -2,6 +2,7 @@ package com.gameraccoon.easyphotobackup
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
@@ -31,6 +32,7 @@ class DiscoverDevicesActivity : AppCompatActivity() {
       v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
       insets
     }
+    supportActionBar?.setDisplayHomeAsUpEnabled(true)
 
     // start a coroutine to listen for new devices once in 100ms
     GlobalScope.launch {
@@ -106,5 +108,10 @@ class DiscoverDevicesActivity : AppCompatActivity() {
 
   fun onAddByIPClicked(view: View) {
     Toast.makeText(this, "Not implemented yet", Toast.LENGTH_SHORT).show()
+  }
+
+  override fun onOptionsItemSelected(item: MenuItem): Boolean {
+    onBackPressedDispatcher.onBackPressed()
+    return true
   }
 }

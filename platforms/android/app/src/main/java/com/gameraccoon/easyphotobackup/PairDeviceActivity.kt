@@ -60,6 +60,7 @@ class PairDeviceActivity : AppCompatActivity() {
 
   fun showPairingCodeInput() {
     val numericCodeInput = findViewById<EditText>(R.id.numeric_code_input)
+    val numericCodeBlock = findViewById<View>(R.id.numeric_code_block)
     numericCodeInput.setOnKeyListener { _, keyCode, event ->
       if (keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_UP) {
         validateNumericCode(numericCodeInput)
@@ -68,7 +69,7 @@ class PairDeviceActivity : AppCompatActivity() {
         false
       }
     }
-    numericCodeInput.visibility = View.VISIBLE
+    numericCodeBlock.visibility = View.VISIBLE
     var waitingForCodeText = findViewById<View>(R.id.waiting_for_code_text)
     waitingForCodeText.visibility = View.GONE
   }
@@ -77,12 +78,16 @@ class PairDeviceActivity : AppCompatActivity() {
   fun validateNumericCode(numericCodeInput: EditText) {
     val enteredNumericCode = numericCodeInput.text.toString().toIntOrNull()
     if (enteredNumericCode == null) {
-      println("Entered numeric code is not a number")
+      Toast.makeText(
+              this, "Entered numeric code is not a number, cannot continue", Toast.LENGTH_LONG)
+          .show()
       return
     }
     val expectedNumericCode = pairingProcessor.computeNumericComparisonValue()
     if (expectedNumericCode == null) {
-      println("Expected code is not valid, cannot continue")
+      Toast.makeText(
+              this, "Security code for the device is not valid, cannot continue", Toast.LENGTH_LONG)
+          .show()
       return
     }
     if (enteredNumericCode == expectedNumericCode.toInt()) {
@@ -94,7 +99,7 @@ class PairDeviceActivity : AppCompatActivity() {
       if (clientStorage != null) {
         pairingProcessor.addAsPaired(clientStorage)
       } else {
-        println("Client storage is null")
+        Toast.makeText(this, "Client storage is invalid, cannot continue", Toast.LENGTH_LONG).show()
       }
       val context = this
       GlobalScope.launch {

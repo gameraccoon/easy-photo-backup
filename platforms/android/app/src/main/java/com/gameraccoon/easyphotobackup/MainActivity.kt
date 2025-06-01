@@ -28,6 +28,12 @@ class MainActivity : AppCompatActivity() {
       clientStorage.getPairedServers().forEach { serverInfo ->
         val pairedDeviceView = PairedDeviceView(this)
         pairedDeviceView.setServerInfo(serverInfo)
+        pairedDeviceView.setOnClickListener { v ->
+          val context = this
+          val intent = Intent(context, DeviceSettingsActivity::class.java)
+          intent.putExtra("id", serverInfo.getId())
+          context.startActivity(intent)
+        }
         pairedDevices.addView(pairedDeviceView)
       }
     }

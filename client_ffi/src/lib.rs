@@ -310,6 +310,10 @@ impl ServerInfo {
     pub fn get_name(&self) -> String {
         self.internals.name.clone()
     }
+
+    pub fn get_id(&self) -> Vec<u8> {
+        self.internals.id.clone()
+    }
 }
 
 #[derive(uniffi::Object)]
