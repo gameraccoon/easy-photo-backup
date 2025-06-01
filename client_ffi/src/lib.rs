@@ -1,3 +1,4 @@
+use shared_client::client_storage::FoldersToSync;
 use shared_client::nsd_client;
 use std::sync::{Arc, Mutex};
 
@@ -173,24 +174,13 @@ impl NetworkServiceDiscoveryClient {
                         if let Ok(mut services) = services {
                             match result.state {
                                 nsd_client::DiscoveryState::Added => {
-                                    if result.service_info.extra_data.len()
-                                        != 1 + shared_common::protocol::SERVER_ID_LENGTH_BYTES
-                                    {
-                                        println!("Server id is not the correct length");
+                                    let Some(server_id) =
+                                        shared_client::nsd_data::decode_extra_data(
+                                            result.service_info.extra_data,
+                                        )
+                                    else {
                                         return;
-                                    }
-
-                                    if result.service_info.extra_data[0]
-                                        != shared_common::protocol::NSD_DATA_PROTOCOL_VERSION
-                                    {
-                                        println!("NSD data protocol version is not supported");
-                                        return;
-                                    }
-
-                                    let mut server_id = result.service_info.extra_data;
-                                    server_id.rotate_left(1);
-                                    server_id
-                                        .truncate(shared_common::protocol::SERVER_ID_LENGTH_BYTES);
+                                    };
 
                                     services.push(Arc::new(DiscoveredService {
                                         internals: Arc::new(Mutex::new(
@@ -350,7 +340,7 @@ impl ClientStorage {
             let mut result = Vec::with_capacity(internals.paired_servers.len());
             for server in internals.paired_servers.iter() {
                 result.push(Arc::new(ServerInfo {
-                    internals: server.clone(),
+                    internals: server.server_info.clone(),
                 }));
             }
             result
@@ -360,11 +350,11 @@ impl ClientStorage {
     }
 
     pub fn is_device_paired(&self, device_id: Vec<u8>) -> bool {
-        if let Ok(mut internals) = self.internals.lock() {
+        if let Ok(internals) = self.internals.lock() {
             internals
                 .paired_servers
                 .iter()
-                .any(|server| server.id == device_id)
+                .any(|server| server.server_info.id == device_id)
         } else {
             println!("Can't lock internals of pairing processor");
             false
@@ -375,7 +365,7 @@ impl ClientStorage {
         if let Ok(mut internals) = self.internals.lock() {
             internals
                 .paired_servers
-                .retain(|server| server.id != device_id)
+                .retain(|server| server.server_info.id != device_id)
         }
     }
 }
@@ -405,7 +395,8 @@ impl PairingProcessor {
             if let Ok(client_storage) = client_storage.internals.lock() {
                 match discovered_service.internals.lock() {
                     Ok(service_internals) => {
-                        let result = internals.pair_to_server(&service_internals, &client_storage);
+                        let result = internals
+                            .pair_to_server(&service_internals, client_storage.client_name.clone());
                         if let Err(e) = result {
                             println!("Failed to pair to server: {}", e);
                         }
@@ -442,7 +433,12 @@ impl PairingProcessor {
             let server_info = internals.clone_server_info();
             if let Some(server_info) = server_info {
                 if let Ok(mut client_storage_internals) = client_storage.internals.lock() {
-                    client_storage_internals.paired_servers.push(server_info);
+                    client_storage_internals.paired_servers.push(
+                        shared_client::client_storage::PairedServerInfo {
+                            server_info,
+                            folders_to_sync: FoldersToSync::new(),
+                        },
+                    );
                     let result = client_storage_internals.save(&client_storage.file_path);
                     if result.is_err() {
                         println!("Failed to save client storage");
@@ -454,5 +450,13 @@ impl PairingProcessor {
         } else {
             println!("Can't lock internals of pairing processor");
         }
+    }
+}
+
+#[uniffi::export]
+fn process_sending_files(client_storage: &ClientStorage) -> String {
+    match shared_client::file_sending_routine::process_routine(&client_storage.internals) {
+        Ok(()) => String::new(),
+        Err(err) => err,
     }
 }

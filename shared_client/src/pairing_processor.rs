@@ -1,4 +1,4 @@
-use crate::client_storage::{ClientStorage, ServerInfo};
+use crate::client_storage::ServerInfo;
 use crate::discovered_server::DiscoveredServer;
 use crate::pairing_requests;
 
@@ -16,12 +16,12 @@ impl PairingProcessor {
     pub fn pair_to_server(
         &mut self,
         discovered_server_info: &DiscoveredServer,
-        client_storage: &ClientStorage,
+        client_name: String,
     ) -> Result<(), String> {
         // synchronous for now
         let result = pairing_requests::process_key_and_nonce_exchange(
             discovered_server_info.address.clone(),
-            client_storage.client_name.clone(),
+            client_name,
             discovered_server_info.name.clone(),
         );
         let awaiting_pairing_server = match result {

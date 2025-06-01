@@ -26,33 +26,8 @@ pub fn start_service_discovery_thread(
     result_lambda: Box<dyn Fn(DiscoveryResult)>,
     stop_signal_receiver: std::sync::mpsc::Receiver<()>,
 ) -> Result<(), String> {
-    // bind to a port provided by the OS
-    let socket = UdpSocket::bind("0.0.0.0:0");
-    let socket = match socket {
-        Ok(socket) => socket,
-        Err(e) => {
-            println!(
-                "Failed to open port for network service discovery client: {}",
-                e
-            );
-            return Err(format!(
-                "Failed to open port for network service discovery client: {}",
-                e
-            ));
-        }
-    };
-
     // 200 milliseconds means that 5 times per second we will check if the stop signal has been received
-    let result = socket.set_read_timeout(Some(std::time::Duration::from_millis(200)));
-    if let Err(e) = result {
-        println!("Failed to set read timeout on UDP socket: {}", e);
-        return Err(format!("Failed to set read timeout on UDP socket: {}", e));
-    }
-    let result = socket.set_broadcast(true);
-    if let Err(e) = result {
-        println!("Failed to set broadcast on UDP socket: {}", e);
-        return Err(format!("Failed to set broadcast on UDP socket: {}", e));
-    }
+    let socket = bind_broadcast_socket(std::time::Duration::from_millis(200))?;
 
     // the Vec solution is optimized for up to 8 servers, but up to 100 should be fine
     // the assumption is that we won't have more than 1-2 servers at a time anyway
@@ -66,7 +41,7 @@ pub fn start_service_discovery_thread(
     let mut online_servers: Vec<NetworkAddress> = Vec::new();
     let mut servers_to_remove: Vec<NetworkAddress> = Vec::new();
 
-    let query = format!("aloha:{}\n", service_identifier);
+    let query = build_nsd_query(&service_identifier);
     let mut buf = [0; 1024];
 
     // set the time in the past, enough to trigger the broadcast immediately
@@ -78,13 +53,7 @@ pub fn start_service_discovery_thread(
         }
 
         if std::time::Instant::now() > last_broadcast_time + broadcast_period {
-            // broadcast a UDP packet to the network
-            let broadcast_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::BROADCAST), broadcast_port);
-            let result = socket.send_to(query.as_bytes(), broadcast_addr);
-            if let Err(e) = result {
-                println!("Failed to send UDP packet: {}", e);
-                return Err(format!("Failed to send UDP packet: {}", e));
-            }
+            broadcast_nds_udp_request(&socket, &query, broadcast_port)?;
             last_broadcast_time = std::time::Instant::now();
 
             // remove servers that are no longer online
@@ -123,67 +92,124 @@ pub fn start_service_discovery_thread(
             discovery_generations[0].clear();
         }
 
-        // for the simplicity sake, we use UDP to communicate back as well
-        // this can miss packets sometimes, but it's fine for our use case
-        let result = socket.recv_from(&mut buf);
-        let (amt, src) = match result {
-            Ok(result) => result,
-            Err(_) => {
-                // we can't distinguish between a timeout and a failure, so we just continue
-                // until we get a stop signal
-                continue;
+        if let Some((address, extra_data)) = process_udp_request_answer(&socket, &mut buf) {
+            if !discovery_generations[0].contains(&address) {
+                discovery_generations[0].push(address.clone());
             }
-        };
-        let response_body = &buf[..amt];
 
-        if response_body.len() < 1 + 2 + 2 + 0 + 2 {
-            continue;
-        }
-
-        // protocol version
-        if response_body[0] != 0x01 {
-            continue;
-        }
-
-        let extra_data_len = u16::from_be_bytes([response_body[1], response_body[2]]) as usize;
-
-        let port = u16::from_be_bytes([response_body[3], response_body[4]]);
-
-        if response_body.len() < 1 + 2 + 2 + extra_data_len + 2 {
-            continue;
-        }
-
-        let checksum = u16::from_be_bytes([
-            response_body[5 + extra_data_len],
-            response_body[6 + extra_data_len],
-        ]);
-
-        let expected_checksum = checksum16(&response_body[3..3 + 2 + extra_data_len]);
-
-        if expected_checksum != checksum {
-            continue;
-        }
-
-        let extra_data = response_body[5..5 + extra_data_len].to_vec();
-
-        let address = NetworkAddress { ip: src.ip(), port };
-
-        if !discovery_generations[0].contains(&address) {
-            discovery_generations[0].push(address.clone());
-        }
-
-        if !online_servers.contains(&address) {
-            // found new server that wasn't in the list
-            online_servers.push(address);
-            result_lambda(DiscoveryResult {
-                service_info: ServiceInfo {
-                    address: NetworkAddress { ip: src.ip(), port },
-                    extra_data,
-                },
-                state: DiscoveryState::Added,
-            });
+            if !online_servers.contains(&address) {
+                // found new server that wasn't in the list
+                online_servers.push(address.clone());
+                result_lambda(DiscoveryResult {
+                    service_info: ServiceInfo {
+                        address,
+                        extra_data,
+                    },
+                    state: DiscoveryState::Added,
+                });
+            }
         }
     }
+}
+
+pub fn bind_broadcast_socket(read_timeout: std::time::Duration) -> Result<UdpSocket, String> {
+    // bind to a port provided by the OS
+    let socket = UdpSocket::bind("0.0.0.0:0");
+    let socket = match socket {
+        Ok(socket) => socket,
+        Err(e) => {
+            println!(
+                "Failed to open port for network service discovery client: {}",
+                e
+            );
+            return Err(format!(
+                "Failed to open port for network service discovery client: {}",
+                e
+            ));
+        }
+    };
+
+    let result = socket.set_read_timeout(Some(read_timeout));
+    if let Err(e) = result {
+        println!("Failed to set read timeout on UDP socket: {}", e);
+        return Err(format!("Failed to set read timeout on UDP socket: {}", e));
+    }
+    let result = socket.set_broadcast(true);
+    if let Err(e) = result {
+        println!("Failed to set broadcast on UDP socket: {}", e);
+        return Err(format!("Failed to set broadcast on UDP socket: {}", e));
+    }
+
+    Ok(socket)
+}
+
+pub fn build_nsd_query(service_identifier: &str) -> String {
+    format!("aloha:{}\n", service_identifier)
+}
+
+pub fn broadcast_nds_udp_request(
+    socket: &UdpSocket,
+    query: &str,
+    broadcast_port: u16,
+) -> Result<(), String> {
+    let broadcast_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::BROADCAST), broadcast_port);
+    let result = socket.send_to(query.as_bytes(), broadcast_addr);
+    match result {
+        Ok(..) => Ok(()),
+        Err(e) => Err(format!("Failed to send UDP packet: {}", e)),
+    }
+}
+
+pub fn process_udp_request_answer(
+    socket: &UdpSocket,
+    buf: &mut [u8; 1024],
+) -> Option<(NetworkAddress, Vec<u8>)> {
+    // for the simplicity sake, we use UDP to communicate back as well
+    // this can miss packets sometimes, but it's fine for our use case
+    let result = socket.recv_from(buf);
+    let (amt, src) = match result {
+        Ok(result) => result,
+        Err(_) => {
+            // we can't distinguish between a timeout and a failure, so we just continue
+            // until we get a stop signal
+            return None;
+        }
+    };
+    let response_body = &buf[..amt];
+
+    if response_body.len() < 1 + 2 + 2 + 0 + 2 {
+        return None;
+    }
+
+    // protocol version
+    if response_body[0] != 0x01 {
+        return None;
+    }
+
+    let extra_data_len = u16::from_be_bytes([response_body[1], response_body[2]]) as usize;
+
+    let port = u16::from_be_bytes([response_body[3], response_body[4]]);
+
+    if response_body.len() < 1 + 2 + 2 + extra_data_len + 2 {
+        return None;
+    }
+
+    let checksum = u16::from_be_bytes([
+        response_body[5 + extra_data_len],
+        response_body[6 + extra_data_len],
+    ]);
+
+    let expected_checksum = checksum16(&response_body[3..3 + 2 + extra_data_len]);
+
+    if expected_checksum != checksum {
+        return None;
+    }
+
+    let extra_data = response_body[5..5 + extra_data_len].to_vec();
+
+    let address = NetworkAddress { ip: src.ip(), port };
+
+    Some((address, extra_data))
 }
 
 fn checksum16(data: &[u8]) -> u16 {

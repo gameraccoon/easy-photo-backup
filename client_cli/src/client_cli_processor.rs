@@ -1,17 +1,17 @@
 use crate::client_config::ClientConfig;
-use shared_client::client_storage::{ClientStorage, ServerInfo};
+use shared_client::client_storage::{ClientStorage, PairedServerInfo, ServerInfo};
 use shared_client::network_address::NetworkAddress;
-use shared_client::send_files_request::{send_files_request, FoldersToSync};
-use shared_client::{discovered_server::DiscoveredServer, nsd_client, pairing_processor};
+use shared_client::{discovered_server::DiscoveredServer, nsd_client, nsd_data, pairing_processor};
 use std::io::Write;
+use std::sync::{Arc, Mutex};
 
 const NSD_BROADCAST_PERIOD: std::time::Duration = std::time::Duration::from_secs(1);
 pub const CLIENT_STORAGE_FILE_NAME: &str = "client_storage";
 
-pub fn start_cli_processor(config: ClientConfig, storage: &mut ClientStorage) {
+pub fn start_cli_processor(config: ClientConfig, storage: Arc<Mutex<ClientStorage>>) {
     let mut buffer = String::new();
 
-    let folders_to_sync = FoldersToSync {
+    let folders_to_sync = shared_client::client_storage::FoldersToSync {
         single_test_folder: config.folder_to_sync.clone(),
     };
 
@@ -53,7 +53,13 @@ pub fn start_cli_processor(config: ClientConfig, storage: &mut ClientStorage) {
                 println!("help - show this help");
             }
             "pair" => {
-                let result = pair_to_server(&storage);
+                // we lock it for the whole duration of pairing just for convenience, since we're
+                // not passing it anywhere for now
+                let Ok(mut storage) = storage.lock() else {
+                    println!("Cannot lock storage, try again");
+                    continue;
+                };
+                let result = pair_to_server(storage.client_name.clone());
                 let result = match result {
                     Ok(result) => result,
                     Err(e) => {
@@ -65,9 +71,12 @@ pub fn start_cli_processor(config: ClientConfig, storage: &mut ClientStorage) {
                 // remove old servers with the same id
                 storage
                     .paired_servers
-                    .retain(|server| server.id != result.id);
+                    .retain(|server| server.server_info.id != result.id);
 
-                storage.paired_servers.push(result);
+                storage.paired_servers.push(PairedServerInfo {
+                    server_info: result,
+                    folders_to_sync: folders_to_sync.clone(),
+                });
 
                 println!("Pairing succeeded, confirm on the other device");
 
@@ -77,12 +86,11 @@ pub fn start_cli_processor(config: ClientConfig, storage: &mut ClientStorage) {
                 }
             }
             "send" => {
-                if storage.paired_servers.len() == 0 {
-                    println!("We don't have any paired servers, you may want to run 'pair' first");
-                    continue;
+                // simulate what a scheduled task would do
+                let result = shared_client::file_sending_routine::process_routine(&storage);
+                if let Err(e) = result {
+                    println!("Failed to process file routine: {}", e);
                 }
-
-                send_files(&storage, &folders_to_sync);
             }
             _ => {
                 println!("Unknown command: {}", command);
@@ -122,23 +130,11 @@ fn discover_servers(time_seconds: u64) -> Vec<DiscoveredServer> {
         match result {
             Ok(result) => match result.state {
                 nsd_client::DiscoveryState::Added => {
-                    if result.service_info.extra_data.len()
-                        != 1 + shared_common::protocol::SERVER_ID_LENGTH_BYTES
-                    {
-                        println!("Server id is not the correct length");
+                    let Some(server_id) =
+                        nsd_data::decode_extra_data(result.service_info.extra_data)
+                    else {
                         continue;
-                    }
-
-                    if result.service_info.extra_data[0]
-                        != shared_common::protocol::NSD_DATA_PROTOCOL_VERSION
-                    {
-                        println!("NSD data protocol version is not supported");
-                        continue;
-                    }
-
-                    let mut server_id = result.service_info.extra_data;
-                    server_id.rotate_left(1);
-                    server_id.truncate(shared_common::protocol::SERVER_ID_LENGTH_BYTES);
+                    };
 
                     online_servers.push(DiscoveredServer {
                         server_id,
@@ -174,7 +170,7 @@ fn discover_servers(time_seconds: u64) -> Vec<DiscoveredServer> {
     online_servers
 }
 
-fn pair_to_server(client_storage: &ClientStorage) -> Result<ServerInfo, String> {
+fn pair_to_server(client_name: String) -> Result<ServerInfo, String> {
     let mut online_servers = discover_servers(2);
 
     for server in online_servers.iter_mut() {
@@ -209,7 +205,7 @@ fn pair_to_server(client_storage: &ClientStorage) -> Result<ServerInfo, String> 
     );
 
     let mut pair_processor = pairing_processor::PairingProcessor::new();
-    pair_processor.pair_to_server(&server_info, client_storage)?;
+    pair_processor.pair_to_server(&server_info, client_name)?;
 
     println!("Enter the code that is shown on the other device");
     let mut buffer = String::new();
@@ -261,29 +257,6 @@ fn pair_to_server(client_storage: &ClientStorage) -> Result<ServerInfo, String> 
     };
 
     Ok(server_info)
-}
-
-fn send_files(storage: &ClientStorage, folders_to_sync: &FoldersToSync) {
-    let online_servers = discover_servers(2);
-
-    let mut filtered_servers = Vec::new();
-    for server in online_servers {
-        for paired_server in &storage.paired_servers {
-            if paired_server.id == server.server_id {
-                filtered_servers.push(server.clone());
-            }
-        }
-    }
-
-    for server in filtered_servers {
-        println!(
-            "Sending files to {}:{}",
-            server.address.ip, server.address.port
-        );
-
-        // synchronous for now
-        send_files_request(storage, server.address, server.server_id, folders_to_sync);
-    }
 }
 
 fn read_server_info(online_servers: &Vec<DiscoveredServer>) -> Result<DiscoveredServer, String> {

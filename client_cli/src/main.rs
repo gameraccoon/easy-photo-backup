@@ -4,6 +4,7 @@ pub mod client_config;
 use client_config::ClientConfig;
 use shared_client::client_storage::ClientStorage;
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 
 fn main() {
     let config = ClientConfig::load_or_generate();
@@ -21,5 +22,5 @@ fn main() {
         }
     }
 
-    client_cli_processor::start_cli_processor(config, &mut storage);
+    client_cli_processor::start_cli_processor(config, Arc::new(Mutex::new(storage)));
 }

@@ -11,6 +11,25 @@ pub struct ServerInfo {
 }
 
 #[derive(Clone)]
+pub struct FoldersToSync {
+    // test data for now
+    pub single_test_folder: std::path::PathBuf,
+}
+
+impl FoldersToSync {
+    pub fn new() -> FoldersToSync {
+        FoldersToSync {
+            single_test_folder: std::path::PathBuf::new(),
+        }
+    }
+}
+
+pub struct PairedServerInfo {
+    pub server_info: ServerInfo,
+    pub folders_to_sync: FoldersToSync,
+}
+
+#[derive(Clone)]
 pub struct AwaitingPairingServer {
     pub server_info: ServerInfo,
     pub server_address: crate::network_address::NetworkAddress,
@@ -20,7 +39,7 @@ pub struct AwaitingPairingServer {
 
 pub struct ClientStorage {
     pub client_name: String,
-    pub paired_servers: Vec<ServerInfo>,
+    pub paired_servers: Vec<PairedServerInfo>,
 }
 
 impl ClientStorage {
@@ -75,7 +94,7 @@ impl ClientStorage {
             shared_common::protocol::DEVICE_NAME_MAX_LENGTH_BYTES,
         )?;
 
-        let paired_servers = read_server_info_vec(&mut file)?;
+        let paired_servers = read_paired_server_info_vec(&mut file)?;
 
         Ok(Some(ClientStorage {
             client_name,
@@ -102,63 +121,102 @@ impl ClientStorage {
 
         shared_common::write_string(&mut file, &self.client_name)?;
 
-        write_server_info_vec(&mut file, &self.paired_servers)?;
+        write_paired_server_info_vec(&mut file, &self.paired_servers)?;
 
         Ok(())
     }
 }
 
-fn write_server_info_vec<T: Write>(
+fn write_server_info<T: Write>(file: &mut T, server_info: &ServerInfo) -> Result<(), String> {
+    shared_common::write_variable_size_bytes(file, &server_info.id)?;
+    shared_common::write_string(file, &server_info.name)?;
+    shared_common::write_variable_size_bytes(file, &server_info.server_public_key)?;
+
+    shared_common::write_variable_size_bytes(file, &server_info.client_keys.public_key)?;
+    shared_common::write_variable_size_bytes(file, &server_info.client_keys.get_private_key())?;
+
+    Ok(())
+}
+
+fn write_folders_to_sync<T: Write>(
     file: &mut T,
-    server_info_vec: &Vec<ServerInfo>,
+    folders_to_sync: &FoldersToSync,
+) -> Result<(), String> {
+    shared_common::write_string(
+        file,
+        &folders_to_sync
+            .single_test_folder
+            .to_str()
+            .unwrap_or("[incorrect_name_format]"),
+    )
+}
+
+fn write_paired_server_info_vec<T: Write>(
+    file: &mut T,
+    server_info_vec: &Vec<PairedServerInfo>,
 ) -> Result<(), String> {
     shared_common::write_u32(file, server_info_vec.len() as u32)?;
     for server in server_info_vec {
-        shared_common::write_variable_size_bytes(file, &server.id)?;
-        shared_common::write_string(file, &server.name)?;
-        shared_common::write_variable_size_bytes(file, &server.server_public_key)?;
+        write_server_info(file, &server.server_info)?;
 
-        shared_common::write_variable_size_bytes(file, &server.client_keys.public_key)?;
-        shared_common::write_variable_size_bytes(file, &server.client_keys.get_private_key())?;
+        // ToDo: add saving file paths here after we fix loading of them
     }
 
     Ok(())
 }
 
-fn read_server_info_vec<T: Read>(file: &mut T) -> Result<Vec<ServerInfo>, String> {
+fn read_server_info<T: Read>(file: &mut T) -> Result<ServerInfo, String> {
+    let id = shared_common::read_variable_size_bytes(
+        file,
+        shared_common::protocol::SERVER_ID_LENGTH_BYTES as u32,
+    )?;
+    let name =
+        shared_common::read_string(file, shared_common::protocol::DEVICE_NAME_MAX_LENGTH_BYTES)?;
+    let server_public_key = shared_common::read_variable_size_bytes(
+        file,
+        shared_common::protocol::MAX_PUBLIC_KEY_LENGTH_BYTES as u32,
+    )?;
+
+    let client_public_key = shared_common::read_variable_size_bytes(
+        file,
+        shared_common::protocol::MAX_PUBLIC_KEY_LENGTH_BYTES as u32,
+    )?;
+    let client_private_key = shared_common::read_variable_size_bytes(
+        file,
+        shared_common::protocol::MAX_PRIVATE_KEY_LENGTH_BYTES as u32,
+    )?;
+    let client_keys =
+        shared_common::tls::tls_data::TlsData::new(client_public_key, client_private_key);
+
+    Ok(ServerInfo {
+        id,
+        name,
+        server_public_key,
+        client_keys,
+    })
+}
+
+fn read_folders_to_sync<T: Read>(file: &mut T) -> Result<FoldersToSync, String> {
+    let single_test_folder =
+        shared_common::read_string(file, shared_common::protocol::MAX_FILE_PATH_LENGTH_BYTES)?;
+
+    Ok(FoldersToSync {
+        single_test_folder: std::path::PathBuf::from(&single_test_folder),
+    })
+}
+
+fn read_paired_server_info_vec<T: Read>(file: &mut T) -> Result<Vec<PairedServerInfo>, String> {
     let len = shared_common::read_u32(file)?;
 
     let mut server_info_vec = Vec::with_capacity(len as usize);
     for _ in 0..len {
-        let id = shared_common::read_variable_size_bytes(
-            file,
-            shared_common::protocol::SERVER_ID_LENGTH_BYTES as u32,
-        )?;
-        let name = shared_common::read_string(
-            file,
-            shared_common::protocol::DEVICE_NAME_MAX_LENGTH_BYTES,
-        )?;
-        let server_public_key = shared_common::read_variable_size_bytes(
-            file,
-            shared_common::protocol::MAX_PUBLIC_KEY_LENGTH_BYTES as u32,
-        )?;
-
-        let client_public_key = shared_common::read_variable_size_bytes(
-            file,
-            shared_common::protocol::MAX_PUBLIC_KEY_LENGTH_BYTES as u32,
-        )?;
-        let client_private_key = shared_common::read_variable_size_bytes(
-            file,
-            shared_common::protocol::MAX_PRIVATE_KEY_LENGTH_BYTES as u32,
-        )?;
-        let client_keys =
-            shared_common::tls::tls_data::TlsData::new(client_public_key, client_private_key);
-
-        server_info_vec.push(ServerInfo {
-            id,
-            name,
-            server_public_key,
-            client_keys,
+        let server_info = read_server_info(file)?;
+        server_info_vec.push(PairedServerInfo {
+            server_info,
+            folders_to_sync: FoldersToSync {
+                // ToDo: add data updating and actually read the data
+                single_test_folder: Default::default(),
+            },
         });
     }
 

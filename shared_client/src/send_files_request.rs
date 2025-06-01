@@ -1,35 +1,16 @@
 use crate::client_handshake::HandshakeResult;
 use crate::client_requests::RequestWriteResult;
-use crate::client_storage::ClientStorage;
 use crate::network_address::NetworkAddress;
-use crate::{client_handshake, client_requests, file_sender};
+use crate::{client_handshake, client_requests, streamed_file_sender};
 use std::net::TcpStream;
 use std::sync::Arc;
 
-pub struct FoldersToSync {
-    pub single_test_folder: std::path::PathBuf,
-}
-
 pub fn send_files_request(
-    client_storage: &ClientStorage,
     destination: NetworkAddress,
-    server_id: Vec<u8>,
-    folders_to_sync: &FoldersToSync,
+    server_public_key: Vec<u8>,
+    client_key_pair: shared_common::tls::tls_data::TlsData,
+    folders_to_sync: crate::client_storage::FoldersToSync,
 ) {
-    let server_info = client_storage
-        .paired_servers
-        .iter()
-        .find(|server| server.id == server_id);
-    let (server_public_key, client_key_pair) = if let Some(server_info) = server_info {
-        (
-            server_info.server_public_key.clone(),
-            server_info.client_keys.clone(),
-        )
-    } else {
-        println!("Failed to find server info by id");
-        return;
-    };
-
     let mut stream = match TcpStream::connect(format!("{}:{}", destination.ip, destination.port)) {
         Ok(stream) => stream,
         Err(e) => {
@@ -104,23 +85,24 @@ pub fn send_files_request(
 
     let mut tls = rustls::Stream::new(&mut conn, &mut stream);
 
-    let result = file_sender::send_directory(&folders_to_sync.single_test_folder, &mut tls);
+    let result =
+        streamed_file_sender::send_directory(&folders_to_sync.single_test_folder, &mut tls);
     match result {
-        file_sender::SendDirectoryResult::AllSent(send_result) => {
+        streamed_file_sender::SendDirectoryResult::AllSent(send_result) => {
             if send_result.is_empty() {
                 println!("No files to send");
             } else {
                 println!("Successfully sent all files");
             }
         }
-        file_sender::SendDirectoryResult::PartiallySent(sent, skipped) => {
+        streamed_file_sender::SendDirectoryResult::PartiallySent(sent, skipped) => {
             println!(
                 "Successfully sent {} files, skipped {}",
                 sent.len(),
                 skipped.len()
             );
         }
-        file_sender::SendDirectoryResult::Aborted(reason) => {
+        streamed_file_sender::SendDirectoryResult::Aborted(reason) => {
             println!("Failed to send files: {}", reason);
         }
     }

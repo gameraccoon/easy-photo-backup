@@ -8,6 +8,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import uniffi.client_ffi.processSendingFiles
 
 class MainActivity : AppCompatActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -43,5 +44,13 @@ class MainActivity : AppCompatActivity() {
     val context = this
     val intent = Intent(context, DiscoverDevicesActivity::class.java)
     context.startActivity(intent)
+  }
+
+  fun onTestSendFilesButtonClicked(view: View) {
+    val easyPhotoBackupApplication = application as EasyPhotoBackupApplication
+    val clientStorage = easyPhotoBackupApplication.getClientStorage()
+    if (clientStorage != null) {
+      processSendingFiles(clientStorage)
+    }
   }
 }
