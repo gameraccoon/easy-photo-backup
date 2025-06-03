@@ -83,9 +83,7 @@ pub fn send_file(
 
     let file_size = metadata.len();
 
-    let file_size_bytes: [u8; 8] = file_size.to_be_bytes();
-
-    let write_result = stream.write_all(&file_size_bytes);
+    let write_result = shared_common::write_u64(stream, file_size);
     if let Err(e) = write_result {
         println!("Failed to write file size to socket: {}", e);
         return SendFileResult::UnknownConnectionError(format!(

@@ -202,6 +202,16 @@ pub fn write_u32<T: std::io::Write>(stream: &mut T, number: u32) -> Result<(), S
     Ok(())
 }
 
+pub fn write_u64<T: std::io::Write>(stream: &mut T, number: u64) -> Result<(), String> {
+    let number_bytes: [u8; 8] = number.to_be_bytes();
+    let result = stream.write_all(&number_bytes);
+    if let Err(e) = result {
+        return Err(format!("Failed to write u64: {}", e));
+    }
+
+    Ok(())
+}
+
 pub fn write_string<T: std::io::Write>(stream: &mut T, string: &str) -> Result<(), String> {
     let len_bytes: [u8; 4] = (string.len() as u32).to_be_bytes();
     let result = stream.write_all(&len_bytes);
