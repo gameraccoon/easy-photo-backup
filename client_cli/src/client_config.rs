@@ -3,7 +3,7 @@ const CLIENT_CONFIG_VERSION: u32 = 1;
 
 #[derive(Clone)]
 pub struct ClientConfig {
-    pub folder_to_sync: std::path::PathBuf,
+    pub default_folder_to_sync: std::path::PathBuf,
     pub client_name: String,
 }
 
@@ -25,7 +25,7 @@ impl ClientConfig {
                                 name: "general".to_string(),
                                 options: vec![
                                     shared_common::text_config::OptionFormat {
-                                        name: "folder_to_sync".to_string(),
+                                        name: "default_folder_to_sync".to_string(),
                                         value_type: shared_common::text_config::ValueType::String,
                                         is_required: false,
                                     },
@@ -61,8 +61,8 @@ impl ClientConfig {
             shared_common::text_config::Config::new(CLIENT_CONFIG_VERSION)
         };
 
-        let folder_to_sync = config.get("general", "folder_to_sync");
-        let folder_to_sync = match folder_to_sync {
+        let folder_to_sync = config.get("general", "default_folder_to_sync");
+        let default_folder_to_sync = match folder_to_sync {
             Some(shared_common::text_config::Value::String(folder_to_sync)) => folder_to_sync,
             _ => "./folder_to_sync",
         };
@@ -74,7 +74,7 @@ impl ClientConfig {
         };
 
         ClientConfig {
-            folder_to_sync: std::path::PathBuf::from(folder_to_sync),
+            default_folder_to_sync: std::path::PathBuf::from(default_folder_to_sync),
             client_name,
         }
     }

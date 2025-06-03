@@ -12,7 +12,7 @@ pub fn start_cli_processor(config: ClientConfig, storage: Arc<Mutex<ClientStorag
     let mut buffer = String::new();
 
     let folders_to_sync = shared_client::client_storage::FoldersToSync {
-        single_test_folder: config.folder_to_sync.clone(),
+        single_test_folder: config.default_folder_to_sync.clone(),
     };
 
     loop {
