@@ -1,11 +1,11 @@
 mod digit_confirmation_ui;
-mod file_receiver;
 mod nsd_server;
 mod send_files_request;
 mod server_config;
 mod server_handshake;
 mod server_requests;
 mod server_storage;
+mod streamed_file_receiver;
 
 use crate::server_config::ServerConfig;
 use crate::server_handshake::HandshakeResult;
