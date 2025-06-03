@@ -6,7 +6,7 @@ use std::io::Write;
 use std::sync::{Arc, Mutex};
 
 const NSD_BROADCAST_PERIOD: std::time::Duration = std::time::Duration::from_secs(1);
-pub const CLIENT_STORAGE_FILE_NAME: &str = "client_storage";
+pub const CLIENT_STORAGE_FILE_NAME: &str = "client_storage.bin";
 
 pub fn start_cli_processor(config: ClientConfig, storage: Arc<Mutex<ClientStorage>>) {
     let mut buffer = String::new();
