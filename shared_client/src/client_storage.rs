@@ -1,4 +1,4 @@
-use std::io::{Read, Write};
+use shared_common::bstorage;
 
 const CLIENT_STORAGE_VERSION: u32 = 1;
 
@@ -89,17 +89,26 @@ impl ClientStorage {
             return Err("Client storage version mismatch".to_string());
         }
 
-        let client_name = shared_common::read_string(
-            &mut file,
-            shared_common::protocol::DEVICE_NAME_MAX_LENGTH_BYTES,
-        )?;
+        let storage = bstorage::read_tagged_value_from_stream(&mut file)?;
 
-        let paired_servers = read_paired_server_info_vec(&mut file)?;
+        match storage {
+            bstorage::Value::Tuple(values) => {
+                let client_name = match &values.get(0) {
+                    Some(bstorage::Value::String(client_name)) => client_name.clone(),
+                    _ => {
+                        return Err("Client name is not a string".to_string());
+                    }
+                };
 
-        Ok(Some(ClientStorage {
-            client_name,
-            paired_servers,
-        }))
+                let paired_servers = read_paired_server_info_vec(&values.get(1))?;
+
+                Ok(Some(ClientStorage {
+                    client_name,
+                    paired_servers,
+                }))
+            }
+            _ => Err("Client storage is not a tuple".to_string()),
+        }
     }
 
     pub fn save(&self, file_path: &std::path::Path) -> Result<(), String> {
@@ -119,106 +128,135 @@ impl ClientStorage {
 
         shared_common::write_u32(&mut file, CLIENT_STORAGE_VERSION)?;
 
-        shared_common::write_string(&mut file, &self.client_name)?;
+        let storage = bstorage::Value::Tuple(vec![
+            bstorage::Value::String(self.client_name.clone()),
+            serialize_paired_server_info_vec(&self.paired_servers),
+        ]);
 
-        write_paired_server_info_vec(&mut file, &self.paired_servers)?;
+        bstorage::write_tagged_value_to_stream(&mut file, &storage)?;
 
         Ok(())
     }
 }
 
-fn write_server_info<T: Write>(file: &mut T, server_info: &ServerInfo) -> Result<(), String> {
-    shared_common::write_variable_size_bytes(file, &server_info.id)?;
-    shared_common::write_string(file, &server_info.name)?;
-    shared_common::write_variable_size_bytes(file, &server_info.server_public_key)?;
-
-    shared_common::write_variable_size_bytes(file, &server_info.client_keys.public_key)?;
-    shared_common::write_variable_size_bytes(file, &server_info.client_keys.get_private_key())?;
-
-    Ok(())
-}
-
-fn write_folders_to_sync<T: Write>(
-    file: &mut T,
-    folders_to_sync: &FoldersToSync,
-) -> Result<(), String> {
-    shared_common::write_string(
-        file,
-        &folders_to_sync
-            .single_test_folder
-            .to_str()
-            .unwrap_or("[incorrect_name_format]"),
+fn serialize_paired_server_info_vec(server_info_vec: &Vec<PairedServerInfo>) -> bstorage::Value {
+    bstorage::Value::Tuple(
+        server_info_vec
+            .iter()
+            .map(|server| {
+                bstorage::Value::Tuple(vec![
+                    serialize_server_info(&server.server_info),
+                    serialize_folders_to_sync(&server.folders_to_sync),
+                ])
+            })
+            .collect(),
     )
 }
 
-fn write_paired_server_info_vec<T: Write>(
-    file: &mut T,
-    server_info_vec: &Vec<PairedServerInfo>,
-) -> Result<(), String> {
-    shared_common::write_u32(file, server_info_vec.len() as u32)?;
-    for server in server_info_vec {
-        write_server_info(file, &server.server_info)?;
+fn serialize_server_info(server_info: &ServerInfo) -> bstorage::Value {
+    bstorage::Value::Tuple(vec![
+        bstorage::Value::ByteArray(server_info.id.clone()),
+        bstorage::Value::String(server_info.name.clone()),
+        bstorage::Value::ByteArray(server_info.server_public_key.clone()),
+        bstorage::Value::ByteArray(server_info.client_keys.public_key.clone()),
+        bstorage::Value::ByteArray(server_info.client_keys.get_private_key().clone()),
+    ])
+}
 
-        // ToDo: add saving file paths here after we fix loading of them
+fn serialize_folders_to_sync(folders_to_sync: &FoldersToSync) -> bstorage::Value {
+    bstorage::Value::String(
+        folders_to_sync
+            .single_test_folder
+            .to_str()
+            .unwrap_or("[incorrect_name_format]")
+            .to_string(),
+    )
+}
+
+fn read_paired_server_info_vec(
+    value: &Option<&bstorage::Value>,
+) -> Result<Vec<PairedServerInfo>, String> {
+    match value {
+        Some(bstorage::Value::Tuple(values)) => {
+            let mut server_info_vec = Vec::with_capacity(values.len());
+            for value in values {
+                match value {
+                    bstorage::Value::Tuple(values) => {
+                        let server_info = read_server_info(&values.get(0))?;
+                        let folders_to_sync = read_folders_to_sync(&values.get(1))?;
+                        server_info_vec.push(PairedServerInfo {
+                            server_info,
+                            folders_to_sync,
+                        });
+                    }
+                    _ => {
+                        return Err("Paired server info is not a tuple".to_string());
+                    }
+                }
+            }
+            Ok(server_info_vec)
+        }
+        _ => Err("Paired server info is not a tuple".to_string()),
     }
-
-    Ok(())
 }
 
-fn read_server_info<T: Read>(file: &mut T) -> Result<ServerInfo, String> {
-    let id = shared_common::read_variable_size_bytes(
-        file,
-        shared_common::protocol::SERVER_ID_LENGTH_BYTES as u32,
-    )?;
-    let name =
-        shared_common::read_string(file, shared_common::protocol::DEVICE_NAME_MAX_LENGTH_BYTES)?;
-    let server_public_key = shared_common::read_variable_size_bytes(
-        file,
-        shared_common::protocol::MAX_PUBLIC_KEY_LENGTH_BYTES as u32,
-    )?;
+fn read_server_info(value: &Option<&bstorage::Value>) -> Result<ServerInfo, String> {
+    match value {
+        Some(bstorage::Value::Tuple(values)) => {
+            let id = match &values.get(0) {
+                Some(bstorage::Value::ByteArray(id)) => id.clone(),
+                _ => {
+                    return Err("Server id is not a byte array".to_string());
+                }
+            };
 
-    let client_public_key = shared_common::read_variable_size_bytes(
-        file,
-        shared_common::protocol::MAX_PUBLIC_KEY_LENGTH_BYTES as u32,
-    )?;
-    let client_private_key = shared_common::read_variable_size_bytes(
-        file,
-        shared_common::protocol::MAX_PRIVATE_KEY_LENGTH_BYTES as u32,
-    )?;
-    let client_keys =
-        shared_common::tls::tls_data::TlsData::new(client_public_key, client_private_key);
+            let name = match &values.get(1) {
+                Some(bstorage::Value::String(name)) => name.clone(),
+                _ => {
+                    return Err("Server name is not a string".to_string());
+                }
+            };
 
-    Ok(ServerInfo {
-        id,
-        name,
-        server_public_key,
-        client_keys,
-    })
-}
+            let server_public_key = match &values.get(2) {
+                Some(bstorage::Value::ByteArray(server_public_key)) => server_public_key.clone(),
+                _ => {
+                    return Err("Server public key is not a byte array".to_string());
+                }
+            };
 
-fn read_folders_to_sync<T: Read>(file: &mut T) -> Result<FoldersToSync, String> {
-    let single_test_folder =
-        shared_common::read_string(file, shared_common::protocol::MAX_FILE_PATH_LENGTH_BYTES)?;
+            let client_public_key = match &values.get(3) {
+                Some(bstorage::Value::ByteArray(client_public_key)) => client_public_key.clone(),
+                _ => {
+                    return Err("Client public key is not a byte array".to_string());
+                }
+            };
 
-    Ok(FoldersToSync {
-        single_test_folder: std::path::PathBuf::from(&single_test_folder),
-    })
-}
+            let client_private_key = match &values.get(4) {
+                Some(bstorage::Value::ByteArray(client_private_key)) => client_private_key.clone(),
+                _ => {
+                    return Err("Client private key is not a byte array".to_string());
+                }
+            };
 
-fn read_paired_server_info_vec<T: Read>(file: &mut T) -> Result<Vec<PairedServerInfo>, String> {
-    let len = shared_common::read_u32(file)?;
+            let client_keys =
+                shared_common::tls::tls_data::TlsData::new(client_public_key, client_private_key);
 
-    let mut server_info_vec = Vec::with_capacity(len as usize);
-    for _ in 0..len {
-        let server_info = read_server_info(file)?;
-        server_info_vec.push(PairedServerInfo {
-            server_info,
-            folders_to_sync: FoldersToSync {
-                // ToDo: add data updating and actually read the data
-                single_test_folder: Default::default(),
-            },
-        });
+            Ok(ServerInfo {
+                id,
+                name,
+                server_public_key,
+                client_keys,
+            })
+        }
+        _ => Err("Server info is not a tuple".to_string()),
     }
+}
 
-    Ok(server_info_vec)
+fn read_folders_to_sync(value: &Option<&bstorage::Value>) -> Result<FoldersToSync, String> {
+    match value {
+        Some(bstorage::Value::String(single_test_folder)) => Ok(FoldersToSync {
+            single_test_folder: std::path::PathBuf::from(single_test_folder),
+        }),
+        _ => Err("Folders to sync is not a string".to_string()),
+    }
 }

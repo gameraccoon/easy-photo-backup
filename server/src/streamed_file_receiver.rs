@@ -68,7 +68,11 @@ pub(crate) fn receive_file(
             NameCollisionStrategy::Overwrite => destination_file_path,
             NameCollisionStrategy::Skip => {
                 println!("Skipping file '{}'", destination_file_path.display());
-                shared_common::drop_bytes_from_stream(reader, file_size_bytes as usize);
+                let result =
+                    shared_common::drop_bytes_from_stream(reader, file_size_bytes as usize);
+                if let Err(e) = result {
+                    return ReceiveFileResult::UnknownNetworkError(e);
+                }
                 return ReceiveFileResult::FileAlreadyExistsAndSkipped;
             }
             NameCollisionStrategy::Rename => find_non_colliding_file_name(destination_file_path),
@@ -79,7 +83,10 @@ pub(crate) fn receive_file(
     let mut file = match file {
         Ok(file) => file,
         Err(e) => {
-            shared_common::drop_bytes_from_stream(reader, file_size_bytes as usize);
+            let result = shared_common::drop_bytes_from_stream(reader, file_size_bytes as usize);
+            if let Err(e) = result {
+                return ReceiveFileResult::UnknownNetworkError(e);
+            }
             println!(
                 "Failed to open file '{}': {}",
                 destination_file_path.display(),

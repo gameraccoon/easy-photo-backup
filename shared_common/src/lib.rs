@@ -1,3 +1,4 @@
+pub mod bstorage;
 pub mod crypto;
 pub mod protocol;
 pub mod text_config;
@@ -32,13 +33,11 @@ fn read_bytes_generic<T: std::io::Read>(
     let bytes_read = match stream.read(&mut buffer) {
         Ok(bytes_read) => bytes_read,
         Err(e) => {
-            println!("Failed to read from socket: {}", e);
-            return Err(format!("Failed to read from socket: {}", e));
+            return Err(format!("Failed to read from stream: {}", e));
         }
     };
 
     if bytes_read != size {
-        println!("Failed to read all bytes from stream");
         return Err(format!(
             "Failed to read all bytes from stream (read {}, expected {})",
             bytes_read, size
@@ -48,7 +47,7 @@ fn read_bytes_generic<T: std::io::Read>(
     Ok(buffer)
 }
 
-pub fn drop_bytes_from_stream<T: std::io::Read>(mut stream: T, size: usize) {
+pub fn drop_bytes_from_stream<T: std::io::Read>(mut stream: T, size: usize) -> Result<(), String> {
     let mut buffer = [0; 1024];
     let mut left = size;
     while left > 0 {
@@ -56,44 +55,44 @@ pub fn drop_bytes_from_stream<T: std::io::Read>(mut stream: T, size: usize) {
         let bytes_read = match stream.read(&mut buffer[..bytes_to_read]) {
             Ok(bytes_read) => bytes_read,
             Err(e) => {
-                println!("Failed to read from stream: {}", e);
-                return;
+                return Err(format!("Failed to drop bytes from stream: {}", e));
             }
         };
         if bytes_read == 0 {
-            break;
+            return Err("Failed to drop bytes from stream: stream is empty".to_string());
         }
+
+        if bytes_read > bytes_to_read {
+            return Err(format!(
+                "Failed to drop bytes from stream: dropped {} more bytes than requested",
+                bytes_read - bytes_to_read
+            ));
+        }
+
         left -= bytes_read;
     }
+
+    Ok(())
 }
 
 pub fn read_u8<T: std::io::Read>(stream: &mut T) -> Result<u8, String> {
     match read_number_as_slice::<u8, 1, T>(stream) {
         Ok(number_slice) => Ok(u8::from_be_bytes(number_slice)),
-        Err(e) => {
-            println!("Failed to read number slice from stream: {}", e);
-            Err(e)
-        }
+        Err(e) => Err(format!("Failed to read u8: {}", e)),
     }
 }
 
 pub fn read_u32<T: std::io::Read>(stream: &mut T) -> Result<u32, String> {
     match read_number_as_slice::<u32, 4, T>(stream) {
         Ok(number_slice) => Ok(u32::from_be_bytes(number_slice)),
-        Err(e) => {
-            println!("Failed to read number slice from stream: {}", e);
-            Err(e)
-        }
+        Err(e) => Err(format!("Failed to read u32: {}", e)),
     }
 }
 
 pub fn read_u64<T: std::io::Read>(stream: &mut T) -> Result<u64, String> {
     match read_number_as_slice::<u64, 8, T>(stream) {
         Ok(number_slice) => Ok(u64::from_be_bytes(number_slice)),
-        Err(e) => {
-            println!("Failed to read number slice from stream: {}", e);
-            Err(e)
-        }
+        Err(e) => Err(format!("Failed to read u64: {}", e)),
     }
 }
 
@@ -104,13 +103,11 @@ fn read_number_as_slice<N, const S: usize, T: std::io::Read>(
     let bytes_read = match stream.read(&mut buffer) {
         Ok(bytes_read) => bytes_read,
         Err(e) => {
-            println!("Failed to read from stream: {}", e);
             return Err(format!("Failed to read from stream: {}", e));
         }
     };
 
     if bytes_read != S {
-        println!("Failed to read all bytes from stream");
         return Err(format!(
             "Failed to read all bytes from stream (read {}, expected {})",
             bytes_read, S
@@ -120,7 +117,6 @@ fn read_number_as_slice<N, const S: usize, T: std::io::Read>(
     let number = match buffer.try_into() {
         Ok(bytes) => bytes,
         Err(_) => {
-            println!("Failed to convert file size bytes to slice");
             return Err("Failed to convert file size bytes to slice".to_string());
         }
     };
@@ -133,14 +129,10 @@ pub fn read_string_raw<T: std::io::Read>(stream: &mut T, size: usize) -> Result<
         return Ok("".to_string());
     }
 
-    let string = match read_bytes_generic(Vec::new(), stream, size as usize) {
+    let string = match read_bytes_generic(Vec::new(), stream, size) {
         Ok(buffer) => buffer,
         Err(reason) => {
-            println!(
-                "Unknown error when reading string bytes from stream: '{}'",
-                reason
-            );
-            return Err(reason);
+            return Err(format!("Failed to read string: {}", reason));
         }
     };
 
@@ -148,7 +140,6 @@ pub fn read_string_raw<T: std::io::Read>(stream: &mut T, size: usize) -> Result<
     let string = match string {
         Ok(file_path) => file_path,
         Err(e) => {
-            println!("Failed to convert bytes to string: {}", e);
             return Err(format!("Failed to convert bytes to string: {}", e));
         }
     };
@@ -161,20 +152,15 @@ pub fn read_string<T: std::io::Read>(stream: &mut T, max_length: u32) -> Result<
     let string_len = match string_len {
         Ok(string_len) => string_len,
         Err(reason) => {
-            println!(
-                "Unknown error when receiving file name length: '{}'",
-                reason
-            );
-            return Err(reason);
+            return Err(format!("Failed to read string length: {}", reason));
         }
     };
 
     if string_len > max_length {
-        println!(
+        return Err(format!(
             "String length is too long (max length is {}, actual length is {})",
             max_length, string_len
-        );
-        return Err("String length is too long".to_string());
+        ));
     }
 
     read_string_raw(stream, string_len as usize)
@@ -184,8 +170,7 @@ pub fn write_u8<T: std::io::Write>(stream: &mut T, number: u8) -> Result<(), Str
     let number_bytes: [u8; 1] = number.to_be_bytes();
     let result = stream.write_all(&number_bytes);
     if let Err(e) = result {
-        println!("Failed to write number: {}", e);
-        return Err(format!("Failed to write number: {}", e));
+        return Err(format!("Failed to write u8: {}", e));
     }
 
     Ok(())
@@ -195,8 +180,7 @@ pub fn write_u32<T: std::io::Write>(stream: &mut T, number: u32) -> Result<(), S
     let number_bytes: [u8; 4] = number.to_be_bytes();
     let result = stream.write_all(&number_bytes);
     if let Err(e) = result {
-        println!("Failed to write number: {}", e);
-        return Err(format!("Failed to write number: {}", e));
+        return Err(format!("Failed to write u32: {}", e));
     }
 
     Ok(())
@@ -216,13 +200,11 @@ pub fn write_string<T: std::io::Write>(stream: &mut T, string: &str) -> Result<(
     let len_bytes: [u8; 4] = (string.len() as u32).to_be_bytes();
     let result = stream.write_all(&len_bytes);
     if let Err(e) = result {
-        println!("Failed to write string length: {}", e);
         return Err(format!("Failed to write string length: {}", e));
     }
 
     let result = stream.write_all(string.as_bytes());
     if let Err(e) = result {
-        println!("Failed to write string: {}", e);
         return Err(format!("Failed to write string: {}", e));
     }
 
@@ -236,13 +218,11 @@ pub fn write_variable_size_bytes<T: std::io::Write>(
     let len_bytes: [u8; 4] = (bytes.len() as u32).to_be_bytes();
     let result = stream.write_all(&len_bytes);
     if let Err(e) = result {
-        println!("Failed to write data length: {}", e);
         return Err(format!("Failed to write data length: {}", e));
     }
 
     let result = stream.write_all(bytes);
     if let Err(e) = result {
-        println!("Failed to write data: {}", e);
         return Err(format!("Failed to write data: {}", e));
     }
 
@@ -257,8 +237,10 @@ pub fn read_variable_size_bytes<T: std::io::Read>(
     let len = match len {
         Ok(len) => len,
         Err(reason) => {
-            println!("Unknown error when receiving data length: '{}'", reason);
-            return Err(reason);
+            return Err(format!(
+                "Unknown error when receiving data length: '{}'",
+                reason
+            ));
         }
     };
 
@@ -267,27 +249,21 @@ pub fn read_variable_size_bytes<T: std::io::Read>(
     }
 
     if len > max_length {
-        println!(
+        return Err(format!(
             "Variable size data length is too long (max length is {}, actual length is {})",
             max_length, len
-        );
-        return Err("Variable size data length is too long".to_string());
+        ));
     }
 
     let result = read_bytes_generic(Vec::new(), stream, len as usize);
     let result = match result {
         Ok(result) => result,
         Err(reason) => {
-            println!("Unknown error when receiving data: '{}'", reason);
-            return Err(reason);
+            return Err(format!("Unknown error when receiving data: '{}'", reason));
         }
     };
 
     Ok(result)
-}
-
-pub fn generate_device_id() -> String {
-    "test device id".to_string()
 }
 
 #[cfg(test)]
