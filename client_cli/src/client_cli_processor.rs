@@ -17,11 +17,7 @@ pub fn start_cli_processor(config: ClientConfig, storage: Arc<Mutex<ClientStorag
 
     loop {
         print!("> ");
-        let result = std::io::stdout().flush();
-        if let Err(e) = result {
-            println!("Failed to flush stdout: {}", e);
-            return;
-        }
+        let _ = std::io::stdout().flush();
 
         buffer.clear();
         match std::io::stdin().read_line(&mut buffer) {
@@ -217,7 +213,6 @@ fn pair_to_server(client_name: String) -> Result<ServerInfo, String> {
     let server_info = match server_info {
         Ok(address) => address,
         Err(e) => {
-            println!("Failed to read server address: {}", e);
             return Err(e);
         }
     };
@@ -231,6 +226,9 @@ fn pair_to_server(client_name: String) -> Result<ServerInfo, String> {
     pair_processor.pair_to_server(&server_info, client_name)?;
 
     println!("Enter the code that is shown on the other device");
+    print!("> ");
+    let _ = std::io::stdout().flush();
+
     let mut buffer = String::new();
     match std::io::stdin().read_line(&mut buffer) {
         Ok(bytes_read) => {
@@ -305,8 +303,30 @@ fn process_change_dir(storage: Arc<Mutex<ClientStorage>>) -> Result<(), String> 
     let server_index =
         select_paired_server_idx(storage.clone(), "Choose server to change source dir for")?;
 
+    let client_storage = match storage.lock() {
+        Ok(storage) => storage,
+        Err(err) => {
+            return Err(format!("Can't lock the storage mutex: {}", err));
+        }
+    };
+
+    if server_index >= client_storage.paired_servers.len() {
+        return Err("Server index is invalid".to_string());
+    }
+
+    println!(
+        "Current source dir: {}",
+        client_storage.paired_servers[server_index]
+            .folders_to_sync
+            .single_test_folder
+            .display()
+    );
+
+    drop(client_storage);
+
     println!("Enter new source dir");
     print!("> ");
+    let _ = std::io::stdout().flush();
 
     let mut buffer = String::new();
     match std::io::stdin().read_line(&mut buffer) {
@@ -321,6 +341,11 @@ fn process_change_dir(storage: Arc<Mutex<ClientStorage>>) -> Result<(), String> 
     };
 
     let new_path = buffer.trim();
+
+    if new_path.is_empty() {
+        return Err("No path provided".to_string());
+    }
+
     if let Err(_) = std::fs::read_dir(new_path) {
         return Err("Can't access the directory, is the path correct? Aborting".to_string());
     }
@@ -331,10 +356,6 @@ fn process_change_dir(storage: Arc<Mutex<ClientStorage>>) -> Result<(), String> 
             return Err(format!("Can't lock the storage mutex: {}", err));
         }
     };
-
-    if server_index >= client_storage.paired_servers.len() {
-        return Err("Server index is invalid".to_string());
-    }
 
     client_storage.paired_servers[server_index]
         .folders_to_sync
@@ -358,6 +379,9 @@ fn select_discovered_server(
         );
     }
 
+    print!("> ");
+    let _ = std::io::stdout().flush();
+
     let number = interactive_read_number()?;
 
     if number > online_servers.len() {
@@ -368,10 +392,8 @@ fn select_discovered_server(
         Ok(online_servers[number - 1].clone())
     } else {
         print!("Enter the address: ");
-        let result = std::io::stdout().flush();
-        if let Err(e) = result {
-            return Err(format!("Failed to flush stdout: {}", e));
-        }
+        let _ = std::io::stdout().flush();
+
         let mut buffer = String::new();
         match std::io::stdin().read_line(&mut buffer) {
             Ok(bytes_read) => {
@@ -385,6 +407,10 @@ fn select_discovered_server(
         };
 
         let address = buffer.trim();
+
+        if address.is_empty() {
+            return Err("No address provided".to_string());
+        }
 
         let split_res = address.split_once(':');
         if let Some((ip, port)) = split_res {
@@ -454,6 +480,11 @@ fn interactive_read_number() -> Result<usize, String> {
     };
 
     let number = buffer.trim();
+
+    if number.is_empty() {
+        return Err("No number provided".to_string());
+    }
+
     let number = match number.parse::<usize>() {
         Ok(number) => number,
         Err(err) => {
