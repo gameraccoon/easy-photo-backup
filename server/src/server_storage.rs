@@ -1,3 +1,5 @@
+use shared_common::bstorage;
+
 const SERVER_STORAGE_VERSION: u32 = 1;
 const SERVER_STORAGE_FILE_NAME: &str = "server_storage.bin";
 
@@ -94,17 +96,26 @@ impl ServerStorage {
             return Err("Server storage version mismatch".to_string());
         }
 
-        let machine_id = shared_common::read_variable_size_bytes(
-            reader,
-            shared_common::protocol::SERVER_ID_LENGTH_BYTES as u32,
-        )?;
-        let paired_clients = read_client_info_vec(reader)?;
+        let storage = bstorage::read_tagged_value_from_stream(reader)?;
 
-        Ok(Some(ServerStorage {
-            machine_id,
-            paired_clients,
-            non_serialized: NonSerializedServerStorage::new(),
-        }))
+        match storage {
+            bstorage::Value::Tuple(values) => {
+                let machine_id = match values.get(0) {
+                    Some(value) => value.clone().deserialize::<Vec<u8>>()?,
+                    None => {
+                        return Err("Server storage is missing first positional value".to_string());
+                    }
+                };
+                let paired_clients = read_client_info_vec(&values.get(1))?;
+
+                Ok(Some(ServerStorage {
+                    machine_id,
+                    paired_clients,
+                    non_serialized: NonSerializedServerStorage::new(),
+                }))
+            }
+            _ => Err("Server storage is not a tuple".to_string()),
+        }
     }
 
     pub(crate) fn save(&self) -> Result<(), String> {
@@ -127,62 +138,92 @@ impl ServerStorage {
     fn save_to_stream<T: std::io::Write>(&self, writer: &mut T) -> Result<(), String> {
         shared_common::write_u32(writer, SERVER_STORAGE_VERSION)?;
 
-        shared_common::write_variable_size_bytes(writer, &self.machine_id)?;
-        write_client_info_vec(writer, &self.paired_clients)?;
+        let storage = bstorage::Value::Tuple(vec![
+            bstorage::Value::ByteArray(self.machine_id.clone()),
+            serialize_client_info_vec(&self.paired_clients),
+        ]);
 
-        Ok(())
+        bstorage::write_tagged_value_to_stream(writer, &storage)
     }
 }
 
-fn write_client_info_vec<T: std::io::Write>(
-    file: &mut T,
-    client_info_vec: &Vec<ClientInfo>,
-) -> Result<(), String> {
-    shared_common::write_u32(file, client_info_vec.len() as u32)?;
-    for client in client_info_vec {
-        shared_common::write_string(file, &client.name)?;
-        shared_common::write_variable_size_bytes(file, &client.client_public_key)?;
-
-        shared_common::write_variable_size_bytes(file, &client.server_keys.public_key)?;
-        shared_common::write_variable_size_bytes(file, &client.server_keys.get_private_key())?;
-    }
-
-    Ok(())
+fn serialize_client_info_vec(client_info_vec: &Vec<ClientInfo>) -> bstorage::Value {
+    bstorage::Value::Tuple(
+        client_info_vec
+            .iter()
+            .map(|client| {
+                bstorage::Value::Tuple(vec![
+                    bstorage::Value::String(client.name.clone()),
+                    bstorage::Value::ByteArray(client.client_public_key.clone()),
+                    bstorage::Value::ByteArray(client.server_keys.public_key.clone()),
+                    bstorage::Value::ByteArray(client.server_keys.get_private_key().clone()),
+                ])
+            })
+            .collect(),
+    )
 }
 
-fn read_client_info_vec<T: std::io::Read>(file: &mut T) -> Result<Vec<ClientInfo>, String> {
-    let len = shared_common::read_u32(file)?;
+fn read_client_info_vec(value: &Option<&bstorage::Value>) -> Result<Vec<ClientInfo>, String> {
+    match value {
+        Some(bstorage::Value::Tuple(values)) => {
+            let mut client_info_vec = Vec::with_capacity(values.len());
+            for value in values {
+                match value {
+                    bstorage::Value::Tuple(values) => {
+                        let name = match values.get(0) {
+                            Some(value) => value.clone().deserialize::<String>()?,
+                            None => {
+                                return Err(
+                                    "Client info is missing first positional value".to_string()
+                                );
+                            }
+                        };
+                        let client_public_key = match values.get(1) {
+                            Some(value) => value.clone().deserialize::<Vec<u8>>()?,
+                            None => {
+                                return Err(
+                                    "Client info is missing second positional value".to_string()
+                                );
+                            }
+                        };
 
-    let mut client_info_vec = Vec::with_capacity(len as usize);
-    for _ in 0..len {
-        let name = shared_common::read_string(
-            file,
-            shared_common::protocol::DEVICE_NAME_MAX_LENGTH_BYTES,
-        )?;
-        let client_public_key = shared_common::read_variable_size_bytes(
-            file,
-            shared_common::protocol::MAX_PUBLIC_KEY_LENGTH_BYTES as u32,
-        )?;
+                        let server_public_key = match values.get(2) {
+                            Some(value) => value.clone().deserialize::<Vec<u8>>()?,
+                            None => {
+                                return Err(
+                                    "Client info is missing third positional value".to_string()
+                                );
+                            }
+                        };
+                        let server_private_key = match values.get(3) {
+                            Some(value) => value.clone().deserialize::<Vec<u8>>()?,
+                            None => {
+                                return Err(
+                                    "Client info is missing fourth positional value".to_string()
+                                );
+                            }
+                        };
 
-        let server_public_key = shared_common::read_variable_size_bytes(
-            file,
-            shared_common::protocol::MAX_PUBLIC_KEY_LENGTH_BYTES as u32,
-        )?;
-        let server_private_key = shared_common::read_variable_size_bytes(
-            file,
-            shared_common::protocol::MAX_PRIVATE_KEY_LENGTH_BYTES as u32,
-        )?;
-        let server_keys =
-            shared_common::tls::tls_data::TlsData::new(server_public_key, server_private_key);
+                        let server_keys = shared_common::tls::tls_data::TlsData::new(
+                            server_public_key,
+                            server_private_key,
+                        );
 
-        client_info_vec.push(ClientInfo {
-            name,
-            client_public_key,
-            server_keys,
-        });
+                        client_info_vec.push(ClientInfo {
+                            name,
+                            client_public_key,
+                            server_keys,
+                        });
+                    }
+                    _ => {
+                        return Err("Client info is not a tuple".to_string());
+                    }
+                }
+            }
+            Ok(client_info_vec)
+        }
+        _ => Err("Client info is not a tuple".to_string()),
     }
-
-    Ok(client_info_vec)
 }
 
 #[cfg(test)]
