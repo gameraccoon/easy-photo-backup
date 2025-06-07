@@ -31,10 +31,7 @@ pub fn start_cli_processor(config: ClientConfig, storage: Arc<Mutex<ClientStorag
                 }
             }
             Err(e) => {
-                println!(
-                    "Failed to read from stdin, closing the client connection: {}",
-                    e
-                );
+                println!("Failed to read from stdin: {}", e);
                 break;
             }
         };
@@ -49,6 +46,7 @@ pub fn start_cli_processor(config: ClientConfig, storage: Arc<Mutex<ClientStorag
                 println!("Available commands:");
                 println!("pair - start pairing process with a server");
                 println!("unpair - remove server from the list of paired servers");
+                println!("dir - cnange the synchronized directory");
                 println!("send - send files to all paired servers");
                 println!("exit - exit the program");
                 println!("help - show this help");
@@ -87,7 +85,28 @@ pub fn start_cli_processor(config: ClientConfig, storage: Arc<Mutex<ClientStorag
                 }
             }
             "unpair" => {
-                process_unpair(storage.clone());
+                let result = process_unpair(storage.clone());
+
+                match result {
+                    Ok(()) => {
+                        save_storage(storage.clone());
+                    }
+                    Err(err) => {
+                        println!("{}", err);
+                    }
+                }
+            }
+            "dir" => {
+                let result = process_change_dir(storage.clone());
+
+                match result {
+                    Ok(()) => {
+                        save_storage(storage.clone());
+                    }
+                    Err(err) => {
+                        println!("{}", err);
+                    }
+                }
             }
             "send" => {
                 // simulate what a scheduled task would do
@@ -194,7 +213,7 @@ fn pair_to_server(client_name: String) -> Result<ServerInfo, String> {
     let online_servers = online_servers;
 
     println!("Choose a server to pair with:");
-    let server_info = read_server_info(&online_servers);
+    let server_info = select_discovered_server(&online_servers);
     let server_info = match server_info {
         Ok(address) => address,
         Err(e) => {
@@ -216,14 +235,11 @@ fn pair_to_server(client_name: String) -> Result<ServerInfo, String> {
     match std::io::stdin().read_line(&mut buffer) {
         Ok(bytes_read) => {
             if bytes_read == 0 {
-                return Err("Failed to read from stdin, closing the client connection".to_string());
+                return Err("Failed to read from stdin".to_string());
             }
         }
         Err(e) => {
-            return Err(format!(
-                "Failed to read from stdin, closing the client connection: {}",
-                e
-            ));
+            return Err(format!("Failed to read from stdin: {}", e));
         }
     };
     let entered_numeric_comparison_value = buffer.trim();
@@ -263,85 +279,74 @@ fn pair_to_server(client_name: String) -> Result<ServerInfo, String> {
     Ok(server_info)
 }
 
-fn process_unpair(storage: Arc<Mutex<ClientStorage>>) {
-    let client_storage = match storage.lock() {
-        Ok(storage) => storage,
-        Err(err) => {
-            println!("Can't lock the storage mutex: {}", err);
-            return;
-        }
-    };
-
-    if client_storage.paired_servers.is_empty() {
-        println!("No paired servers, nothing to remove");
-        return;
-    }
-
-    println!("Choose server to remove pairing with");
-    for i in 0..client_storage.paired_servers.len() {
-        println!(
-            "{}: {}",
-            i, client_storage.paired_servers[i].server_info.name
-        );
-    }
-
-    // unlock the mutex while we waiting for input
-    drop(client_storage);
-
-    let server_index = match interactive_read_number() {
-        Ok(number) => number,
-        Err(err) => {
-            println!("{}", err);
-            return;
-        }
-    };
+fn process_unpair(storage: Arc<Mutex<ClientStorage>>) -> Result<(), String> {
+    let server_index =
+        select_paired_server_idx(storage.clone(), "Choose server to remove pairing with")?;
 
     let mut client_storage = match storage.lock() {
         Ok(storage) => storage,
         Err(err) => {
-            println!("Can't lock the storage mutex: {}", err);
-            return;
+            return Err(format!("Can't lock the storage mutex: {}", err));
         }
     };
 
     // we don't expect the servers to change in other threads, as the cli thread fully owns the list
     if server_index >= client_storage.paired_servers.len() {
-        println!("Server index is invalid");
-        return;
+        return Err("Server index is invalid".to_string());
     }
 
     client_storage.paired_servers.remove(server_index);
     println!("Successfully unpaired the server");
+
+    Ok(())
 }
 
-fn interactive_read_number() -> Result<usize, String> {
+fn process_change_dir(storage: Arc<Mutex<ClientStorage>>) -> Result<(), String> {
+    let server_index =
+        select_paired_server_idx(storage.clone(), "Choose server to change source dir for")?;
+
+    println!("Enter new source dir");
+    print!("> ");
+
     let mut buffer = String::new();
     match std::io::stdin().read_line(&mut buffer) {
         Ok(bytes_read) => {
             if bytes_read == 0 {
-                return Err("Failed to read from stdin, closing the client connection".to_string());
+                return Err("Failed to read from stdin".to_string());
             }
         }
         Err(e) => {
-            return Err(format!(
-                "Failed to read from stdin, closing the client connection: {}",
-                e
-            ));
+            return Err(format!("Failed to read from stdin: {}", e));
         }
     };
 
-    let number = buffer.trim();
-    let number = match number.parse::<usize>() {
-        Ok(number) => number,
+    let new_path = buffer.trim();
+    if let Err(_) = std::fs::read_dir(new_path) {
+        return Err("Can't access the directory, is the path correct? Aborting".to_string());
+    }
+
+    let mut client_storage = match storage.lock() {
+        Ok(storage) => storage,
         Err(err) => {
-            return Err(format!("Invalid number: '{}'", err));
+            return Err(format!("Can't lock the storage mutex: {}", err));
         }
     };
 
-    Ok(number)
+    if server_index >= client_storage.paired_servers.len() {
+        return Err("Server index is invalid".to_string());
+    }
+
+    client_storage.paired_servers[server_index]
+        .folders_to_sync
+        .single_test_folder = std::path::PathBuf::from(new_path);
+    println!("Successfully changed source folder for this server");
+
+    Ok(())
 }
 
-fn read_server_info(online_servers: &Vec<DiscoveredServer>) -> Result<DiscoveredServer, String> {
+fn select_discovered_server(
+    online_servers: &Vec<DiscoveredServer>,
+) -> Result<DiscoveredServer, String> {
     println!("0: enter manually");
     for (index, server) in online_servers.iter().enumerate() {
         println!(
@@ -371,16 +376,11 @@ fn read_server_info(online_servers: &Vec<DiscoveredServer>) -> Result<Discovered
         match std::io::stdin().read_line(&mut buffer) {
             Ok(bytes_read) => {
                 if bytes_read == 0 {
-                    return Err(
-                        "Failed to read from stdin, closing the client connection".to_string()
-                    );
+                    return Err("Failed to read from stdin".to_string());
                 }
             }
             Err(e) => {
-                return Err(format!(
-                    "Failed to read from stdin, closing the client connection: {}",
-                    e
-                ));
+                return Err(format!("Failed to read from stdin: {}", e));
             }
         };
 
@@ -408,5 +408,73 @@ fn read_server_info(online_servers: &Vec<DiscoveredServer>) -> Result<Discovered
         } else {
             Err("Invalid address, the format should be IP:PORT".to_string())
         }
+    }
+}
+
+fn select_paired_server_idx(
+    storage: Arc<Mutex<ClientStorage>>,
+    message: &str,
+) -> Result<usize, String> {
+    let client_storage = match storage.lock() {
+        Ok(storage) => storage,
+        Err(err) => {
+            return Err(format!("Can't lock the storage mutex: {}", err));
+        }
+    };
+
+    if client_storage.paired_servers.is_empty() {
+        return Err("No servers".to_string());
+    }
+
+    println!("{}", message);
+    for i in 0..client_storage.paired_servers.len() {
+        println!(
+            "{}: {}",
+            i, client_storage.paired_servers[i].server_info.name
+        );
+    }
+
+    // unlock the mutex while we're waiting for input
+    drop(client_storage);
+
+    interactive_read_number()
+}
+
+fn interactive_read_number() -> Result<usize, String> {
+    let mut buffer = String::new();
+    match std::io::stdin().read_line(&mut buffer) {
+        Ok(bytes_read) => {
+            if bytes_read == 0 {
+                return Err("Failed to read from stdin".to_string());
+            }
+        }
+        Err(e) => {
+            return Err(format!("Failed to read from stdin: {}", e));
+        }
+    };
+
+    let number = buffer.trim();
+    let number = match number.parse::<usize>() {
+        Ok(number) => number,
+        Err(err) => {
+            return Err(format!("Invalid number: '{}'", err));
+        }
+    };
+
+    Ok(number)
+}
+
+fn save_storage(storage: Arc<Mutex<ClientStorage>>) {
+    let client_storage = match storage.lock() {
+        Ok(storage) => storage,
+        Err(err) => {
+            println!("Can't lock the storage mutex: {}", err);
+            return;
+        }
+    };
+
+    let result = client_storage.save(std::path::Path::new(CLIENT_STORAGE_FILE_NAME));
+    if let Err(e) = result {
+        println!("Failed to save client storage: {}", e);
     }
 }
