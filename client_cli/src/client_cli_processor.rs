@@ -48,6 +48,7 @@ pub fn start_cli_processor(config: ClientConfig, storage: Arc<Mutex<ClientStorag
             "help" => {
                 println!("Available commands:");
                 println!("pair - start pairing process with a server");
+                println!("unpair - remove server from the list of paired servers");
                 println!("send - send files to all paired servers");
                 println!("exit - exit the program");
                 println!("help - show this help");
@@ -84,6 +85,9 @@ pub fn start_cli_processor(config: ClientConfig, storage: Arc<Mutex<ClientStorag
                 if let Err(e) = result {
                     println!("Failed to save client storage: {}", e);
                 }
+            }
+            "unpair" => {
+                process_unpair(storage.clone());
             }
             "send" => {
                 // simulate what a scheduled task would do
@@ -259,20 +263,59 @@ fn pair_to_server(client_name: String) -> Result<ServerInfo, String> {
     Ok(server_info)
 }
 
-fn read_server_info(online_servers: &Vec<DiscoveredServer>) -> Result<DiscoveredServer, String> {
-    println!("0: enter manually");
-    for (index, server) in online_servers.iter().enumerate() {
+fn process_unpair(storage: Arc<Mutex<ClientStorage>>) {
+    let client_storage = match storage.lock() {
+        Ok(storage) => storage,
+        Err(err) => {
+            println!("Can't lock the storage mutex: {}", err);
+            return;
+        }
+    };
+
+    if client_storage.paired_servers.is_empty() {
+        println!("No paired servers, nothing to remove");
+        return;
+    }
+
+    println!("Choose server to remove pairing with");
+    for i in 0..client_storage.paired_servers.len() {
         println!(
-            "{}: {}:{} ({})",
-            index + 1,
-            server.address.ip,
-            server.address.port,
-            server.name,
+            "{}: {}",
+            i, client_storage.paired_servers[i].server_info.name
         );
     }
 
+    // unlock the mutex while we waiting for input
+    drop(client_storage);
+
+    let server_index = match interactive_read_number() {
+        Ok(number) => number,
+        Err(err) => {
+            println!("{}", err);
+            return;
+        }
+    };
+
+    let mut client_storage = match storage.lock() {
+        Ok(storage) => storage,
+        Err(err) => {
+            println!("Can't lock the storage mutex: {}", err);
+            return;
+        }
+    };
+
+    // we don't expect the servers to change in other threads, as the cli thread fully owns the list
+    if server_index >= client_storage.paired_servers.len() {
+        println!("Server index is invalid");
+        return;
+    }
+
+    client_storage.paired_servers.remove(server_index);
+    println!("Successfully unpaired the server");
+}
+
+fn interactive_read_number() -> Result<usize, String> {
     let mut buffer = String::new();
-    buffer.clear();
     match std::io::stdin().read_line(&mut buffer) {
         Ok(bytes_read) => {
             if bytes_read == 0 {
@@ -290,10 +333,27 @@ fn read_server_info(online_servers: &Vec<DiscoveredServer>) -> Result<Discovered
     let number = buffer.trim();
     let number = match number.parse::<usize>() {
         Ok(number) => number,
-        Err(_) => {
-            return Err("Invalid number".to_string());
+        Err(err) => {
+            return Err(format!("Invalid number: '{}'", err));
         }
     };
+
+    Ok(number)
+}
+
+fn read_server_info(online_servers: &Vec<DiscoveredServer>) -> Result<DiscoveredServer, String> {
+    println!("0: enter manually");
+    for (index, server) in online_servers.iter().enumerate() {
+        println!(
+            "{}: {}:{} ({})",
+            index + 1,
+            server.address.ip,
+            server.address.port,
+            server.name,
+        );
+    }
+
+    let number = interactive_read_number()?;
 
     if number > online_servers.len() {
         return Err("Invalid number".to_string());
@@ -307,7 +367,7 @@ fn read_server_info(online_servers: &Vec<DiscoveredServer>) -> Result<Discovered
         if let Err(e) = result {
             return Err(format!("Failed to flush stdout: {}", e));
         }
-        buffer.clear();
+        let mut buffer = String::new();
         match std::io::stdin().read_line(&mut buffer) {
             Ok(bytes_read) => {
                 if bytes_read == 0 {
