@@ -2,6 +2,7 @@ use shared_common::bstorage;
 
 const CLIENT_STORAGE_VERSION: u32 = 1;
 
+#[cfg_attr(test, derive(Debug, PartialEq))]
 #[derive(Clone)]
 pub struct ServerInfo {
     pub id: Vec<u8>,
@@ -10,6 +11,7 @@ pub struct ServerInfo {
     pub client_keys: shared_common::tls::tls_data::TlsData,
 }
 
+#[cfg_attr(test, derive(Debug, PartialEq))]
 #[derive(Clone)]
 pub struct FoldersToSync {
     // test data for now
@@ -24,6 +26,7 @@ impl FoldersToSync {
     }
 }
 
+#[cfg_attr(test, derive(Debug, PartialEq))]
 pub struct PairedServerInfo {
     pub server_info: ServerInfo,
     pub folders_to_sync: FoldersToSync,
@@ -37,12 +40,20 @@ pub struct AwaitingPairingServer {
     pub server_nonce: Vec<u8>,
 }
 
+#[cfg_attr(test, derive(Debug, PartialEq))]
 pub struct ClientStorage {
     pub client_name: String,
     pub paired_servers: Vec<PairedServerInfo>,
 }
 
 impl ClientStorage {
+    pub fn empty() -> ClientStorage {
+        ClientStorage {
+            client_name: "".to_string(),
+            paired_servers: Vec::new(),
+        }
+    }
+
     pub fn load_or_generate(file_path: &std::path::Path) -> ClientStorage {
         let storage = ClientStorage::load(file_path);
         if let Ok(Some(storage)) = storage {
@@ -55,10 +66,7 @@ impl ClientStorage {
             );
         }
 
-        let storage = ClientStorage {
-            client_name: "".to_string(),
-            paired_servers: Vec::new(),
-        };
+        let storage = ClientStorage::empty();
 
         let result = storage.save(file_path);
         if let Err(e) = result {
@@ -83,20 +91,25 @@ impl ClientStorage {
 
         let mut file = std::io::BufReader::new(file);
 
-        let version = shared_common::read_u32(&mut file)?;
+        ClientStorage::load_from_stream(&mut file)
+    }
+
+    fn load_from_stream<T: std::io::Read>(reader: &mut T) -> Result<Option<ClientStorage>, String> {
+        let version = shared_common::read_u32(reader)?;
 
         if version != CLIENT_STORAGE_VERSION {
             return Err("Client storage version mismatch".to_string());
         }
 
-        let storage = bstorage::read_tagged_value_from_stream(&mut file)?;
+        let storage = bstorage::read_tagged_value_from_stream(reader)?;
 
         match storage {
             bstorage::Value::Tuple(values) => {
-                let client_name = match &values.get(0) {
-                    Some(bstorage::Value::String(client_name)) => client_name.clone(),
-                    _ => {
-                        return Err("Client name is not a string".to_string());
+                let client_name = match values.get(0) {
+                    // we should consume the values from the Vec instead of cloning
+                    Some(value) => value.clone().deserialize()?,
+                    None => {
+                        return Err("Storage is missing first positional value".to_string());
                     }
                 };
 
@@ -126,14 +139,18 @@ impl ClientStorage {
 
         let mut file = std::io::BufWriter::new(file);
 
-        shared_common::write_u32(&mut file, CLIENT_STORAGE_VERSION)?;
+        ClientStorage::save_to_stream(&self, &mut file)
+    }
+
+    fn save_to_stream<T: std::io::Write>(&self, writer: &mut T) -> Result<(), String> {
+        shared_common::write_u32(writer, CLIENT_STORAGE_VERSION)?;
 
         let storage = bstorage::Value::Tuple(vec![
             bstorage::Value::String(self.client_name.clone()),
             serialize_paired_server_info_vec(&self.paired_servers),
         ]);
 
-        bstorage::write_tagged_value_to_stream(&mut file, &storage)?;
+        bstorage::write_tagged_value_to_stream(writer, &storage)?;
 
         Ok(())
     }
@@ -182,11 +199,9 @@ fn read_paired_server_info_vec(
             for value in values {
                 match value {
                     bstorage::Value::Tuple(values) => {
-                        let server_info = read_server_info(&values.get(0))?;
-                        let folders_to_sync = read_folders_to_sync(&values.get(1))?;
                         server_info_vec.push(PairedServerInfo {
-                            server_info,
-                            folders_to_sync,
+                            server_info: read_server_info(&values.get(0))?,
+                            folders_to_sync: read_folders_to_sync(&values.get(1))?,
                         });
                     }
                     _ => {
@@ -203,37 +218,38 @@ fn read_paired_server_info_vec(
 fn read_server_info(value: &Option<&bstorage::Value>) -> Result<ServerInfo, String> {
     match value {
         Some(bstorage::Value::Tuple(values)) => {
-            let id = match &values.get(0) {
-                Some(bstorage::Value::ByteArray(id)) => id.clone(),
-                _ => {
-                    return Err("Server id is not a byte array".to_string());
+            let id = match values.get(0) {
+                // we should consume the values from the Vec instead of cloning
+                Some(value) => value.clone().deserialize()?,
+                None => {
+                    return Err("Server info is missing first positional value".to_string());
                 }
             };
 
-            let name = match &values.get(1) {
-                Some(bstorage::Value::String(name)) => name.clone(),
-                _ => {
-                    return Err("Server name is not a string".to_string());
+            let name = match values.get(1) {
+                Some(value) => value.clone().deserialize()?,
+                None => {
+                    return Err("Server info is missing second positional value".to_string());
                 }
             };
 
-            let server_public_key = match &values.get(2) {
-                Some(bstorage::Value::ByteArray(server_public_key)) => server_public_key.clone(),
-                _ => {
-                    return Err("Server public key is not a byte array".to_string());
+            let server_public_key = match values.get(2) {
+                Some(value) => value.clone().deserialize()?,
+                None => {
+                    return Err("Server public key is missing third positional value".to_string());
                 }
             };
 
-            let client_public_key = match &values.get(3) {
-                Some(bstorage::Value::ByteArray(client_public_key)) => client_public_key.clone(),
-                _ => {
-                    return Err("Client public key is not a byte array".to_string());
+            let client_public_key = match values.get(3) {
+                Some(value) => value.clone().deserialize()?,
+                None => {
+                    return Err("Client public key is missing fourth positional value".to_string());
                 }
             };
 
-            let client_private_key = match &values.get(4) {
-                Some(bstorage::Value::ByteArray(client_private_key)) => client_private_key.clone(),
-                _ => {
+            let client_private_key = match values.get(4) {
+                Some(value) => value.clone().deserialize()?,
+                None => {
                     return Err("Client private key is not a byte array".to_string());
                 }
             };
@@ -258,5 +274,45 @@ fn read_folders_to_sync(value: &Option<&bstorage::Value>) -> Result<FoldersToSyn
             single_test_folder: std::path::PathBuf::from(single_test_folder),
         }),
         _ => Err("Folders to sync is not a string".to_string()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_given_client_storage_when_saved_and_loaded_then_data_is_equal() {
+        let mut client_storage = ClientStorage::empty();
+        client_storage.client_name = "Test client".to_string();
+        client_storage.paired_servers = vec![PairedServerInfo {
+            server_info: ServerInfo {
+                id: vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+                name: "Test server".to_string(),
+                server_public_key: vec![
+                    10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
+                ],
+                client_keys: shared_common::tls::tls_data::TlsData::new(
+                    vec![
+                        20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35,
+                    ],
+                    vec![
+                        31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46,
+                    ],
+                ),
+            },
+            folders_to_sync: FoldersToSync {
+                single_test_folder: std::path::PathBuf::new(),
+            },
+        }];
+
+        let mut stream = std::io::Cursor::new(Vec::new());
+        client_storage.save_to_stream(&mut stream).unwrap();
+        let mut stream = std::io::Cursor::new(stream.into_inner());
+        let loaded_client_storage = ClientStorage::load_from_stream(&mut stream)
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(client_storage, loaded_client_storage);
     }
 }

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-enum Tag {
+pub enum Tag {
     U8 = 0x01,
     U32 = 0x02,
     U64 = 0x03,
@@ -11,6 +11,8 @@ enum Tag {
     Object = 0x08,
 }
 
+#[cfg_attr(test, derive(Debug, PartialEq))]
+#[derive(Clone)]
 pub enum Value {
     U8(u8),
     U32(u32),
@@ -22,12 +24,25 @@ pub enum Value {
     Object(HashMap<String, Value>),
 }
 
-pub fn read_tagged_value_from_stream<T: std::io::Read>(stream: &mut T) -> Result<Value, String> {
-    let tag = crate::read_u8(stream)?;
-    read_value_from_stream(stream, tag)
+impl Value {
+    pub fn deserialize<T: BDeserialize>(self) -> Result<T, String> {
+        T::deserialize(self)
+    }
+
+    pub fn serialize<T: BSerialize>(value: T) -> Value {
+        value.serialize()
+    }
 }
 
-fn read_value_from_stream<T: std::io::Read>(stream: &mut T, tag: u8) -> Result<Value, String> {
+pub fn read_tagged_value_from_stream<T: std::io::Read>(stream: &mut T) -> Result<Value, String> {
+    let tag = crate::read_u8(stream)?;
+    read_untagged_value_from_stream(stream, tag)
+}
+
+fn read_untagged_value_from_stream<T: std::io::Read>(
+    stream: &mut T,
+    tag: u8,
+) -> Result<Value, String> {
     Ok(match tag {
         tag if tag == Tag::U8 as u8 => Value::U8(crate::read_u8(stream)?),
         tag if tag == Tag::U32 as u8 => Value::U32(crate::read_u32(stream)?),
@@ -36,16 +51,16 @@ fn read_value_from_stream<T: std::io::Read>(stream: &mut T, tag: u8) -> Result<V
         tag if tag == Tag::ByteArray as u8 => {
             Value::ByteArray(crate::read_variable_size_bytes(stream, u32::MAX)?)
         }
-        tag if tag == Tag::Tuple as u8 => Value::Tuple(read_tuple_from_stream(stream)?),
-        tag if tag == Tag::Option as u8 => Value::Option(read_option_from_stream(stream)?),
-        tag if tag == Tag::Object as u8 => Value::Object(read_object_from_stream(stream)?),
+        tag if tag == Tag::Tuple as u8 => Value::Tuple(read_untagged_tuple_from_stream(stream)?),
+        tag if tag == Tag::Option as u8 => Value::Option(read_untagged_option_from_stream(stream)?),
+        tag if tag == Tag::Object as u8 => Value::Object(read_untagged_object_from_stream(stream)?),
         _ => {
             return Err(format!("Unknown tag: {}", tag));
         }
     })
 }
 
-fn read_tuple_from_stream<T: std::io::Read>(stream: &mut T) -> Result<Vec<Value>, String> {
+fn read_untagged_tuple_from_stream<T: std::io::Read>(stream: &mut T) -> Result<Vec<Value>, String> {
     let len = crate::read_u32(stream)?;
     let mut values = Vec::new();
 
@@ -64,7 +79,9 @@ fn read_tuple_from_stream<T: std::io::Read>(stream: &mut T) -> Result<Vec<Value>
     Ok(values)
 }
 
-fn read_option_from_stream<T: std::io::Read>(stream: &mut T) -> Result<Option<Box<Value>>, String> {
+fn read_untagged_option_from_stream<T: std::io::Read>(
+    stream: &mut T,
+) -> Result<Option<Box<Value>>, String> {
     let presence_tag = crate::read_u8(stream)?;
     match presence_tag {
         0 => Ok(None),
@@ -73,11 +90,11 @@ fn read_option_from_stream<T: std::io::Read>(stream: &mut T) -> Result<Option<Bo
     }
 }
 
-fn read_object_from_stream<T: std::io::Read>(
+fn read_untagged_object_from_stream<T: std::io::Read>(
     stream: &mut T,
 ) -> Result<HashMap<String, Value>, String> {
     let len = crate::read_u32(stream)?;
-    let mut object = HashMap::new();
+    let mut object = HashMap::with_capacity(len as usize);
     for _ in 0..len {
         let field_name = crate::read_string(stream, u32::MAX)?;
         let value = read_tagged_value_from_stream(stream);
@@ -104,7 +121,7 @@ pub fn write_tagged_value_to_stream<T: std::io::Write>(
     value: &Value,
 ) -> Result<(), String> {
     write_tag_to_stream(stream, value)?;
-    write_value_to_stream(stream, value)
+    write_untagged_value_to_stream(stream, value)
 }
 
 fn write_tag_to_stream<T: std::io::Write>(stream: &mut T, value: &Value) -> Result<(), String> {
@@ -120,7 +137,10 @@ fn write_tag_to_stream<T: std::io::Write>(stream: &mut T, value: &Value) -> Resu
     }
 }
 
-fn write_value_to_stream<T: std::io::Write>(stream: &mut T, value: &Value) -> Result<(), String> {
+fn write_untagged_value_to_stream<T: std::io::Write>(
+    stream: &mut T,
+    value: &Value,
+) -> Result<(), String> {
     {
         match value {
             Value::U8(number) => crate::write_u8(stream, *number),
@@ -128,14 +148,14 @@ fn write_value_to_stream<T: std::io::Write>(stream: &mut T, value: &Value) -> Re
             Value::U64(number) => crate::write_u64(stream, *number),
             Value::String(string) => crate::write_string(stream, string),
             Value::ByteArray(array) => crate::write_variable_size_bytes(stream, array),
-            Value::Tuple(values) => write_tuple_to_stream(stream, values),
-            Value::Option(value) => write_option_to_stream(stream, value),
-            Value::Object(fields) => write_object_to_stream(stream, fields),
+            Value::Tuple(values) => write_untagged_tuple_to_stream(stream, values),
+            Value::Option(value) => write_untagged_option_to_stream(stream, value),
+            Value::Object(fields) => write_untagged_object_to_stream(stream, fields),
         }
     }
 }
 
-fn write_tuple_to_stream<T: std::io::Write>(
+fn write_untagged_tuple_to_stream<T: std::io::Write>(
     stream: &mut T,
     values: &Vec<Value>,
 ) -> Result<(), String> {
@@ -146,7 +166,7 @@ fn write_tuple_to_stream<T: std::io::Write>(
     Ok(())
 }
 
-fn write_option_to_stream<T: std::io::Write>(
+fn write_untagged_option_to_stream<T: std::io::Write>(
     stream: &mut T,
     value: &Option<Box<Value>>,
 ) -> Result<(), String> {
@@ -154,19 +174,188 @@ fn write_option_to_stream<T: std::io::Write>(
         None => crate::write_u8(stream, 0),
         Some(value) => {
             crate::write_u8(stream, 1)?;
-            write_value_to_stream(stream, value.as_ref())
+            write_tagged_value_to_stream(stream, value.as_ref())
         }
     }
 }
 
-fn write_object_to_stream<T: std::io::Write>(
+fn write_untagged_object_to_stream<T: std::io::Write>(
     stream: &mut T,
     fields: &HashMap<String, Value>,
 ) -> Result<(), String> {
     crate::write_u32(stream, fields.len() as u32)?;
     for (field_name, value) in fields {
         crate::write_string(stream, field_name)?;
-        write_value_to_stream(stream, value)?;
+        write_tagged_value_to_stream(stream, value)?;
     }
     Ok(())
+}
+
+pub trait BSerialize {
+    fn serialize(&self) -> Value;
+}
+
+pub trait BSerializeByPosition: BSerialize {
+    fn serialize(&self) -> Value;
+}
+
+pub trait BSerializeByName: BSerialize {
+    fn serialize(&self) -> Value;
+}
+
+pub trait BDeserialize {
+    fn deserialize(value: Value) -> Result<Self, String>
+    where
+        Self: Sized;
+}
+
+pub trait BDeserializeByPosition: BSerialize {
+    fn deserialize(value: Value) -> Result<Self, String>
+    where
+        Self: Sized;
+}
+
+pub trait BDeserializeByName: BSerialize {
+    fn deserialize(value: Value) -> Result<Self, String>
+    where
+        Self: Sized;
+}
+
+impl BSerialize for u8 {
+    fn serialize(&self) -> Value {
+        Value::U8(*self)
+    }
+}
+
+impl BDeserialize for u8 {
+    fn deserialize(value: Value) -> Result<Self, String> {
+        match value {
+            Value::U8(number) => Ok(number),
+            _ => Err("Tried to deserialize a non-u8 value into u8".to_string()),
+        }
+    }
+}
+
+impl BSerialize for u32 {
+    fn serialize(&self) -> Value {
+        Value::U32(*self)
+    }
+}
+
+impl BDeserialize for u32 {
+    fn deserialize(value: Value) -> Result<Self, String> {
+        match value {
+            Value::U32(number) => Ok(number),
+            _ => Err("Tried to deserialize a non-u32 value into u32".to_string()),
+        }
+    }
+}
+
+impl BSerialize for u64 {
+    fn serialize(&self) -> Value {
+        Value::U64(*self)
+    }
+}
+
+impl BDeserialize for u64 {
+    fn deserialize(value: Value) -> Result<Self, String> {
+        match value {
+            Value::U64(number) => Ok(number),
+            _ => Err("Tried to deserialize a non-u64 value into u64".to_string()),
+        }
+    }
+}
+
+impl BSerialize for String {
+    fn serialize(&self) -> Value {
+        Value::String(self.clone())
+    }
+}
+
+impl BDeserialize for String {
+    fn deserialize(value: Value) -> Result<Self, String> {
+        match value {
+            Value::String(string) => Ok(string),
+            _ => Err("Tried to deserialize a non-string value into String".to_string()),
+        }
+    }
+}
+
+impl BSerialize for Vec<u8> {
+    fn serialize(&self) -> Value {
+        Value::ByteArray(self.clone())
+    }
+}
+
+impl BDeserialize for Vec<u8> {
+    fn deserialize(value: Value) -> Result<Self, String> {
+        match value {
+            Value::ByteArray(array) => Ok(array),
+            _ => Err("Tried to deserialize a non-byte array value into Vec<u8>".to_string()),
+        }
+    }
+}
+
+impl<T: BSerialize> BSerialize for Option<T> {
+    fn serialize(&self) -> Value {
+        match self {
+            None => Value::Option(None),
+            Some(value) => Value::Option(Some(Box::new(value.serialize()))),
+        }
+    }
+}
+
+impl<T: BDeserialize> BDeserialize for Option<T> {
+    fn deserialize(value: Value) -> Result<Self, String> {
+        match value {
+            Value::Option(value) => match value {
+                None => Ok(None),
+                Some(value) => Ok(Some(T::deserialize(*value)?)),
+            },
+            _ => Err("Tried to deserialize a non-option value into Option".to_string()),
+        }
+    }
+}
+
+pub fn serialize_option_to_value<T: BSerialize>(value: Option<T>) -> Value {
+    match value {
+        None => Value::Option(None),
+        Some(value) => Value::Option(Some(Box::new(value.serialize()))),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_given_value_when_written_and_read_then_data_is_equal() {
+        let value = Value::Tuple(vec![
+            Value::U8(255u8),
+            Value::U32(4294967295u32),
+            Value::U64(18446744073709551615u64),
+            Value::String(
+                "Relatively long string that is long enough not to fit in SSO".to_string(),
+            ),
+            Value::ByteArray(vec![
+                10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
+            ]),
+            Value::Object(HashMap::from([
+                ("test".to_string(), Value::Option(None)),
+                (
+                    "test2".to_string(),
+                    serialize_option_to_value::<String>(Some("Test3".to_string())),
+                ),
+            ])),
+        ]);
+
+        let mut data = Vec::new();
+        let mut stream = std::io::Cursor::new(&mut data);
+        write_tagged_value_to_stream(&mut stream, &value).unwrap();
+
+        let mut stream = std::io::Cursor::new(data);
+        let deserialized_value = read_tagged_value_from_stream(&mut stream).unwrap();
+
+        assert_eq!(value, deserialized_value);
+    }
 }

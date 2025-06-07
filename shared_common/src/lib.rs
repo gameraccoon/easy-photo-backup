@@ -39,7 +39,7 @@ fn read_bytes_generic<T: std::io::Read>(
 
     if bytes_read != size {
         return Err(format!(
-            "Failed to read all bytes from stream (read {}, expected {})",
+            "Failed to read all bytes from stream when reading bytes (read {}, expected {})",
             bytes_read, size
         ));
     }
@@ -109,7 +109,7 @@ fn read_number_as_slice<N, const S: usize, T: std::io::Read>(
 
     if bytes_read != S {
         return Err(format!(
-            "Failed to read all bytes from stream (read {}, expected {})",
+            "Failed to read all bytes from stream when reading number (read {}, expected {})",
             bytes_read, S
         ));
     }
