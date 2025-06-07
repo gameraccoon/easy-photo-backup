@@ -268,5 +268,75 @@ pub fn read_variable_size_bytes<T: std::io::Read>(
 
 #[cfg(test)]
 mod tests {
-    // use super::*;
+    use super::*;
+
+    #[test]
+    fn test_given_iu8_when_serialized_and_deserialized_then_value_is_equal() {
+        let value = 2u8;
+        let mut data = Vec::new();
+        let mut stream = std::io::Cursor::new(&mut data);
+        write_u8(&mut stream, value).unwrap();
+        let mut stream = std::io::Cursor::new(data);
+        let deserialized_value = read_u8(&mut stream).unwrap();
+        assert_eq!(value, deserialized_value);
+    }
+
+    #[test]
+    fn test_given_iu32_when_serialized_and_deserialized_then_value_is_equal() {
+        let value = 4294967295u32;
+        let mut data = Vec::new();
+        let mut stream = std::io::Cursor::new(&mut data);
+        write_u32(&mut stream, value).unwrap();
+        let mut stream = std::io::Cursor::new(data);
+        let deserialized_value = read_u32(&mut stream).unwrap();
+        assert_eq!(value, deserialized_value);
+    }
+
+    #[test]
+    fn test_given_iu64_when_serialized_and_deserialized_then_value_is_equal() {
+        let value = 18446744073709551615u64;
+        let mut data = Vec::new();
+        let mut stream = std::io::Cursor::new(&mut data);
+        write_u64(&mut stream, value).unwrap();
+        let mut stream = std::io::Cursor::new(data);
+        let deserialized_value = read_u64(&mut stream).unwrap();
+        assert_eq!(value, deserialized_value);
+    }
+
+    #[test]
+    fn test_given_string_when_serialized_and_deserialized_then_value_is_equal() {
+        let value = "Test string".to_string();
+        let mut data = Vec::new();
+        let mut stream = std::io::Cursor::new(&mut data);
+        write_string(&mut stream, &value).unwrap();
+        let mut stream = std::io::Cursor::new(data);
+        let deserialized_value = read_string(&mut stream, u32::MAX).unwrap();
+        assert_eq!(value, deserialized_value);
+    }
+
+    #[test]
+    fn test_given_variable_size_bytes_when_serialized_and_deserialized_then_value_is_equal() {
+        let value = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+        let mut data = Vec::new();
+        let mut stream = std::io::Cursor::new(&mut data);
+        write_variable_size_bytes(&mut stream, &value).unwrap();
+        let mut stream = std::io::Cursor::new(data);
+        let deserialized_value = read_variable_size_bytes(&mut stream, u32::MAX).unwrap();
+        assert_eq!(value, deserialized_value);
+    }
+
+    #[test]
+    fn test_given_stream_of_bytes_when_drop_given_number_of_bytes_then_stream_contains_remaining_bytes(
+    ) {
+        let first_value = 1000u64;
+        let second_value = 42u32;
+        let mut data = Vec::new();
+        let mut stream = std::io::Cursor::new(&mut data);
+        write_u64(&mut stream, first_value).unwrap();
+        write_u32(&mut stream, second_value).unwrap();
+        let mut stream = std::io::Cursor::new(data);
+        drop_bytes_from_stream(&mut stream, size_of::<u64>()).unwrap();
+        let result_value = read_u32(&mut stream).unwrap();
+        assert_eq!(second_value, result_value);
+    }
 }
