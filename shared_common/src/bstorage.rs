@@ -9,6 +9,7 @@ pub enum Tag {
     Tuple = 0x06,
     Option = 0x07,
     Object = 0x08,
+    Array = 0x09,
 }
 
 #[cfg_attr(test, derive(Debug, PartialEq))]
@@ -22,6 +23,7 @@ pub enum Value {
     Tuple(Vec<Value>),
     Option(Option<Box<Value>>),
     Object(HashMap<String, Value>),
+    Array(Vec<Value>), // same as Tuple but all elements expected to be of the same type
 }
 
 impl Value {
@@ -35,8 +37,12 @@ impl Value {
 }
 
 pub fn read_tagged_value_from_stream<T: std::io::Read>(stream: &mut T) -> Result<Value, String> {
-    let tag = crate::read_u8(stream)?;
+    let tag = read_tag_from_stream(stream)?;
     read_untagged_value_from_stream(stream, tag)
+}
+
+fn read_tag_from_stream<T: std::io::Read>(stream: &mut T) -> Result<u8, String> {
+    crate::read_u8(stream)
 }
 
 fn read_untagged_value_from_stream<T: std::io::Read>(
@@ -54,6 +60,7 @@ fn read_untagged_value_from_stream<T: std::io::Read>(
         tag if tag == Tag::Tuple as u8 => Value::Tuple(read_untagged_tuple_from_stream(stream)?),
         tag if tag == Tag::Option as u8 => Value::Option(read_untagged_option_from_stream(stream)?),
         tag if tag == Tag::Object as u8 => Value::Object(read_untagged_object_from_stream(stream)?),
+        tag if tag == Tag::Array as u8 => Value::Array(read_untagged_array_from_stream(stream)?),
         _ => {
             return Err(format!("Unknown tag: {}", tag));
         }
@@ -116,6 +123,21 @@ fn read_untagged_object_from_stream<T: std::io::Read>(
     Ok(object)
 }
 
+fn read_untagged_array_from_stream<T: std::io::Read>(stream: &mut T) -> Result<Vec<Value>, String> {
+    let len = crate::read_u32(stream)?;
+
+    if len == 0 {
+        return Ok(Vec::new());
+    }
+
+    let element_tag = read_tag_from_stream(stream)?;
+    let mut elements = Vec::new();
+    for _ in 0..len {
+        elements.push(read_untagged_value_from_stream(stream, element_tag)?);
+    }
+    Ok(elements)
+}
+
 pub fn write_tagged_value_to_stream<T: std::io::Write>(
     stream: &mut T,
     value: &Value,
@@ -134,6 +156,7 @@ fn write_tag_to_stream<T: std::io::Write>(stream: &mut T, value: &Value) -> Resu
         Value::Tuple(_) => crate::write_u8(stream, Tag::Tuple as u8),
         Value::Option(_) => crate::write_u8(stream, Tag::Option as u8),
         Value::Object(_) => crate::write_u8(stream, Tag::Object as u8),
+        Value::Array(_) => crate::write_u8(stream, Tag::Array as u8),
     }
 }
 
@@ -151,6 +174,7 @@ fn write_untagged_value_to_stream<T: std::io::Write>(
             Value::Tuple(values) => write_untagged_tuple_to_stream(stream, values),
             Value::Option(value) => write_untagged_option_to_stream(stream, value),
             Value::Object(fields) => write_untagged_object_to_stream(stream, fields),
+            Value::Array(elements) => write_untagged_array_to_stream(stream, elements),
         }
     }
 }
@@ -187,6 +211,23 @@ fn write_untagged_object_to_stream<T: std::io::Write>(
     for (field_name, value) in fields {
         crate::write_string(stream, field_name)?;
         write_tagged_value_to_stream(stream, value)?;
+    }
+    Ok(())
+}
+
+fn write_untagged_array_to_stream<T: std::io::Write>(
+    stream: &mut T,
+    elements: &Vec<Value>,
+) -> Result<(), String> {
+    crate::write_u32(stream, elements.len() as u32)?;
+
+    if elements.is_empty() {
+        return Ok(());
+    }
+
+    write_tag_to_stream(stream, &elements[0])?;
+    for element in elements {
+        write_untagged_value_to_stream(stream, element)?;
     }
     Ok(())
 }
@@ -324,6 +365,10 @@ pub fn serialize_option_to_value<T: BSerialize>(value: Option<T>) -> Value {
     }
 }
 
+pub fn serialize_array_to_value<T: BSerialize>(values: Vec<T>) -> Value {
+    Value::Array(values.into_iter().map(|value| value.serialize()).collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -347,6 +392,11 @@ mod tests {
                     serialize_option_to_value::<String>(Some("Test3".to_string())),
                 ),
             ])),
+            serialize_array_to_value(vec![
+                "First array element".to_string(),
+                "Second array element".to_string(),
+                "Third array element".to_string(),
+            ]),
         ]);
 
         let mut data = Vec::new();
