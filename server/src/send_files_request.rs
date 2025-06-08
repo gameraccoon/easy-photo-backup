@@ -19,7 +19,7 @@ pub(crate) fn process_receive_files(
 
     let mut tls = Stream::new(&mut conn, stream);
 
-    streamed_file_receiver::receive_directory(
+    let result = streamed_file_receiver::receive_directory(
         &server_config.destination_folder,
         &mut tls,
         &ReceiveStrategies {
@@ -31,5 +31,8 @@ pub(crate) fn process_receive_files(
     conn.send_close_notify();
     let _ = conn.complete_io(stream);
 
+    if let Err(e) = result {
+        return Err(format!("Failed to receive files: {}", e));
+    }
     Ok(())
 }

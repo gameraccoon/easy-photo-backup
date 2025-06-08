@@ -1,7 +1,7 @@
 use rustls::{ServerConnection, Stream};
 use std::io::{Read, Write};
 use std::net::TcpStream;
-use std::path::PathBuf;
+use std::path::{Component, PathBuf};
 
 #[derive(PartialEq)]
 pub(crate) enum NameCollisionStrategy {
@@ -22,7 +22,7 @@ pub(crate) enum ReceiveFileResult {
 }
 
 pub(crate) fn receive_file(
-    destination_root_folder: &PathBuf,
+    canonical_destination_root_folder: &PathBuf,
     reader: &mut Stream<ServerConnection, TcpStream>,
     receive_strategies: &ReceiveStrategies,
 ) -> ReceiveFileResult {
@@ -39,7 +39,13 @@ pub(crate) fn receive_file(
         }
     };
 
-    let destination_file_path = destination_root_folder.join(file_path);
+    let destination_file_path = match get_validated_absolute_file_path(&file_path, &canonical_destination_root_folder) {
+        Ok(destination_file_path) => destination_file_path,
+        Err(e) => {
+            println!("Failed to validate file path: {}", e);
+            return ReceiveFileResult::UnknownNetworkError(e);
+        }
+    };
 
     let file_size_bytes = shared_common::read_u64(reader);
     let file_size_bytes = match file_size_bytes {
@@ -204,10 +210,14 @@ pub(crate) fn receive_directory(
     destination_directory: &PathBuf,
     stream: &mut Stream<ServerConnection, TcpStream>,
     receive_strategies: &ReceiveStrategies,
-) {
+) -> Result<(), String> {
+    let Ok(canonical_destination_directory) = std::fs::canonicalize(destination_directory) else {
+        return Err("Failed to canonicalize destination directory".to_string());
+    };
+
     let mut index = 0;
     while receive_continuation_marker(stream) {
-        let result = receive_file(destination_directory, stream, receive_strategies);
+        let result = receive_file(&canonical_destination_directory, stream, receive_strategies);
         match result {
             ReceiveFileResult::Ok => {
                 send_file_confirmation(index, true, stream);
@@ -219,12 +229,63 @@ pub(crate) fn receive_directory(
                 send_file_confirmation(index, false, stream);
             }
             ReceiveFileResult::UnknownNetworkError(error) => {
-                println!("Failed to receive file, aborting: {}", error);
-                return;
+                return Err(format!("Failed to receive file, aborting: {}", error));
             }
         }
         index += 1;
     }
 
-    println!("File receiving done");
+    Ok(())
+}
+
+fn get_validated_absolute_file_path(file_path_str: &String, destination_root_folder: &PathBuf) -> Result<PathBuf, String> {
+    let file_path = PathBuf::from(file_path_str);
+
+    // the path should be relative, it should not have any components that go up the directory tree
+    // and overall it should not escape the destination root folder
+    let mut components = file_path.components();
+    for component in components.by_ref() {
+        match component {
+            Component::Normal(_) => {
+                // the only valid component is a normal component
+                continue;
+            }
+            Component::ParentDir => {
+                // don't allow going up the directory tree
+                // even if this doesn't escape the destination root folder
+                // it is not something a valid client would do
+                return Err(format!("File path '{}' contains not allowed parent directory component (..)", file_path_str));
+            }
+            // it is weird to have a component that is a dot
+            // disallow it just in case
+            Component::CurDir => {
+                return Err(format!("File path '{}' contains not allowed current directory component (.)", file_path_str));
+            }
+            Component::RootDir => {
+                // never allow goign from the root directory
+                return Err(format!("File path '{}' contains not allowed root directory component (/)", file_path_str));
+            }
+            Component::Prefix(_) => {
+                // disallow any prefix (C: D: etc)
+                return Err(format!("File path '{}' contains not allowed prefix component", file_path_str));
+            }
+        }
+    }
+
+    // so far we didn't find any invalid components
+    // so the starts_with check should always pass, but do it anyway
+    let absolute_path = match std::path::absolute(destination_root_folder.join(file_path)) {
+        Ok(absolute_path) => absolute_path,
+        Err(e) => {
+            return Err(format!("Failed to canonicalize file path: {}", e));
+        }
+    };
+
+    // note that this cehck alone doesn't ensure that the path is not outside the destination root folder
+    // but rather does something similar to string comparison
+    if !absolute_path.starts_with(destination_root_folder) {
+        return Err(format!("File path '{}' escapes destination root folder", file_path_str));
+    }
+
+    Ok(absolute_path)
 }
