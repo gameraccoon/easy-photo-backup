@@ -39,13 +39,14 @@ pub(crate) fn receive_file(
         }
     };
 
-    let destination_file_path = match get_validated_absolute_file_path(&file_path, &canonical_destination_root_folder) {
-        Ok(destination_file_path) => destination_file_path,
-        Err(e) => {
-            println!("Failed to validate file path: {}", e);
-            return ReceiveFileResult::UnknownNetworkError(e);
-        }
-    };
+    let destination_file_path =
+        match get_validated_absolute_file_path(&file_path, &canonical_destination_root_folder) {
+            Ok(destination_file_path) => destination_file_path,
+            Err(e) => {
+                println!("Failed to validate file path: {}", e);
+                return ReceiveFileResult::UnknownNetworkError(e);
+            }
+        };
 
     let file_size_bytes = shared_common::read_u64(reader);
     let file_size_bytes = match file_size_bytes {
@@ -238,7 +239,10 @@ pub(crate) fn receive_directory(
     Ok(())
 }
 
-fn get_validated_absolute_file_path(file_path_str: &String, destination_root_folder: &PathBuf) -> Result<PathBuf, String> {
+fn get_validated_absolute_file_path(
+    file_path_str: &String,
+    destination_root_folder: &PathBuf,
+) -> Result<PathBuf, String> {
     let file_path = PathBuf::from(file_path_str);
 
     // the path should be relative, it should not have any components that go up the directory tree
@@ -254,20 +258,32 @@ fn get_validated_absolute_file_path(file_path_str: &String, destination_root_fol
                 // don't allow going up the directory tree
                 // even if this doesn't escape the destination root folder
                 // it is not something a valid client would do
-                return Err(format!("File path '{}' contains not allowed parent directory component (..)", file_path_str));
+                return Err(format!(
+                    "File path '{}' contains not allowed parent directory component (..)",
+                    file_path_str
+                ));
             }
             // it is weird to have a component that is a dot
             // disallow it just in case
             Component::CurDir => {
-                return Err(format!("File path '{}' contains not allowed current directory component (.)", file_path_str));
+                return Err(format!(
+                    "File path '{}' contains not allowed current directory component (.)",
+                    file_path_str
+                ));
             }
             Component::RootDir => {
                 // never allow goign from the root directory
-                return Err(format!("File path '{}' contains not allowed root directory component (/)", file_path_str));
+                return Err(format!(
+                    "File path '{}' contains not allowed root directory component (/)",
+                    file_path_str
+                ));
             }
             Component::Prefix(_) => {
                 // disallow any prefix (C: D: etc)
-                return Err(format!("File path '{}' contains not allowed prefix component", file_path_str));
+                return Err(format!(
+                    "File path '{}' contains not allowed prefix component",
+                    file_path_str
+                ));
             }
         }
     }
@@ -284,7 +300,10 @@ fn get_validated_absolute_file_path(file_path_str: &String, destination_root_fol
     // note that this cehck alone doesn't ensure that the path is not outside the destination root folder
     // but rather does something similar to string comparison
     if !absolute_path.starts_with(destination_root_folder) {
-        return Err(format!("File path '{}' escapes destination root folder", file_path_str));
+        return Err(format!(
+            "File path '{}' escapes destination root folder",
+            file_path_str
+        ));
     }
 
     Ok(absolute_path)
