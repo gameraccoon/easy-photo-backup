@@ -4,30 +4,22 @@ pub trait BSerialize {
     fn serialize(&self) -> Value;
 }
 
-pub trait BSerializeByPosition: BSerialize {
-    fn serialize(&self) -> Value;
-}
-
-pub trait BSerializeByName: BSerialize {
-    fn serialize(&self) -> Value;
-}
-
 pub trait BDeserialize {
     fn deserialize(value: Value) -> Result<Self, String>
     where
         Self: Sized;
 }
 
-pub trait BDeserializeByPosition: BSerialize {
-    fn deserialize(value: Value) -> Result<Self, String>
-    where
-        Self: Sized;
+impl BSerialize for Value {
+    fn serialize(&self) -> Value {
+        self.clone()
+    }
 }
 
-pub trait BDeserializeByName: BSerialize {
-    fn deserialize(value: Value) -> Result<Self, String>
-    where
-        Self: Sized;
+impl BDeserialize for Value {
+    fn deserialize(value: Value) -> Result<Self, String> {
+        Ok(value)
+    }
 }
 
 impl BSerialize for u8 {
@@ -90,6 +82,12 @@ impl BDeserialize for String {
     }
 }
 
+impl BSerialize for &str {
+    fn serialize(&self) -> Value {
+        Value::String(self.to_string())
+    }
+}
+
 impl BSerialize for Vec<u8> {
     fn serialize(&self) -> Value {
         Value::ByteArray(self.clone())
@@ -124,15 +122,4 @@ impl<T: BDeserialize> BDeserialize for Option<T> {
             _ => Err("Tried to deserialize a non-option value into Option".to_string()),
         }
     }
-}
-
-pub fn serialize_option_to_value<T: BSerialize>(value: Option<T>) -> Value {
-    match value {
-        None => Value::Option(None),
-        Some(value) => Value::Option(Some(Box::new(value.serialize()))),
-    }
-}
-
-pub fn serialize_array_to_value<T: BSerialize>(values: Vec<T>) -> Value {
-    Value::Array(values.into_iter().map(|value| value.serialize()).collect())
 }

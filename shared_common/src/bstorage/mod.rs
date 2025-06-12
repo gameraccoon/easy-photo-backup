@@ -1,5 +1,7 @@
+mod helpers;
 mod private_functions;
-mod traits;
+pub mod traits;
+pub mod updater;
 
 use crate::bstorage::private_functions::*;
 use crate::bstorage::traits::{BDeserialize, BSerialize};
@@ -57,33 +59,72 @@ pub fn write_tagged_value_to_stream<T: std::io::Write>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::bstorage::traits::{serialize_array_to_value, serialize_option_to_value};
+    use crate::{inline_init_array, inline_init_object, inline_init_tuple};
+
+    #[test]
+    fn test_given_option_when_serialized_with_helper_then_correct_value_is_returned() {
+        let option = Some(42u32);
+
+        let value = option.serialize();
+
+        assert_eq!(value, Value::Option(Some(Box::new(Value::U32(42)))));
+    }
+
+    #[test]
+    fn test_given_array_when_serialized_with_helper_then_correct_value_is_returned() {
+        let value = inline_init_array!([
+            "First array element",
+            "Second array element",
+            "Third array element",
+        ]);
+
+        assert_eq!(
+            value,
+            Value::Array(vec![
+                Value::String("First array element".to_string()),
+                Value::String("Second array element".to_string()),
+                Value::String("Third array element".to_string())
+            ])
+        );
+    }
+
+    #[test]
+    fn test_given_hashmap_when_serialized_with_helper_then_correct_value_is_returned() {
+        let value = inline_init_object!({
+            "test" => Value::String("test".to_string()),
+            "test2" => Value::U32(4294967295u32),
+        });
+
+        assert_eq!(
+            value,
+            Value::Object(std::collections::HashMap::from([
+                ("test".to_string(), Value::String("test".to_string())),
+                ("test2".to_string(), Value::U32(4294967295)),
+            ]))
+        );
+    }
 
     #[test]
     fn test_given_value_when_written_and_read_then_data_is_equal() {
-        let value = Value::Tuple(vec![
-            Value::U8(255u8),
-            Value::U32(4294967295u32),
-            Value::U64(18446744073709551615u64),
-            Value::String(
-                "Relatively long string that is long enough not to fit in SSO".to_string(),
-            ),
-            Value::ByteArray(vec![
-                10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
+        let value = inline_init_tuple!(
+            255u8,
+            4294967295u32,
+            18446744073709551615u64,
+            "Relatively long string that is long enough not to fit in SSO",
+            vec![
+                10u8, 11u8, 12u8, 13u8, 14u8, 15u8, 16u8, 17u8, 18u8, 19u8, 20u8, 21u8, 22u8, 23u8,
+                24u8, 25u8,
+            ],
+            inline_init_object!({
+                "test" => None::<String>,
+                "test2" => Some("Test3".to_string()),
+            }),
+            inline_init_array!([
+                "First array element",
+                "Second array element",
+                "Third array element",
             ]),
-            Value::Object(HashMap::from([
-                ("test".to_string(), Value::Option(None)),
-                (
-                    "test2".to_string(),
-                    serialize_option_to_value::<String>(Some("Test3".to_string())),
-                ),
-            ])),
-            serialize_array_to_value(vec![
-                "First array element".to_string(),
-                "Second array element".to_string(),
-                "Third array element".to_string(),
-            ]),
-        ]);
+        );
 
         let mut data = Vec::new();
         let mut stream = std::io::Cursor::new(&mut data);
