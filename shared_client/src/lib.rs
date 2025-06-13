@@ -10,4 +10,5 @@ pub mod nsd_data;
 pub mod pairing_processor;
 pub mod pairing_requests;
 pub mod send_files_request;
+mod storage_updaters;
 mod streamed_file_sender;

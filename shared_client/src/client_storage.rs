@@ -1,6 +1,9 @@
-use shared_common::bstorage;
+use crate::storage_updaters::update_storage_to_the_latest_version;
+use shared_common::bstorage::traits::BSerialize;
+use shared_common::bstorage::updater::{StorageUpdaterError, UpdateResult};
+use shared_common::{bstorage, inline_init_tuple};
 
-const CLIENT_STORAGE_VERSION: u32 = 1;
+pub(crate) const CLIENT_STORAGE_VERSION: u32 = 1;
 
 #[cfg_attr(test, derive(Debug, PartialEq))]
 #[derive(Clone)]
@@ -97,11 +100,34 @@ impl ClientStorage {
     fn load_from_stream<T: std::io::Read>(reader: &mut T) -> Result<Option<ClientStorage>, String> {
         let version = shared_common::read_u32(reader)?;
 
-        if version != CLIENT_STORAGE_VERSION {
-            return Err("Client storage version mismatch".to_string());
-        }
+        let mut storage = bstorage::read_tagged_value_from_stream(reader)?;
 
-        let storage = bstorage::read_tagged_value_from_stream(reader)?;
+        let update_result = update_storage_to_the_latest_version(&mut storage, version);
+
+        match update_result {
+            UpdateResult::Updated(version) => {
+                println!(
+                    "Client storage version updated from {} to {}",
+                    version, CLIENT_STORAGE_VERSION
+                );
+            }
+            UpdateResult::Error(error) => {
+                return match error {
+                    StorageUpdaterError::UnknownVersion { .. } => {
+                        Err(format!("Client storage version is unexpected: {}", version))
+                    }
+                    StorageUpdaterError::UpdaterError {
+                        failed_patcher_version,
+                        error,
+                        ..
+                    } => Err(format!(
+                        "Failed to update client storage to version {} when updating from {} to {}: '{}'",
+                        failed_patcher_version, version, CLIENT_STORAGE_VERSION, error
+                    )),
+                };
+            }
+            UpdateResult::NoUpdateNeeded => {}
+        }
 
         match storage {
             bstorage::Value::Tuple(values) => {
@@ -130,7 +156,7 @@ impl ClientStorage {
             Ok(file) => file,
             Err(e) => {
                 return Err(format!(
-                    "Failed to open client storage file '{}': {}",
+                    "Failed to create client storage file '{}': {}",
                     file_path.to_str().unwrap_or("[incorrect_name_format]"),
                     e
                 ));
@@ -139,7 +165,7 @@ impl ClientStorage {
 
         let mut file = std::io::BufWriter::new(file);
 
-        ClientStorage::save_to_stream(&self, &mut file)
+        ClientStorage::save_to_stream(self, &mut file)
     }
 
     fn save_to_stream<T: std::io::Write>(&self, writer: &mut T) -> Result<(), String> {
@@ -169,13 +195,13 @@ fn serialize_paired_server_info_vec(server_info_vec: &Vec<PairedServerInfo>) -> 
 }
 
 fn serialize_server_info(server_info: &ServerInfo) -> bstorage::Value {
-    bstorage::Value::Tuple(vec![
-        bstorage::Value::ByteArray(server_info.id.clone()),
-        bstorage::Value::String(server_info.name.clone()),
-        bstorage::Value::ByteArray(server_info.server_public_key.clone()),
-        bstorage::Value::ByteArray(server_info.client_keys.public_key.clone()),
-        bstorage::Value::ByteArray(server_info.client_keys.get_private_key().clone()),
-    ])
+    inline_init_tuple!(
+        server_info.id.clone(),
+        server_info.name,
+        server_info.server_public_key.clone(),
+        server_info.client_keys.public_key.clone(),
+        server_info.client_keys.get_private_key().clone(),
+    )
 }
 
 fn serialize_folders_to_sync(folders_to_sync: &FoldersToSync) -> bstorage::Value {
@@ -312,5 +338,39 @@ mod tests {
             .unwrap();
 
         assert_eq!(client_storage, loaded_client_storage);
+    }
+
+    #[test]
+    fn test_given_storage_version_0_when_loaded_then_updated_to_the_latest_version() {
+        let mut expected_client_storage = ClientStorage::empty();
+        expected_client_storage.client_name = "Test client".to_string();
+        expected_client_storage.paired_servers = vec![PairedServerInfo {
+            server_info: ServerInfo {
+                id: vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+                name: "Test server".to_string(),
+                server_public_key: vec![
+                    10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
+                ],
+                client_keys: shared_common::tls::tls_data::TlsData::new(
+                    vec![
+                        20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35,
+                    ],
+                    vec![
+                        30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45,
+                    ],
+                ),
+            },
+            folders_to_sync: FoldersToSync {
+                single_test_folder: std::path::PathBuf::new(),
+            },
+        }];
+
+        let client_storage = ClientStorage::load(std::path::Path::new(
+            "../test_data/old_client_storage_versions/version_0.bin",
+        ))
+        .unwrap()
+        .unwrap();
+
+        assert_eq!(client_storage, expected_client_storage);
     }
 }
