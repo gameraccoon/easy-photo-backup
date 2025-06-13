@@ -1,5 +1,7 @@
 use crate::client_config::ClientConfig;
-use shared_client::client_storage::{ClientStorage, PairedServerInfo, ServerInfo};
+use shared_client::client_storage::{
+    ClientStorage, DirectoriesToSync, PairedServerInfo, ServerInfo,
+};
 use shared_client::network_address::NetworkAddress;
 use shared_client::{discovered_server::DiscoveredServer, nsd_client, nsd_data, pairing_processor};
 use std::io::Write;
@@ -11,9 +13,11 @@ pub const CLIENT_STORAGE_FILE_NAME: &str = "client_storage.bin";
 pub fn start_cli_processor(config: ClientConfig, storage: Arc<Mutex<ClientStorage>>) {
     let mut buffer = String::new();
 
-    let folders_to_sync = shared_client::client_storage::FoldersToSync {
-        single_test_folder: config.default_folder_to_sync.clone(),
-    };
+    let directories_to_sync = vec![shared_client::client_storage::DirectoryToSync {
+        path: config.default_folder_to_sync.clone(),
+        folder_last_modified_time: None,
+        files_change_detection_data: Default::default(),
+    }];
 
     loop {
         print!("> ");
@@ -70,7 +74,10 @@ pub fn start_cli_processor(config: ClientConfig, storage: Arc<Mutex<ClientStorag
 
                 storage.paired_servers.push(PairedServerInfo {
                     server_info: result,
-                    folders_to_sync: folders_to_sync.clone(),
+                    directories_to_sync: DirectoriesToSync {
+                        inherit_global_settings: true,
+                        directories: Vec::new(),
+                    },
                 });
 
                 println!("Pairing succeeded, confirm on the other device");
@@ -317,9 +324,11 @@ fn process_change_dir(storage: Arc<Mutex<ClientStorage>>) -> Result<(), String> 
     println!(
         "Current source dir: {}",
         client_storage.paired_servers[server_index]
-            .folders_to_sync
-            .single_test_folder
-            .display()
+            .directories_to_sync
+            .directories
+            .get(0)
+            .map(|directory_to_sync| { directory_to_sync.path.display().to_string() })
+            .unwrap_or("[no source dir]".to_string()),
     );
 
     drop(client_storage);
@@ -357,9 +366,25 @@ fn process_change_dir(storage: Arc<Mutex<ClientStorage>>) -> Result<(), String> 
         }
     };
 
+    if client_storage.paired_servers[server_index]
+        .directories_to_sync
+        .directories
+        .is_empty()
+    {
+        client_storage.paired_servers[server_index]
+            .directories_to_sync
+            .directories
+            .push(shared_client::client_storage::DirectoryToSync {
+                path: Default::default(),
+                folder_last_modified_time: None,
+                files_change_detection_data: Default::default(),
+            });
+    }
+
     client_storage.paired_servers[server_index]
-        .folders_to_sync
-        .single_test_folder = std::path::PathBuf::from(new_path);
+        .directories_to_sync
+        .directories[0]
+        .path = std::path::PathBuf::from(new_path);
     println!("Successfully changed source folder for this server");
 
     Ok(())

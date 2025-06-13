@@ -1,10 +1,10 @@
-use shared_common::bstorage;
+use shared_common::bstorage::ToValue;
+use shared_common::{bstorage, inline_init_tuple};
 
 const SERVER_STORAGE_VERSION: u32 = 1;
 const SERVER_STORAGE_FILE_NAME: &str = "server_storage.bin";
 
 #[cfg_attr(test, derive(Debug, PartialEq))]
-#[derive(Clone)]
 pub(crate) struct ClientInfo {
     pub name: String,
     pub client_public_key: Vec<u8>,
@@ -100,13 +100,14 @@ impl ServerStorage {
 
         match storage {
             bstorage::Value::Tuple(values) => {
-                let machine_id = match values.get(0) {
+                let mut iter = values.into_iter();
+                let machine_id = match iter.next() {
                     Some(value) => value.clone().to_rust_type::<Vec<u8>>()?,
                     None => {
                         return Err("Server storage is missing first positional value".to_string());
                     }
                 };
-                let paired_clients = read_client_info_vec(&values.get(1))?;
+                let paired_clients = read_client_info_vec(iter.next())?;
 
                 Ok(Some(ServerStorage {
                     machine_id,
@@ -138,10 +139,10 @@ impl ServerStorage {
     fn save_to_stream<T: std::io::Write>(&self, writer: &mut T) -> Result<(), String> {
         shared_common::write_u32(writer, SERVER_STORAGE_VERSION)?;
 
-        let storage = bstorage::Value::Tuple(vec![
-            bstorage::Value::ByteArray(self.machine_id.clone()),
+        let storage = inline_init_tuple!(
+            self.machine_id.clone(),
             serialize_client_info_vec(&self.paired_clients),
-        ]);
+        );
 
         bstorage::write_tagged_value_to_stream(writer, &storage)
     }
@@ -152,25 +153,26 @@ fn serialize_client_info_vec(client_info_vec: &[ClientInfo]) -> bstorage::Value 
         client_info_vec
             .iter()
             .map(|client| {
-                bstorage::Value::Tuple(vec![
-                    bstorage::Value::String(client.name.clone()),
-                    bstorage::Value::ByteArray(client.client_public_key.clone()),
-                    bstorage::Value::ByteArray(client.server_keys.public_key.clone()),
-                    bstorage::Value::ByteArray(client.server_keys.get_private_key().clone()),
-                ])
+                inline_init_tuple!(
+                    client.name,
+                    client.client_public_key.clone(),
+                    client.server_keys.public_key.clone(),
+                    client.server_keys.get_private_key().clone(),
+                )
             })
             .collect(),
     )
 }
 
-fn read_client_info_vec(value: &Option<&bstorage::Value>) -> Result<Vec<ClientInfo>, String> {
+fn read_client_info_vec(value: Option<bstorage::Value>) -> Result<Vec<ClientInfo>, String> {
     match value {
         Some(bstorage::Value::Tuple(values)) => {
             let mut client_info_vec = Vec::with_capacity(values.len());
             for value in values {
                 match value {
                     bstorage::Value::Tuple(values) => {
-                        let name = match values.get(0) {
+                        let mut iter = values.into_iter();
+                        let name = match iter.next() {
                             Some(value) => value.clone().to_rust_type::<String>()?,
                             None => {
                                 return Err(
@@ -178,7 +180,7 @@ fn read_client_info_vec(value: &Option<&bstorage::Value>) -> Result<Vec<ClientIn
                                 );
                             }
                         };
-                        let client_public_key = match values.get(1) {
+                        let client_public_key = match iter.next() {
                             Some(value) => value.clone().to_rust_type::<Vec<u8>>()?,
                             None => {
                                 return Err(
@@ -187,7 +189,7 @@ fn read_client_info_vec(value: &Option<&bstorage::Value>) -> Result<Vec<ClientIn
                             }
                         };
 
-                        let server_public_key = match values.get(2) {
+                        let server_public_key = match iter.next() {
                             Some(value) => value.clone().to_rust_type::<Vec<u8>>()?,
                             None => {
                                 return Err(
@@ -195,7 +197,7 @@ fn read_client_info_vec(value: &Option<&bstorage::Value>) -> Result<Vec<ClientIn
                                 );
                             }
                         };
-                        let server_private_key = match values.get(3) {
+                        let server_private_key = match iter.next() {
                             Some(value) => value.clone().to_rust_type::<Vec<u8>>()?,
                             None => {
                                 return Err(

@@ -1,4 +1,4 @@
-use shared_client::client_storage::FoldersToSync;
+use shared_client::client_storage::DirectoriesToSync;
 use shared_client::nsd_client;
 use std::sync::{Arc, Mutex};
 
@@ -436,7 +436,7 @@ impl PairingProcessor {
                     client_storage_internals.paired_servers.push(
                         shared_client::client_storage::PairedServerInfo {
                             server_info,
-                            folders_to_sync: FoldersToSync::new(),
+                            directories_to_sync: DirectoriesToSync::new(),
                         },
                     );
                     let result = client_storage_internals.save(&client_storage.file_path);

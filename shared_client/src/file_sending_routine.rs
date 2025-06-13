@@ -1,4 +1,4 @@
-use crate::client_storage::ClientStorage;
+use crate::client_storage::{ClientStorage};
 use crate::nsd_client;
 use crate::send_files_request::send_files_request;
 use std::sync::{Arc, Mutex};
@@ -36,7 +36,8 @@ pub fn process_routine(client_storage: &Arc<Mutex<ClientStorage>>) -> Result<(),
             continue;
         };
 
-        let (server_public_key, client_key_pair, folders_to_sync) = match client_storage.lock() {
+        let (server_public_key, client_key_pair, directories_to_sync) = match client_storage.lock()
+        {
             Ok(client_storage) => {
                 let server_info = client_storage
                     .paired_servers
@@ -46,7 +47,12 @@ pub fn process_routine(client_storage: &Arc<Mutex<ClientStorage>>) -> Result<(),
                     (
                         paired_server_info.server_info.server_public_key.clone(),
                         paired_server_info.server_info.client_keys.clone(),
-                        paired_server_info.folders_to_sync.clone(),
+                        paired_server_info
+                            .directories_to_sync
+                            .directories
+                            .iter()
+                            .map(|directory_to_sync| directory_to_sync.path.clone())
+                            .collect(),
                     )
                 } else {
                     println!("Failed to find server info by id");
@@ -58,7 +64,12 @@ pub fn process_routine(client_storage: &Arc<Mutex<ClientStorage>>) -> Result<(),
             }
         };
 
-        send_files_request(address, server_public_key, client_key_pair, folders_to_sync);
+        send_files_request(
+            address,
+            server_public_key,
+            client_key_pair,
+            directories_to_sync,
+        );
     }
 
     Ok(())

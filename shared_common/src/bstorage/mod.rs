@@ -40,6 +40,10 @@ impl Value {
     pub fn from_rust_type<T: ToValue>(rust_value: T) -> Value {
         rust_value.to_value()
     }
+
+    pub fn replace(&mut self, other: Value) {
+        *self = other;
+    }
 }
 
 pub trait ToValue {

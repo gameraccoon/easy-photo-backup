@@ -9,7 +9,7 @@ pub fn send_files_request(
     destination: NetworkAddress,
     server_public_key: Vec<u8>,
     client_key_pair: shared_common::tls::tls_data::TlsData,
-    folders_to_sync: crate::client_storage::FoldersToSync,
+    directories_to_sync: Vec<std::path::PathBuf>,
 ) {
     let mut stream = match TcpStream::connect(format!("{}:{}", destination.ip, destination.port)) {
         Ok(stream) => stream,
@@ -86,8 +86,9 @@ pub fn send_files_request(
     {
         let mut tls = rustls::Stream::new(&mut conn, &mut stream);
 
+        // ToDo: test code here, we need to send in the list of files instead of the directory
         let result =
-            streamed_file_sender::send_directory(&folders_to_sync.single_test_folder, &mut tls);
+            streamed_file_sender::send_directory(&directories_to_sync.get(0).unwrap(), &mut tls);
         match result {
             streamed_file_sender::SendDirectoryResult::AllSent(send_result) => {
                 if send_result.is_empty() {

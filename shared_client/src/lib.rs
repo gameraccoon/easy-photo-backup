@@ -1,6 +1,7 @@
 mod client_handshake;
 mod client_requests;
 pub mod client_storage;
+mod client_storage_updaters;
 pub mod discovered_server;
 pub mod file_sending_routine;
 pub mod get_server_name_request;
@@ -10,5 +11,4 @@ pub mod nsd_data;
 pub mod pairing_processor;
 pub mod pairing_requests;
 pub mod send_files_request;
-mod storage_updaters;
 mod streamed_file_sender;
