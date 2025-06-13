@@ -332,7 +332,7 @@ mod tests {
                 ),
             },
             folders_to_sync: FoldersToSync {
-                single_test_folder: std::path::PathBuf::new(),
+                single_test_folder: std::path::PathBuf::from("test/folder/path"),
             },
         }];
 
@@ -367,7 +367,7 @@ mod tests {
                 ),
             },
             folders_to_sync: FoldersToSync {
-                single_test_folder: std::path::PathBuf::new(),
+                single_test_folder: std::path::PathBuf::from("test/folder/path"),
             },
         }];
 
