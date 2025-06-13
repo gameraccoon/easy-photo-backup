@@ -1,10 +1,9 @@
 mod helpers;
 mod private_functions;
-pub mod traits;
+mod traits_impl;
 pub mod updater;
 
 use crate::bstorage::private_functions::*;
-use crate::bstorage::traits::{BDeserialize, BSerialize};
 use std::collections::HashMap;
 
 pub enum Tag {
@@ -34,13 +33,23 @@ pub enum Value {
 }
 
 impl Value {
-    pub fn deserialize<T: BDeserialize>(self) -> Result<T, String> {
-        T::deserialize(self)
+    pub fn to_rust_type<T: FromValue>(self) -> Result<T, String> {
+        T::from_value(self)
     }
 
-    pub fn serialize<T: BSerialize>(value: T) -> Value {
-        value.serialize()
+    pub fn from_rust_type<T: ToValue>(rust_value: T) -> Value {
+        rust_value.to_value()
     }
+}
+
+pub trait ToValue {
+    fn to_value(&self) -> Value;
+}
+
+pub trait FromValue {
+    fn from_value(value: Value) -> Result<Self, String>
+    where
+        Self: Sized;
 }
 
 pub fn read_tagged_value_from_stream<T: std::io::Read>(stream: &mut T) -> Result<Value, String> {
@@ -65,7 +74,7 @@ mod tests {
     fn test_given_option_when_serialized_with_helper_then_correct_value_is_returned() {
         let option = Some(42u32);
 
-        let value = option.serialize();
+        let value = option.to_value();
 
         assert_eq!(value, Value::Option(Some(Box::new(Value::U32(42)))));
     }

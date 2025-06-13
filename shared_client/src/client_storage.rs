@@ -1,5 +1,5 @@
 use crate::storage_updaters::update_storage_to_the_latest_version;
-use shared_common::bstorage::traits::BSerialize;
+use shared_common::bstorage::ToValue;
 use shared_common::bstorage::updater::{StorageUpdaterError, UpdateResult};
 use shared_common::{bstorage, inline_init_tuple};
 
@@ -133,7 +133,7 @@ impl ClientStorage {
             bstorage::Value::Tuple(values) => {
                 let client_name = match values.get(0) {
                     // we should consume the values from the Vec instead of cloning
-                    Some(value) => value.clone().deserialize::<String>()?,
+                    Some(value) => value.clone().to_rust_type::<String>()?,
                     None => {
                         return Err("Client storage is missing first positional value".to_string());
                     }
@@ -244,35 +244,35 @@ fn read_server_info(value: &Option<&bstorage::Value>) -> Result<ServerInfo, Stri
         Some(bstorage::Value::Tuple(values)) => {
             let id = match values.get(0) {
                 // we should consume the values from the Vec instead of cloning
-                Some(value) => value.clone().deserialize::<Vec<u8>>()?,
+                Some(value) => value.clone().to_rust_type::<Vec<u8>>()?,
                 None => {
                     return Err("Server info is missing first positional value".to_string());
                 }
             };
 
             let name = match values.get(1) {
-                Some(value) => value.clone().deserialize::<String>()?,
+                Some(value) => value.clone().to_rust_type::<String>()?,
                 None => {
                     return Err("Server info is missing second positional value".to_string());
                 }
             };
 
             let server_public_key = match values.get(2) {
-                Some(value) => value.clone().deserialize::<Vec<u8>>()?,
+                Some(value) => value.clone().to_rust_type::<Vec<u8>>()?,
                 None => {
                     return Err("Server public key is missing third positional value".to_string());
                 }
             };
 
             let client_public_key = match values.get(3) {
-                Some(value) => value.clone().deserialize::<Vec<u8>>()?,
+                Some(value) => value.clone().to_rust_type::<Vec<u8>>()?,
                 None => {
                     return Err("Client public key is missing fourth positional value".to_string());
                 }
             };
 
             let client_private_key = match values.get(4) {
-                Some(value) => value.clone().deserialize::<Vec<u8>>()?,
+                Some(value) => value.clone().to_rust_type::<Vec<u8>>()?,
                 None => {
                     return Err("Client private key is not a byte array".to_string());
                 }

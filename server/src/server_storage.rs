@@ -101,7 +101,7 @@ impl ServerStorage {
         match storage {
             bstorage::Value::Tuple(values) => {
                 let machine_id = match values.get(0) {
-                    Some(value) => value.clone().deserialize::<Vec<u8>>()?,
+                    Some(value) => value.clone().to_rust_type::<Vec<u8>>()?,
                     None => {
                         return Err("Server storage is missing first positional value".to_string());
                     }
@@ -132,7 +132,7 @@ impl ServerStorage {
 
         let mut file = std::io::BufWriter::new(file);
 
-        ServerStorage::save_to_stream(&self, &mut file)
+        ServerStorage::save_to_stream(self, &mut file)
     }
 
     fn save_to_stream<T: std::io::Write>(&self, writer: &mut T) -> Result<(), String> {
@@ -147,7 +147,7 @@ impl ServerStorage {
     }
 }
 
-fn serialize_client_info_vec(client_info_vec: &Vec<ClientInfo>) -> bstorage::Value {
+fn serialize_client_info_vec(client_info_vec: &[ClientInfo]) -> bstorage::Value {
     bstorage::Value::Tuple(
         client_info_vec
             .iter()
@@ -171,7 +171,7 @@ fn read_client_info_vec(value: &Option<&bstorage::Value>) -> Result<Vec<ClientIn
                 match value {
                     bstorage::Value::Tuple(values) => {
                         let name = match values.get(0) {
-                            Some(value) => value.clone().deserialize::<String>()?,
+                            Some(value) => value.clone().to_rust_type::<String>()?,
                             None => {
                                 return Err(
                                     "Client info is missing first positional value".to_string()
@@ -179,7 +179,7 @@ fn read_client_info_vec(value: &Option<&bstorage::Value>) -> Result<Vec<ClientIn
                             }
                         };
                         let client_public_key = match values.get(1) {
-                            Some(value) => value.clone().deserialize::<Vec<u8>>()?,
+                            Some(value) => value.clone().to_rust_type::<Vec<u8>>()?,
                             None => {
                                 return Err(
                                     "Client info is missing second positional value".to_string()
@@ -188,7 +188,7 @@ fn read_client_info_vec(value: &Option<&bstorage::Value>) -> Result<Vec<ClientIn
                         };
 
                         let server_public_key = match values.get(2) {
-                            Some(value) => value.clone().deserialize::<Vec<u8>>()?,
+                            Some(value) => value.clone().to_rust_type::<Vec<u8>>()?,
                             None => {
                                 return Err(
                                     "Client info is missing third positional value".to_string()
@@ -196,7 +196,7 @@ fn read_client_info_vec(value: &Option<&bstorage::Value>) -> Result<Vec<ClientIn
                             }
                         };
                         let server_private_key = match values.get(3) {
-                            Some(value) => value.clone().deserialize::<Vec<u8>>()?,
+                            Some(value) => value.clone().to_rust_type::<Vec<u8>>()?,
                             None => {
                                 return Err(
                                     "Client info is missing fourth positional value".to_string()

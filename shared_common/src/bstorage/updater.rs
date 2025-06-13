@@ -106,7 +106,7 @@ impl StorageUpdater {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::bstorage::traits::BSerialize;
+    use crate::bstorage::ToValue;
     use crate::inline_init_object;
 
     fn patcher_function_1(value: &mut Value) -> Result<(), String> {
