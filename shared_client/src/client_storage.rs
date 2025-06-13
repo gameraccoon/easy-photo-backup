@@ -609,7 +609,7 @@ mod tests {
         };
 
         let client_storage = ClientStorage::load(std::path::Path::new(
-            "../test_data/old_client_storage_versions/version_0.bin",
+            "../test_data/old_client_storage_versions/version_1.bin",
         ))
         .unwrap()
         .unwrap();
