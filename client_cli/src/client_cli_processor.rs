@@ -42,7 +42,7 @@ pub fn start_cli_processor(config: ClientConfig, storage: Arc<Mutex<ClientStorag
                 println!("Available commands:");
                 println!("pair - start pairing process with a server");
                 println!("unpair - remove server from the list of paired servers");
-                println!("dir - cnange the synchronized directory");
+                println!("dir - change the synchronized directory");
                 println!("send - send files to all paired servers");
                 println!("exit - exit the program");
                 println!("help - show this help");

@@ -16,9 +16,9 @@ pub fn generate_random_nonce() -> Result<Vec<u8>, String> {
 }
 
 pub fn compute_confirmation_value(
-    public_key_server: &Vec<u8>,
-    public_key_client: &Vec<u8>,
-    nonce_server: &Vec<u8>,
+    public_key_server: &[u8],
+    public_key_client: &[u8],
+    nonce_server: &[u8],
 ) -> Result<Vec<u8>, String> {
     let mut mac = generate_mac(public_key_server)?;
     update_mac(&mut mac, public_key_client);
@@ -28,17 +28,17 @@ pub fn compute_confirmation_value(
 }
 
 pub fn compute_numeric_comparison_value(
-    public_key_server: &Vec<u8>,
-    public_key_client: &Vec<u8>,
-    nonce_server: &Vec<u8>,
-    nonce_client: &Vec<u8>,
+    public_key_server: &[u8],
+    public_key_client: &[u8],
+    nonce_server: &[u8],
+    nonce_client: &[u8],
     digits: u32,
 ) -> Result<u32, String> {
     if digits == 0 {
         return Err("Digits must be greater than 0".to_string());
     }
 
-    if size_of::<u32>() * 8 < digits as usize {
+    if digits > u32::BITS {
         return Err("Digits must be less than or equal to 32".to_string());
     }
 
@@ -73,7 +73,7 @@ pub fn compute_numeric_comparison_value(
     Ok(result_number as u32)
 }
 
-fn generate_mac(data: &Vec<u8>) -> Result<Cmac<Aes128>, String> {
+fn generate_mac(data: &[u8]) -> Result<Cmac<Aes128>, String> {
     if data.len() > MAC_SIZE_BYTES {
         let first_slice = &data[0..MAC_SIZE_BYTES];
         let mac = Cmac::<Aes128>::new_from_slice(first_slice);
@@ -91,12 +91,12 @@ fn generate_mac(data: &Vec<u8>) -> Result<Cmac<Aes128>, String> {
         let mac = Cmac::<Aes128>::new_from_slice(data);
         match mac {
             Ok(mac) => Ok(mac),
-            Err(err) => return Err(format!("Failed to initialize CMAC: {}", err)),
+            Err(err) => Err(format!("Failed to initialize CMAC: {}", err)),
         }
     }
 }
 
-fn update_mac(mac: &mut Cmac<Aes128>, data: &Vec<u8>) {
+fn update_mac(mac: &mut Cmac<Aes128>, data: &[u8]) {
     if data.len() > MAC_SIZE_BYTES {
         for i in 0..(data.len() / MAC_SIZE_BYTES) {
             mac.update(&data[i * MAC_SIZE_BYTES..(i + 1) * MAC_SIZE_BYTES]);

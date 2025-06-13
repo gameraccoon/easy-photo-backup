@@ -17,17 +17,18 @@ pub(crate) fn process_receive_files(
         }
     };
 
-    let mut tls = Stream::new(&mut conn, stream);
+    let result = {
+        let mut tls = Stream::new(&mut conn, stream);
 
-    let result = streamed_file_receiver::receive_directory(
-        &server_config.destination_folder,
-        &mut tls,
-        &ReceiveStrategies {
-            name_collision_strategy: streamed_file_receiver::NameCollisionStrategy::Rename,
-        },
-    );
+        streamed_file_receiver::receive_directory(
+            &server_config.destination_folder,
+            &mut tls,
+            &ReceiveStrategies {
+                name_collision_strategy: streamed_file_receiver::NameCollisionStrategy::Rename,
+            },
+        )
+    };
 
-    drop(tls);
     conn.send_close_notify();
     let _ = conn.complete_io(stream);
 

@@ -43,7 +43,7 @@ pub fn get_server_name_request(destination: NetworkAddress) -> Result<String, St
 
     let result = stream.shutdown(std::net::Shutdown::Both);
     if let Err(e) = result {
-        println!("Failed to shutdown the connection: {}", e);
+        println!("Failed to shut down the connection: {}", e);
     }
 
     match request_result {

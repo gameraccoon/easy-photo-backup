@@ -21,6 +21,12 @@ pub struct FoldersToSync {
     pub single_test_folder: std::path::PathBuf,
 }
 
+impl Default for FoldersToSync {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl FoldersToSync {
     pub fn new() -> FoldersToSync {
         FoldersToSync {
@@ -180,7 +186,7 @@ impl ClientStorage {
     }
 }
 
-fn serialize_paired_server_info_vec(server_info_vec: &Vec<PairedServerInfo>) -> bstorage::Value {
+fn serialize_paired_server_info_vec(server_info_vec: &[PairedServerInfo]) -> bstorage::Value {
     bstorage::Value::Tuple(
         server_info_vec
             .iter()

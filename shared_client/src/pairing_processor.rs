@@ -6,6 +6,12 @@ pub struct PairingProcessor {
     awaiting_pairing_server: Option<crate::client_storage::AwaitingPairingServer>,
 }
 
+impl Default for PairingProcessor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PairingProcessor {
     pub fn new() -> Self {
         Self {
@@ -67,10 +73,8 @@ impl PairingProcessor {
     }
 
     pub fn clone_server_info(&self) -> Option<ServerInfo> {
-        if let Some(awaiting_pairing_server) = &self.awaiting_pairing_server {
-            Some(awaiting_pairing_server.server_info.clone())
-        } else {
-            None
-        }
+        self.awaiting_pairing_server
+            .as_ref()
+            .map(|awaiting_pairing_server| awaiting_pairing_server.server_info.clone())
     }
 }

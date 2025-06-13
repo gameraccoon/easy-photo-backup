@@ -72,7 +72,7 @@ pub fn send_file(
     #[cfg(windows)]
     let path_string_representation = path_string_representation.replace("\\", "/");
 
-    let result = shared_common::write_string(stream, &path_string_representation);
+    let result = shared_common::write_string(stream, path_string_representation);
     if let Err(e) = result {
         println!("Failed to write file path to socket: {}", e);
         return SendFileResult::UnknownConnectionError(format!(
@@ -147,7 +147,7 @@ fn send_files(
     source_directory_path: PathBuf,
     stream: &mut Stream<ClientConnection, TcpStream>,
 ) -> (Vec<(PathBuf, SendFileResult)>, Vec<PathBuf>) {
-    let mut stream = stream;
+    let stream: &mut Stream<ClientConnection, TcpStream> = stream;
     let mut files = files;
     let mut skipped = skipped;
     let mut send_result = Vec::new();
@@ -157,7 +157,7 @@ fn send_files(
 
         let mut file_path = PathBuf::new();
         std::mem::swap(&mut file_path, &mut files[i]);
-        let result = send_file(&file_path, &source_directory_path, &mut stream);
+        let result = send_file(&file_path, &source_directory_path, stream);
 
         {
             // receive confirmation
@@ -217,7 +217,7 @@ fn send_files(
         }
     }
 
-    send_continuation_marker(false, &mut stream);
+    send_continuation_marker(false, stream);
 
     skipped.extend(files.drain(first_skipped_index..));
 
@@ -236,7 +236,7 @@ pub fn send_directory(
 
     let (send_result, skipped) = send_files(files, skipped, source_directory_path_copy, stream);
 
-    if skipped.len() > 0 {
+    if !skipped.is_empty() {
         return SendDirectoryResult::PartiallySent(send_result, skipped);
     }
     SendDirectoryResult::AllSent(send_result)
@@ -257,14 +257,12 @@ fn collect_files(
         }
     };
 
-    for entries in dir {
-        if let Ok(entry) = entries {
-            let path = entry.path();
-            if path.is_dir() {
-                collect_files(&path, in_out_files, in_out_skipped);
-            } else {
-                in_out_files.push(path);
-            }
+    for entry in dir.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_files(&path, in_out_files, in_out_skipped);
+        } else {
+            in_out_files.push(path);
         }
     }
 }

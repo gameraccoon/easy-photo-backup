@@ -71,14 +71,14 @@ pub fn start_service_discovery_thread(
                 }
             }
 
-            if servers_to_remove.len() > 0 {
+            if !servers_to_remove.is_empty() {
                 online_servers.retain(|server| !servers_to_remove.contains(server));
             }
             for server in &servers_to_remove {
                 result_lambda(DiscoveryResult {
                     service_info: ServiceInfo {
                         address: NetworkAddress {
-                            ip: server.ip.clone(),
+                            ip: server.ip,
                             port: server.port,
                         },
                         extra_data: Vec::new(),

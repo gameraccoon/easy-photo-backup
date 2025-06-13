@@ -83,31 +83,32 @@ pub fn send_files_request(
         }
     };
 
-    let mut tls = rustls::Stream::new(&mut conn, &mut stream);
+    {
+        let mut tls = rustls::Stream::new(&mut conn, &mut stream);
 
-    let result =
-        streamed_file_sender::send_directory(&folders_to_sync.single_test_folder, &mut tls);
-    match result {
-        streamed_file_sender::SendDirectoryResult::AllSent(send_result) => {
-            if send_result.is_empty() {
-                println!("No files to send");
-            } else {
-                println!("Successfully sent all files");
+        let result =
+            streamed_file_sender::send_directory(&folders_to_sync.single_test_folder, &mut tls);
+        match result {
+            streamed_file_sender::SendDirectoryResult::AllSent(send_result) => {
+                if send_result.is_empty() {
+                    println!("No files to send");
+                } else {
+                    println!("Successfully sent all files");
+                }
             }
-        }
-        streamed_file_sender::SendDirectoryResult::PartiallySent(sent, skipped) => {
-            println!(
-                "Successfully sent {} files, skipped {}",
-                sent.len(),
-                skipped.len()
-            );
-        }
-        streamed_file_sender::SendDirectoryResult::Aborted(reason) => {
-            println!("Failed to send files: {}", reason);
+            streamed_file_sender::SendDirectoryResult::PartiallySent(sent, skipped) => {
+                println!(
+                    "Successfully sent {} files, skipped {}",
+                    sent.len(),
+                    skipped.len()
+                );
+            }
+            streamed_file_sender::SendDirectoryResult::Aborted(reason) => {
+                println!("Failed to send files: {}", reason);
+            }
         }
     }
 
-    drop(tls);
     conn.send_close_notify();
     let result = conn.complete_io(&mut stream);
     if let Err(e) = result {
@@ -116,7 +117,7 @@ pub fn send_files_request(
 
     let result = stream.shutdown(std::net::Shutdown::Both);
     if let Err(e) = result {
-        println!("Failed to shutdown the connection: {}", e);
+        println!("Failed to shut down the connection: {}", e);
     }
 
     println!("Closing the connection to the target machine");

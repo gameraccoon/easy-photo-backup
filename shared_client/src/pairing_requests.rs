@@ -100,7 +100,7 @@ pub fn process_key_and_nonce_exchange(
 
     let result = stream.shutdown(std::net::Shutdown::Both);
     if let Err(e) = result {
-        println!("Failed to shutdown the connection: {}", e);
+        println!("Failed to shut down the connection: {}", e);
     }
 
     let request_result = match request_result {

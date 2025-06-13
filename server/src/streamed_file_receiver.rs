@@ -40,7 +40,7 @@ pub(crate) fn receive_file(
     };
 
     let destination_file_path =
-        match get_validated_absolute_file_path(&file_path, &canonical_destination_root_folder) {
+        match get_validated_absolute_file_path(&file_path, canonical_destination_root_folder) {
             Ok(destination_file_path) => destination_file_path,
             Err(e) => {
                 println!("Failed to validate file path: {}", e);
@@ -137,16 +137,8 @@ fn find_non_colliding_file_name(file_path: PathBuf) -> PathBuf {
         );
         return file_path;
     };
-    let file_stem_str = file_path
-        .file_stem()
-        .map(|s| s.to_str())
-        .flatten()
-        .unwrap_or("");
-    let file_extension_str = file_path
-        .extension()
-        .map(|s| s.to_str())
-        .flatten()
-        .unwrap_or("");
+    let file_stem_str = file_path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+    let file_extension_str = file_path.extension().and_then(|s| s.to_str()).unwrap_or("");
 
     let mut index = 1;
     let mut new_file_path;
@@ -272,7 +264,7 @@ fn get_validated_absolute_file_path(
                 ));
             }
             Component::RootDir => {
-                // never allow goign from the root directory
+                // never allow going from the root directory
                 return Err(format!(
                     "File path '{}' contains not allowed root directory component (/)",
                     file_path_str
@@ -297,7 +289,7 @@ fn get_validated_absolute_file_path(
         }
     };
 
-    // note that this cehck alone doesn't ensure that the path is not outside the destination root folder
+    // note that this check alone doesn't ensure that the path is not outside the destination root folder
     // but rather does something similar to string comparison
     if !absolute_path.starts_with(destination_root_folder) {
         return Err(format!(

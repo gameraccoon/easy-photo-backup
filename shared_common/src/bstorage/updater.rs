@@ -35,6 +35,12 @@ struct Patcher {
     patcher_function: fn(&mut Value) -> Result<(), String>,
 }
 
+impl Default for StorageUpdater {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl StorageUpdater {
     pub fn new() -> Self {
         Self::with_initial_version(0)

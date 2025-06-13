@@ -100,7 +100,7 @@ impl Config {
         // the first line is the format version in format "format_version=1"
         let mut line = String::new();
         let result = stream.read_line(&mut line);
-        if let Err(_) = result {
+        if result.is_err() {
             return Err(format!(
                 "Expected 'format_version' at the first line in the config file '{}'",
                 file_name
@@ -136,7 +136,7 @@ impl Config {
         // the second line is the version in format "version=1"
         let mut line = String::new();
         let result = stream.read_line(&mut line);
-        if let Err(_) = result {
+        if result.is_err() {
             return Err(
                 "Expected 'version' at the second line in the config file '{}'".to_string(),
             );
@@ -295,7 +295,7 @@ impl Config {
                 .iter()
                 .filter(|category| category.name == category_format.name)
                 .collect::<Vec<&Category>>();
-            if categories.len() == 0 {
+            if categories.is_empty() {
                 if category_format.is_required {
                     return Err(format!(
                         "Category '{}' is not defined in the config file",
@@ -318,7 +318,7 @@ impl Config {
                     .iter()
                     .filter(|option| option.name == option_format.name)
                     .collect::<Vec<&ConfigOption>>();
-                if options.len() == 0 {
+                if options.is_empty() {
                     if option_format.is_required {
                         return Err(format!(
                             "Option '{}' is not defined in the config file",
@@ -396,7 +396,7 @@ impl Config {
 
         if value.starts_with("\"") && value.ends_with("\"") {
             Ok(Value::String(value[1..value.len() - 1].to_string()))
-        } else if value.chars().next().unwrap_or('\0').is_digit(10) {
+        } else if value.chars().next().unwrap_or('\0').is_ascii_digit() {
             let integer = value.parse::<u64>();
             match integer {
                 Ok(integer) => Ok(Value::Integer(integer)),

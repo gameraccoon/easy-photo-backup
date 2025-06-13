@@ -76,27 +76,27 @@ pub fn drop_bytes_from_stream<T: std::io::Read>(mut stream: T, size: usize) -> R
 }
 
 pub fn read_u8<T: std::io::Read>(stream: &mut T) -> Result<u8, String> {
-    match read_number_as_slice::<u8, 1, T>(stream) {
+    match read_number_as_slice::<1, T>(stream) {
         Ok(number_slice) => Ok(u8::from_be_bytes(number_slice)),
         Err(e) => Err(format!("Failed to read u8: {}", e)),
     }
 }
 
 pub fn read_u32<T: std::io::Read>(stream: &mut T) -> Result<u32, String> {
-    match read_number_as_slice::<u32, 4, T>(stream) {
+    match read_number_as_slice::<4, T>(stream) {
         Ok(number_slice) => Ok(u32::from_be_bytes(number_slice)),
         Err(e) => Err(format!("Failed to read u32: {}", e)),
     }
 }
 
 pub fn read_u64<T: std::io::Read>(stream: &mut T) -> Result<u64, String> {
-    match read_number_as_slice::<u64, 8, T>(stream) {
+    match read_number_as_slice::<8, T>(stream) {
         Ok(number_slice) => Ok(u64::from_be_bytes(number_slice)),
         Err(e) => Err(format!("Failed to read u64: {}", e)),
     }
 }
 
-fn read_number_as_slice<N, const S: usize, T: std::io::Read>(
+fn read_number_as_slice<const S: usize, T: std::io::Read>(
     stream: &mut T,
 ) -> Result<[u8; S], String> {
     let mut buffer = [0; S];
@@ -114,7 +114,7 @@ fn read_number_as_slice<N, const S: usize, T: std::io::Read>(
         ));
     }
 
-    let number = match buffer.try_into() {
+    let number = match <[u8; S]>::try_into(buffer) {
         Ok(bytes) => bytes,
         Err(_) => {
             return Err("Failed to convert file size bytes to slice".to_string());

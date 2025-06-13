@@ -372,7 +372,7 @@ fn main() {
     let config = ServerConfig::load_or_generate();
     let mut storage = ServerStorage::load_or_generate();
 
-    if storage.machine_id.len() == 0 {
+    if storage.machine_id.is_empty() {
         let random_bytes: [u8; shared_common::protocol::SERVER_ID_LENGTH_BYTES] =
             rand::rng().random();
         storage.machine_id = random_bytes.to_vec();
@@ -397,7 +397,7 @@ fn main() {
     digit_confirmation_ui::process_pairing_requests(storage.clone());
 
     let result = thread.join();
-    if let Err(_) = result {
+    if result.is_err() {
         println!("Failed to join the server thread");
     }
 }
