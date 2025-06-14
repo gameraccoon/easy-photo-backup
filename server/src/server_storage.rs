@@ -102,7 +102,7 @@ impl ServerStorage {
             bstorage::Value::Tuple(values) => {
                 let mut iter = values.into_iter();
                 let machine_id = match iter.next() {
-                    Some(value) => value.clone().to_rust_type::<Vec<u8>>()?,
+                    Some(value) => value.to_rust_type::<Vec<u8>>()?,
                     None => {
                         return Err("Server storage is missing first positional value".to_string());
                     }
@@ -173,7 +173,7 @@ fn read_client_info_vec(value: Option<bstorage::Value>) -> Result<Vec<ClientInfo
                     bstorage::Value::Tuple(values) => {
                         let mut iter = values.into_iter();
                         let name = match iter.next() {
-                            Some(value) => value.clone().to_rust_type::<String>()?,
+                            Some(value) => value.to_rust_type::<String>()?,
                             None => {
                                 return Err(
                                     "Client info is missing first positional value".to_string()
@@ -181,7 +181,7 @@ fn read_client_info_vec(value: Option<bstorage::Value>) -> Result<Vec<ClientInfo
                             }
                         };
                         let client_public_key = match iter.next() {
-                            Some(value) => value.clone().to_rust_type::<Vec<u8>>()?,
+                            Some(value) => value.to_rust_type::<Vec<u8>>()?,
                             None => {
                                 return Err(
                                     "Client info is missing second positional value".to_string()
@@ -190,7 +190,7 @@ fn read_client_info_vec(value: Option<bstorage::Value>) -> Result<Vec<ClientInfo
                         };
 
                         let server_public_key = match iter.next() {
-                            Some(value) => value.clone().to_rust_type::<Vec<u8>>()?,
+                            Some(value) => value.to_rust_type::<Vec<u8>>()?,
                             None => {
                                 return Err(
                                     "Client info is missing third positional value".to_string()
@@ -198,7 +198,7 @@ fn read_client_info_vec(value: Option<bstorage::Value>) -> Result<Vec<ClientInfo
                             }
                         };
                         let server_private_key = match iter.next() {
-                            Some(value) => value.clone().to_rust_type::<Vec<u8>>()?,
+                            Some(value) => value.to_rust_type::<Vec<u8>>()?,
                             None => {
                                 return Err(
                                     "Client info is missing fourth positional value".to_string()
