@@ -616,4 +616,71 @@ mod tests {
 
         assert_eq!(client_storage, expected_client_storage);
     }
+
+    #[test]
+    fn test_given_storage_version_2_when_loaded_then_updated_to_the_latest_version() {
+        let expected_client_storage = ClientStorage {
+            client_name: "Test client".to_string(),
+            paired_servers: vec![PairedServerInfo {
+                server_info: ServerInfo {
+                    id: vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+                    name: "Test server".to_string(),
+                    server_public_key: vec![
+                        10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
+                    ],
+                    client_keys: shared_common::tls::tls_data::TlsData::new(
+                        vec![
+                            20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35,
+                        ],
+                        vec![
+                            30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45,
+                        ],
+                    ),
+                },
+                directories_to_sync: DirectoriesToSync {
+                    inherit_global_settings: false,
+                    directories: vec![DirectoryToSync {
+                        path: std::path::PathBuf::from("test/folder/path"),
+                        folder_last_modified_time: Some(
+                            std::time::UNIX_EPOCH + std::time::Duration::from_secs(1640995200),
+                        ),
+                        files_change_detection_data: HashMap::from([(
+                            std::path::PathBuf::from("path/to/file1.txt"),
+                            FileChangeDetectionData {
+                                last_modified_time: std::time::UNIX_EPOCH
+                                    + std::time::Duration::from_secs(1640995200),
+                                size: 10,
+                                first_8_bytes: 42,
+                                last_8_bytes: 32,
+                                hash: vec![19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31],
+                            },
+                        )]),
+                    }],
+                },
+            }],
+            global_directories_to_sync: vec![DirectoryToSync {
+                path: std::path::PathBuf::from("test/folder/path2"),
+                folder_last_modified_time: None,
+                files_change_detection_data: HashMap::from([(
+                    std::path::PathBuf::from("path/to/file2.txt"),
+                    FileChangeDetectionData {
+                        last_modified_time: std::time::UNIX_EPOCH
+                            + std::time::Duration::from_secs(1640995200),
+                        size: 10,
+                        first_8_bytes: 42,
+                        last_8_bytes: 32,
+                        hash: vec![19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31],
+                    },
+                )]),
+            }],
+        };
+
+        let client_storage = ClientStorage::load(std::path::Path::new(
+            "../test_data/old_client_storage_versions/version_2.bin",
+        ))
+        .unwrap()
+        .unwrap();
+
+        assert_eq!(client_storage, expected_client_storage);
+    }
 }
