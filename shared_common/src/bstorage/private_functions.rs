@@ -31,14 +31,17 @@ fn read_untagged_tuple_from_stream<T: std::io::Read>(stream: &mut T) -> Result<V
     let len = crate::read_u32(stream)?;
     let mut values = Vec::new();
 
-    for _ in 0..len {
+    for i in 0..len {
         let value = read_tagged_value_from_stream(stream);
         match value {
             Ok(value) => {
                 values.push(value);
             }
             Err(e) => {
-                return Err(format!("Failed to read tuple value from stream: {}", e));
+                return Err(format!(
+                    "{} /=>/ Failed to read a tuple value from stream by index {}",
+                    e, i
+                ));
             }
         }
     }
@@ -62,20 +65,20 @@ fn read_untagged_object_from_stream<T: std::io::Read>(
 ) -> Result<HashMap<String, Value>, String> {
     let len = crate::read_u32(stream)?;
     let mut object = HashMap::with_capacity(len as usize);
-    for _ in 0..len {
+    for i in 0..len {
         let field_name = crate::read_string(stream, u32::MAX)?;
         let value = read_tagged_value_from_stream(stream);
         match value {
             Ok(value) => {
                 let old_value = object.insert(field_name, value);
                 if old_value.is_some() {
-                    return Err("A field defined multiple times".to_string());
+                    return Err(format!("A field in position {} defined multiple times", i));
                 }
             }
             Err(e) => {
                 return Err(format!(
-                    "Failed to read field with name '{}' from object: {}",
-                    field_name, e
+                    "{} /=>/ Failed to read field with name '{}' from object",
+                    e, field_name
                 ));
             }
         }
@@ -84,16 +87,40 @@ fn read_untagged_object_from_stream<T: std::io::Read>(
 }
 
 fn read_untagged_array_from_stream<T: std::io::Read>(stream: &mut T) -> Result<Vec<Value>, String> {
-    let len = crate::read_u32(stream)?;
+    let len = match crate::read_u32(stream) {
+        Ok(len) => len,
+        Err(e) => {
+            return Err(format!(
+                "{} /=>/ Failed to read array length from stream",
+                e
+            ));
+        }
+    };
 
     if len == 0 {
         return Ok(Vec::new());
     }
 
-    let element_tag = read_tag_from_stream(stream)?;
+    let element_tag = match read_tag_from_stream(stream) {
+        Ok(tag) => tag,
+        Err(e) => {
+            return Err(format!(
+                "{} /=>/ Failed to read array element tag from stream",
+                e
+            ));
+        }
+    };
     let mut elements = Vec::new();
-    for _ in 0..len {
-        elements.push(read_untagged_value_from_stream(stream, element_tag)?);
+    for i in 0..len {
+        elements.push(match read_untagged_value_from_stream(stream, element_tag) {
+            Ok(value) => value,
+            Err(e) => {
+                return Err(format!(
+                    "{} /=>/ Failed to read an array element from stream by index {}",
+                    e, i
+                ));
+            }
+        });
     }
     Ok(elements)
 }

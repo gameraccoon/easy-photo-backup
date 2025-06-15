@@ -146,8 +146,8 @@ impl ClientStorage {
                         error,
                         ..
                     } => Err(format!(
-                        "Failed to update client storage to version {} when updating from {} to {}: '{}'",
-                        failed_patcher_version, version, CLIENT_STORAGE_VERSION, error
+                        "{} /=>/ Failed to update client storage to version {} when updating from {} to {}",
+                        error, failed_patcher_version, version, CLIENT_STORAGE_VERSION
                     )),
                 };
             }

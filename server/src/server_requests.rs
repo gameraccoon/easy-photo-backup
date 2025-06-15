@@ -113,7 +113,10 @@ pub(crate) fn send_request_answer(
     let result = stream.write_all(&header_bytes);
     if let Err(e) = result {
         println!("Failed to write request header to socket: {}", e);
-        return Err(format!("Failed to write request header to socket: {}", e));
+        return Err(format!(
+            "{} /=>/ Failed to write request header to socket",
+            e
+        ));
     }
 
     match answer {
@@ -126,7 +129,7 @@ pub(crate) fn send_request_answer(
             let result = shared_common::write_variable_size_bytes(stream, &public_key);
             if let Err(e) = result {
                 println!("Failed to write public key to socket: {}", e);
-                return Err(format!("Failed to write public key to socket: {}", e));
+                return Err(format!("{} /=>/ Failed to write public key to socket", e));
             }
 
             let result = shared_common::write_variable_size_bytes(stream, &confirmation_value);
@@ -141,14 +144,14 @@ pub(crate) fn send_request_answer(
             let result = shared_common::write_variable_size_bytes(stream, &server_id);
             if let Err(e) = result {
                 println!("Failed to write server id to socket: {}", e);
-                return Err(format!("Failed to write server id to socket: {}", e));
+                return Err(format!("{} /=>/ Failed to write server id to socket", e));
             }
         }
         shared_common::protocol::RequestAnswer::AnswerExchangeNonces(nonce) => {
             let result = shared_common::write_variable_size_bytes(stream, &nonce);
             if let Err(e) = result {
                 println!("Failed to write nonce to socket: {}", e);
-                return Err(format!("Failed to write nonce to socket: {}", e));
+                return Err(format!("{} /=>/ Failed to write nonce to socket", e));
             }
         }
         shared_common::protocol::RequestAnswer::ReadyToReceiveFiles => {}
@@ -156,7 +159,7 @@ pub(crate) fn send_request_answer(
             let result = shared_common::write_string(stream, &server_name);
             if let Err(e) = result {
                 println!("Failed to write server name to socket: {}", e);
-                return Err(format!("Failed to write server name to socket: {}", e));
+                return Err(format!("{} /=>/ Failed to write server name to socket", e));
             }
         }
     };

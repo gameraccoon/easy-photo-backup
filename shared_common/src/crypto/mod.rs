@@ -7,7 +7,12 @@ pub fn generate_random_nonce() -> Result<Vec<u8>, String> {
     let rand = rand_chacha::ChaChaRng::try_from_os_rng();
     let mut rand = match rand {
         Ok(rand) => rand,
-        Err(err) => return Err(format!("Failed to use OS random number generator: {}", err)),
+        Err(err) => {
+            return Err(format!(
+                "{} /=>/ Failed to use OS random number generator",
+                err
+            ))
+        }
     };
 
     Ok(rand
@@ -80,7 +85,7 @@ fn generate_mac(data: &[u8]) -> Result<Cmac<Aes128>, String> {
 
         let mut mac = match mac {
             Ok(mac) => mac,
-            Err(err) => return Err(format!("Failed to initialize CMAC: {}", err)),
+            Err(err) => return Err(format!("{} /=>/ Failed to initialize CMAC", err)),
         };
 
         for i in 1..(data.len() / MAC_SIZE_BYTES) {
@@ -91,7 +96,7 @@ fn generate_mac(data: &[u8]) -> Result<Cmac<Aes128>, String> {
         let mac = Cmac::<Aes128>::new_from_slice(data);
         match mac {
             Ok(mac) => Ok(mac),
-            Err(err) => Err(format!("Failed to initialize CMAC: {}", err)),
+            Err(err) => Err(format!("{} /=>/ Failed to initialize CMAC", err)),
         }
     }
 }

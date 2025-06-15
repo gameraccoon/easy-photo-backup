@@ -132,12 +132,15 @@ pub fn bind_broadcast_socket(read_timeout: std::time::Duration) -> Result<UdpSoc
     let result = socket.set_read_timeout(Some(read_timeout));
     if let Err(e) = result {
         println!("Failed to set read timeout on UDP socket: {}", e);
-        return Err(format!("Failed to set read timeout on UDP socket: {}", e));
+        return Err(format!(
+            "{} /=>/ Failed to set read timeout on UDP socket",
+            e
+        ));
     }
     let result = socket.set_broadcast(true);
     if let Err(e) = result {
         println!("Failed to set broadcast on UDP socket: {}", e);
-        return Err(format!("Failed to set broadcast on UDP socket: {}", e));
+        return Err(format!("{} /=>/ Failed to set broadcast on UDP socket", e));
     }
 
     Ok(socket)
@@ -156,7 +159,7 @@ pub fn broadcast_nds_udp_request(
     let result = socket.send_to(query.as_bytes(), broadcast_addr);
     match result {
         Ok(..) => Ok(()),
-        Err(e) => Err(format!("Failed to send UDP packet: {}", e)),
+        Err(e) => Err(format!("{} /=>/ Failed to send UDP packet", e)),
     }
 }
 

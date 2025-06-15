@@ -26,7 +26,7 @@ impl TlsData {
             Ok(key_pair) => key_pair,
             Err(e) => {
                 println!("Failed to generate TLS key pair: {}", e);
-                return Err(format!("Failed to generate TLS key pair: {}", e));
+                return Err(format!("{} /=>/ Failed to generate TLS key pair", e));
             }
         };
 

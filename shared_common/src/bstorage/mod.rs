@@ -57,7 +57,12 @@ pub trait FromValue {
 }
 
 pub fn read_tagged_value_from_stream<T: std::io::Read>(stream: &mut T) -> Result<Value, String> {
-    let tag = read_tag_from_stream(stream)?;
+    let tag = match read_tag_from_stream(stream) {
+        Ok(tag) => tag,
+        Err(e) => {
+            return Err(format!("{} /=>/ Failed to read tag from stream", e));
+        }
+    };
     read_untagged_value_from_stream(stream, tag)
 }
 
@@ -65,7 +70,12 @@ pub fn write_tagged_value_to_stream<T: std::io::Write>(
     stream: &mut T,
     value: &Value,
 ) -> Result<(), String> {
-    write_tag_to_stream(stream, value)?;
+    match write_tag_to_stream(stream, value) {
+        Ok(..) => {}
+        Err(e) => {
+            return Err(format!("{} /=>/ Failed to write tag to stream", e));
+        }
+    }
     write_untagged_value_to_stream(stream, value)
 }
 

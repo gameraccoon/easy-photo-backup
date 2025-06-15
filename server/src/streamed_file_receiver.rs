@@ -222,7 +222,7 @@ pub(crate) fn receive_directory(
                 send_file_confirmation(index, false, stream);
             }
             ReceiveFileResult::UnknownNetworkError(error) => {
-                return Err(format!("Failed to receive file, aborting: {}", error));
+                return Err(format!("{} /=>/ Failed to receive file, aborting", error));
             }
         }
         index += 1;
@@ -285,7 +285,7 @@ fn get_validated_absolute_file_path(
     let absolute_path = match std::path::absolute(destination_root_folder.join(file_path)) {
         Ok(absolute_path) => absolute_path,
         Err(e) => {
-            return Err(format!("Failed to canonicalize file path: {}", e));
+            return Err(format!("{} /=>/ Failed to canonicalize file path", e));
         }
     };
 

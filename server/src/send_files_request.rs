@@ -13,7 +13,7 @@ pub(crate) fn process_receive_files(
     let mut conn = match conn {
         Ok(conn) => conn,
         Err(e) => {
-            return Err(format!("Failed to create TLS connection: {}", e));
+            return Err(format!("{} /=>/ Failed to create TLS connection", e));
         }
     };
 
@@ -33,7 +33,7 @@ pub(crate) fn process_receive_files(
     let _ = conn.complete_io(stream);
 
     if let Err(e) = result {
-        return Err(format!("Failed to receive files: {}", e));
+        return Err(format!("{} /=>/ Failed to receive files", e));
     }
     Ok(())
 }

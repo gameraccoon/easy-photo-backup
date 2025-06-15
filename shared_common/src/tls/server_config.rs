@@ -24,7 +24,7 @@ pub fn make_config(
         Ok(server_private_key) => server_private_key,
         Err(e) => {
             println!("Failed to parse server private key: {}", e);
-            return Err(format!("Failed to parse server private key: {}", e));
+            return Err(format!("{} /=>/ Failed to parse server private key", e));
         }
     };
 

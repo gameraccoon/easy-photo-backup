@@ -244,7 +244,7 @@ fn pair_to_server(client_name: String) -> Result<ServerInfo, String> {
             }
         }
         Err(e) => {
-            return Err(format!("Failed to read from stdin: {}", e));
+            return Err(format!("{} /=>/ Failed to read from stdin", e));
         }
     };
     let entered_numeric_comparison_value = buffer.trim();
@@ -291,7 +291,7 @@ fn process_unpair(storage: Arc<Mutex<ClientStorage>>) -> Result<(), String> {
     let mut client_storage = match storage.lock() {
         Ok(storage) => storage,
         Err(err) => {
-            return Err(format!("Can't lock the storage mutex: {}", err));
+            return Err(format!("{} /=>/ Can't lock the storage mutex", err));
         }
     };
 
@@ -313,7 +313,7 @@ fn process_change_dir(storage: Arc<Mutex<ClientStorage>>) -> Result<(), String> 
     let client_storage = match storage.lock() {
         Ok(storage) => storage,
         Err(err) => {
-            return Err(format!("Can't lock the storage mutex: {}", err));
+            return Err(format!("{} /=>/ Can't lock the storage mutex", err));
         }
     };
 
@@ -345,7 +345,7 @@ fn process_change_dir(storage: Arc<Mutex<ClientStorage>>) -> Result<(), String> 
             }
         }
         Err(e) => {
-            return Err(format!("Failed to read from stdin: {}", e));
+            return Err(format!("{} /=>/ Failed to read from stdin", e));
         }
     };
 
@@ -362,7 +362,7 @@ fn process_change_dir(storage: Arc<Mutex<ClientStorage>>) -> Result<(), String> 
     let mut client_storage = match storage.lock() {
         Ok(storage) => storage,
         Err(err) => {
-            return Err(format!("Can't lock the storage mutex: {}", err));
+            return Err(format!("{} /=>/ Can't lock the storage mutex", err));
         }
     };
 
@@ -427,7 +427,7 @@ fn select_discovered_server(
                 }
             }
             Err(e) => {
-                return Err(format!("Failed to read from stdin: {}", e));
+                return Err(format!("{} /=>/ Failed to read from stdin", e));
             }
         };
 
@@ -448,7 +448,7 @@ fn select_discovered_server(
             let port = match port.parse::<u16>() {
                 Ok(port) => port,
                 Err(e) => {
-                    return Err(format!("Invalid port: {}", e));
+                    return Err(format!("{} /=>/ Invalid port", e));
                 }
             };
             Ok(DiscoveredServer {
@@ -469,7 +469,7 @@ fn select_paired_server_idx(
     let client_storage = match storage.lock() {
         Ok(storage) => storage,
         Err(err) => {
-            return Err(format!("Can't lock the storage mutex: {}", err));
+            return Err(format!("{} /=>/ Can't lock the storage mutex", err));
         }
     };
 
@@ -500,7 +500,7 @@ fn interactive_read_number() -> Result<usize, String> {
             }
         }
         Err(e) => {
-            return Err(format!("Failed to read from stdin: {}", e));
+            return Err(format!("{} /=>/ Failed to read from stdin", e));
         }
     };
 
@@ -513,7 +513,7 @@ fn interactive_read_number() -> Result<usize, String> {
     let number = match number.parse::<usize>() {
         Ok(number) => number,
         Err(err) => {
-            return Err(format!("Invalid number: '{}'", err));
+            return Err(format!("{} /=>/ Can't parse number", err));
         }
     };
 

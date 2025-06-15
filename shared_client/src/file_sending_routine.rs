@@ -60,7 +60,7 @@ pub fn process_routine(client_storage: &Arc<Mutex<ClientStorage>>) -> Result<(),
                 }
             }
             Err(err) => {
-                return Err(format!("Failed to lock client storage: {}", err));
+                return Err(format!("{} /=>/ Failed to lock client storage", err));
             }
         };
 
