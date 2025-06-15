@@ -17,13 +17,13 @@ pub fn update_storage_to_the_latest_version(
 fn register_storage_updaters() -> StorageUpdater {
     let mut storage_updater = StorageUpdater::with_initial_version(1);
 
-    storage_updater.add_update_function(1, v1_add_extended_directory_info);
+    storage_updater.add_update_function(2, v2_add_extended_directory_info);
     // add update functions above this line
     // don't forget to update CLIENT_STORAGE_VERSION
     storage_updater
 }
 
-fn v1_add_extended_directory_info(value: &mut Value) -> Result<(), String> {
+fn v2_add_extended_directory_info(value: &mut Value) -> Result<(), String> {
     match value {
         Value::Tuple(values) => {
             let mut paired_servers = match values.get_mut(1) {
