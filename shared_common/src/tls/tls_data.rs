@@ -1,7 +1,14 @@
-#[derive(Clone, PartialEq, Debug)]
+use crate::bstorage;
+use crate::bstorage::FromValue;
+use crate::bstorage::ToValue;
+use bstorage_derive::*;
+
+#[derive(Clone, PartialEq, Debug, ToValueByOrder, FromValueByOrder)]
 pub struct TlsData {
+    #[bstorage(byte_array)]
     private_key: Vec<u8>,
     // the public key that we send to other parties
+    #[bstorage(byte_array)]
     pub public_key: Vec<u8>,
 }
 

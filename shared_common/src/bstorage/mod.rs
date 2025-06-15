@@ -70,7 +70,7 @@ pub fn write_tagged_value_to_stream<T: std::io::Write>(
     stream: &mut T,
     value: &Value,
 ) -> Result<(), String> {
-    match write_tag_to_stream(stream, value) {
+    match write_tag_to_stream(stream, get_tag_from_value(value)) {
         Ok(..) => {}
         Err(e) => {
             return Err(format!("{} /=>/ Failed to write tag to stream", e));
@@ -82,7 +82,9 @@ pub fn write_tagged_value_to_stream<T: std::io::Write>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::bstorage;
     use crate::{inline_init_array, inline_init_object, inline_init_tuple};
+    use bstorage_derive::*;
 
     #[test]
     fn test_given_option_when_serialized_with_helper_then_correct_value_is_returned() {
@@ -157,5 +159,107 @@ mod tests {
         let deserialized_value = read_tagged_value_from_stream(&mut stream).unwrap();
 
         assert_eq!(value, deserialized_value);
+    }
+
+    #[derive(Debug, PartialEq, ToValueByOrder, FromValueByOrder)]
+    struct TestTuple(u8, u32, u64, String);
+
+    #[derive(Debug, PartialEq, ToValueByName, FromValueByName)]
+    struct TestStruct2 {
+        a: u8,
+        b: u32,
+        c: u64,
+        d: String,
+        e: Vec<u8>,
+        f: Vec<u32>,
+        g: Vec<u64>,
+        h: Vec<String>,
+        i: Vec<Vec<u8>>,
+        j: TestTuple,
+        k: std::path::PathBuf,
+        #[bstorage(byte_vec)]
+        l: Vec<u8>,
+    }
+
+    #[derive(Debug, PartialEq, ToValueByOrder, FromValueByOrder)]
+    struct TestStruct {
+        a: u8,
+        b: u32,
+        c: u64,
+        d: String,
+        e: Vec<u8>,
+        f: Vec<u32>,
+        g: Vec<u64>,
+        h: Vec<String>,
+        i: Vec<Vec<u8>>,
+        j: TestTuple,
+        k: Option<Box<TestStruct>>,
+        l: Option<String>,
+        m: HashMap<String, u32>,
+        n: Option<TestStruct2>,
+    }
+
+    #[test]
+    fn test_given_struct_when_serialized_and_deserialized_then_data_is_equal() {
+        let test_struct = TestStruct {
+            a: 10,
+            b: 20,
+            c: 30,
+            d: "test".to_string(),
+            e: vec![1, 2, 3],
+            f: vec![5, 6, 7],
+            g: vec![10, 20, 30],
+            h: vec!["test1".to_string(), "test2".to_string()],
+            i: vec![vec![2, 3, 4], vec![11, 12, 13]],
+            j: TestTuple(9, 99, 999, "asd".to_string()),
+            k: Some(Box::new(TestStruct {
+                a: 100,
+                b: 200,
+                c: 300,
+                d: "test2".to_string(),
+                e: vec![101, 102, 103],
+                f: vec![105, 106, 107],
+                g: vec![1010, 1020, 1030],
+                h: vec!["test3".to_string(), "test4".to_string()],
+                i: vec![vec![202, 203, 204], vec![111, 112, 113]],
+                j: TestTuple(19, 199, 1999, "asd2".to_string()),
+                k: None,
+                l: None,
+                m: HashMap::new(),
+                n: None,
+            })),
+            l: Some("test3".to_string()),
+            m: HashMap::from([
+                ("test4".to_string(), 101),
+                ("test6".to_string(), 102),
+                ("test8".to_string(), 103),
+            ]),
+            n: Some(TestStruct2 {
+                a: 10,
+                b: 20,
+                c: 30,
+                d: "test".to_string(),
+                e: vec![1, 2, 3],
+                f: vec![5, 6, 7],
+                g: vec![10, 20, 30],
+                h: vec!["test1".to_string(), "test2".to_string()],
+                i: vec![vec![2, 3, 4], vec![11, 12, 13]],
+                j: TestTuple(19, 199, 1999, "asd2".to_string()),
+                k: std::path::PathBuf::from("test/folder/path"),
+                l: vec![100, 101, 102, 103, 104],
+            }),
+        };
+
+        let value_to_write = test_struct.to_value();
+
+        let mut data = Vec::new();
+        let mut stream = std::io::Cursor::new(&mut data);
+        write_tagged_value_to_stream(&mut stream, &value_to_write).unwrap();
+        let mut stream = std::io::Cursor::new(data);
+        let deserialized_value = read_tagged_value_from_stream(&mut stream).unwrap();
+        assert_eq!(value_to_write, deserialized_value);
+
+        let deserialized_struct = TestStruct::from_value(deserialized_value).unwrap();
+        assert_eq!(test_struct, deserialized_struct);
     }
 }

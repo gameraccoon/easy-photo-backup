@@ -125,21 +125,25 @@ fn read_untagged_array_from_stream<T: std::io::Read>(stream: &mut T) -> Result<V
     Ok(elements)
 }
 
+pub(super) fn get_tag_from_value(value: &Value) -> u8 {
+    match value {
+        Value::U8(_) => Tag::U8 as u8,
+        Value::U32(_) => Tag::U32 as u8,
+        Value::U64(_) => Tag::U64 as u8,
+        Value::String(_) => Tag::String as u8,
+        Value::ByteArray(_) => Tag::ByteArray as u8,
+        Value::Tuple(_) => Tag::Tuple as u8,
+        Value::Option(_) => Tag::Option as u8,
+        Value::Object(_) => Tag::Object as u8,
+        Value::Array(_) => Tag::Array as u8,
+    }
+}
+
 pub(super) fn write_tag_to_stream<T: std::io::Write>(
     stream: &mut T,
-    value: &Value,
+    tag: u8,
 ) -> Result<(), String> {
-    match value {
-        Value::U8(_) => crate::write_u8(stream, Tag::U8 as u8),
-        Value::U32(_) => crate::write_u8(stream, Tag::U32 as u8),
-        Value::U64(_) => crate::write_u8(stream, Tag::U64 as u8),
-        Value::String(_) => crate::write_u8(stream, Tag::String as u8),
-        Value::ByteArray(_) => crate::write_u8(stream, Tag::ByteArray as u8),
-        Value::Tuple(_) => crate::write_u8(stream, Tag::Tuple as u8),
-        Value::Option(_) => crate::write_u8(stream, Tag::Option as u8),
-        Value::Object(_) => crate::write_u8(stream, Tag::Object as u8),
-        Value::Array(_) => crate::write_u8(stream, Tag::Array as u8),
-    }
+    crate::write_u8(stream, tag)
 }
 
 pub(super) fn write_untagged_value_to_stream<T: std::io::Write>(
@@ -199,7 +203,7 @@ fn write_untagged_object_to_stream<T: std::io::Write>(
 
 fn write_untagged_array_to_stream<T: std::io::Write>(
     stream: &mut T,
-    elements: &Vec<Value>,
+    elements: &[Value],
 ) -> Result<(), String> {
     crate::write_u32(stream, elements.len() as u32)?;
 
@@ -207,8 +211,14 @@ fn write_untagged_array_to_stream<T: std::io::Write>(
         return Ok(());
     }
 
-    write_tag_to_stream(stream, &elements[0])?;
-    for element in elements {
+    let tag = get_tag_from_value(&elements[0]);
+
+    write_tag_to_stream(stream, tag)?;
+    for i in 0..elements.len() {
+        let element = &elements[i];
+        if get_tag_from_value(element) != tag {
+            return Err(format!("All elements of an array must have the same type, but element 0 had type id {} and element {} has type id {}", tag, i, get_tag_from_value(element)));
+        }
         write_untagged_value_to_stream(stream, element)?;
     }
     Ok(())

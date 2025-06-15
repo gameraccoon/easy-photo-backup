@@ -1,4 +1,4 @@
-use crate::client_storage::{ClientStorage};
+use crate::client_storage::ClientStorage;
 use crate::nsd_client;
 use crate::send_files_request::send_files_request;
 use std::sync::{Arc, Mutex};

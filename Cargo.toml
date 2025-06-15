@@ -8,6 +8,7 @@ members = [
     "shared_common",
     "uniffi-bindgen",
     "uniffi-bindgen-swift",
+    "shared_common/bstorage_derive",
 ]
 resolver = "2"
 

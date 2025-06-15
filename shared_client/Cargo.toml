@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 shared_common.workspace = true
 rustls = { workspace = true, features = [] }
+bstorage_derive = { path = "../shared_common/bstorage_derive" }
