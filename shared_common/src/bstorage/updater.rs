@@ -107,6 +107,10 @@ impl StorageUpdater {
 
         UpdateResult::Updated(self.latest_version)
     }
+
+    pub fn get_latest_version(&self) -> u32 {
+        self.latest_version
+    }
 }
 
 #[cfg(test)]

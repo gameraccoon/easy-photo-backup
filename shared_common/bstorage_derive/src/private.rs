@@ -101,7 +101,7 @@ pub(crate) fn impl_from_value_by_order(ast: &syn::DeriveInput) -> TokenStream {
                                     match value {
                                         bstorage::Value::ByteArray(value) => value,
                                         _ => {
-                                            return Err(format!("Field {} of struct {} expected to be a byte array, but it is not", #field_name_str, #name_str));
+                                            return Err(format!("Field {} of struct {} expected to be a byte array, but it was {}", #field_name_str, #name_str, value.get_type_name()));
                                         }
                                     }
                                 },
@@ -281,7 +281,7 @@ pub(crate) fn impl_from_value_by_name(ast: &syn::DeriveInput) -> TokenStream {
                                 Some(value) => match value {
                                     bstorage::Value::ByteArray(value) => value,
                                     _ => {
-                                        return Err(format!("Field {} of struct {} expected to be a byte array, but it is not", #field_name_str, #name_str));
+                                        return Err(format!("Field {} of struct {} expected to be a byte array, but it was {}", #field_name_str, #name_str, value.get_type_name()));
                                     }
                                 },
                                 None => {

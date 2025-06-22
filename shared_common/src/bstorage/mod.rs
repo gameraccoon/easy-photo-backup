@@ -12,14 +12,14 @@ pub enum Tag {
     U64 = 0x03,
     String = 0x04,
     ByteArray = 0x05,
-    Tuple = 0x06,
-    Option = 0x07,
-    Object = 0x08,
-    Array = 0x09,
+    Tuple = 0x06,  // string parsing format: (), e.g. (1) or (*)
+    Option = 0x07, // string parsing format: .
+    Object = 0x08, // string parsing format: {}, e.g. {a} or {*}
+    Array = 0x09,  // string parsing format: [], e.g. [1] or [*]
 }
 
-#[cfg_attr(test, derive(Debug, PartialEq))]
-#[derive(Clone)]
+#[cfg_attr(test, derive(PartialEq))]
+#[derive(Debug, Clone)]
 pub enum Value {
     U8(u8),
     U32(u32),
@@ -39,6 +39,20 @@ impl Value {
 
     pub fn from_rust_type<T: ToValue>(rust_value: T) -> Value {
         rust_value.to_value()
+    }
+
+    pub fn get_type_name(&self) -> String {
+        match self {
+            Value::U8(_) => "u8".to_string(),
+            Value::U32(_) => "u32".to_string(),
+            Value::U64(_) => "u64".to_string(),
+            Value::String(_) => "string".to_string(),
+            Value::ByteArray(_) => "byte array".to_string(),
+            Value::Tuple(_) => "tuple".to_string(),
+            Value::Option(_) => "option".to_string(),
+            Value::Object(_) => "object".to_string(),
+            Value::Array(_) => "array".to_string(),
+        }
     }
 
     pub fn replace(&mut self, other: Value) {
@@ -77,6 +91,142 @@ pub fn write_tagged_value_to_stream<T: std::io::Write>(
         }
     }
     write_untagged_value_to_stream(stream, value)
+}
+
+pub fn for_each_value_for_path_mut<F: Fn(&mut Value) -> Result<(), String>>(
+    value: &mut Value,
+    path: &str,
+    f: &F,
+) -> Result<(), String> {
+    if path.is_empty() {
+        f(value)?;
+        return Ok(());
+    }
+
+    match value {
+        Value::Tuple(tuple) => {
+            if !path.starts_with('(') {
+                return Err("Tuple path must start with '('".to_string());
+            }
+
+            let path_part_end = path.find(')').ok_or("Missing closing parenthesis")?;
+            let path_part = &path[1..path_part_end];
+
+            if path_part == "*" {
+                for element in tuple {
+                    for_each_value_for_path_mut(element, &path[path_part_end + 1..], f).map_err(
+                        |e| format!("{} /=>/ Error while iterating through a tuple element", e),
+                    )?;
+                }
+            } else {
+                let index = path_part
+                    .parse::<usize>()
+                    .map_err(|_| format!("Failed to parse tuple index: '{}'", path_part))?;
+                if index >= tuple.len() {
+                    return Err(format!(
+                        "Index {} is out of bounds for tuple of length {}",
+                        index,
+                        tuple.len()
+                    ));
+                }
+                for_each_value_for_path_mut(&mut tuple[index], &path[path_part_end + 1..], f)
+                    .map_err(|e| {
+                        format!(
+                            "{} /=>/ Error while iterating through tuple element {}",
+                            e, index
+                        )
+                    })?;
+            }
+        }
+        Value::Option(option) => {
+            if !path.starts_with('.') {
+                return Err("Option path must use '.'".to_string());
+            }
+
+            if let Some(value) = option {
+                for_each_value_for_path_mut(value, &path[1..], f)
+                    .map_err(|e| format!("{} /=>/ Error while iterating through option", e))?;
+            }
+        }
+        Value::Object(object) => {
+            if !path.starts_with('{') {
+                return Err("Object path must start with '{'".to_string());
+            }
+
+            let path_part_end = path.find('}').ok_or("Missing closing curly brace")?;
+            let path_part = &path[1..path_part_end];
+
+            if path_part == "*" {
+                for (field_name, value) in object {
+                    for_each_value_for_path_mut(value, &path[path_part_end + 1..], f).map_err(
+                        |e| {
+                            format!(
+                                "{} /=>/ Error while iterating through object field '{}'",
+                                e, field_name
+                            )
+                        },
+                    )?;
+                }
+            } else {
+                let field_name = path_part
+                    .parse::<String>()
+                    .map_err(|_| format!("Failed to parse object field name: '{}'", path_part))?;
+                let value = object
+                    .get_mut(&field_name)
+                    .ok_or(format!("Field '{}' not found in object", field_name))?;
+                for_each_value_for_path_mut(value, &path[path_part_end + 1..], f).map_err(|e| {
+                    format!(
+                        "{} /=>/ Error while iterating through object field '{}'",
+                        e, field_name
+                    )
+                })?;
+            }
+        }
+        Value::Array(array) => {
+            if !path.starts_with('[') {
+                return Err("Array path must start with '['".to_string());
+            }
+
+            let path_part_end = path.find(']').ok_or("Missing closing square bracket")?;
+            let path_part = &path[1..path_part_end];
+
+            if path_part == "*" {
+                for element in array {
+                    for_each_value_for_path_mut(element, &path[path_part_end + 1..], f).map_err(
+                        |e| format!("{} /=>/ Error while iterating through array elements", e),
+                    )?;
+                }
+            } else {
+                let index = path_part
+                    .parse::<usize>()
+                    .map_err(|_| format!("Failed to parse array index: '{}'", path_part))?;
+                if index >= array.len() {
+                    return Err(format!(
+                        "Index {} is out of bounds for array of length {}",
+                        index,
+                        array.len()
+                    ));
+                }
+                for_each_value_for_path_mut(&mut array[index], &path[path_part_end + 1..], f)
+                    .map_err(|e| {
+                        format!(
+                            "{} /=>/ Error while iterating through array element {}",
+                            e, index
+                        )
+                    })?;
+            }
+        }
+        _ => {
+            // reached a leaf node with a non-empty path
+            return Err(format!(
+                "Cannot iterate through a leaf node using path {}, type is {}",
+                path,
+                value.get_type_name()
+            ));
+        }
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
