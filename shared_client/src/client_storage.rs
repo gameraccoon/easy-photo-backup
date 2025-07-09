@@ -7,7 +7,7 @@ use shared_common::bstorage::{FromValue, Value};
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 
-pub(crate) const CLIENT_STORAGE_VERSION: u32 = 3;
+pub(crate) const CLIENT_STORAGE_VERSION: u32 = 4;
 
 #[cfg_attr(test, derive(Debug, PartialEq))]
 #[derive(Clone, ToValueByOrder, FromValueByOrder)]
@@ -21,18 +21,15 @@ pub struct ServerInfo {
 }
 
 #[cfg_attr(test, derive(Debug, PartialEq))]
-#[derive(ToValueByOrder, FromValueByOrder)]
+#[derive(Clone, ToValueByOrder, FromValueByOrder)]
 pub struct FileChangeDetectionData {
     pub last_modified_time: SerializableSystemTime,
-    pub size: u64,
-    pub first_8_bytes: u64,
-    pub last_8_bytes: u64,
     #[bstorage(byte_array)]
     pub hash: Vec<u8>,
 }
 
 #[cfg_attr(test, derive(Debug, PartialEq))]
-#[derive(ToValueByOrder, FromValueByOrder)]
+#[derive(Clone, ToValueByOrder, FromValueByOrder)]
 pub struct DirectoryToSync {
     pub path: std::path::PathBuf,
 
@@ -81,7 +78,7 @@ pub struct AwaitingPairingServer {
 pub struct ClientStorage {
     pub client_name: String,
     pub paired_servers: Vec<PairedServerInfo>,
-    pub global_directories_to_sync: Vec<DirectoryToSync>,
+    pub global_directories_to_sync: Vec<std::path::PathBuf>,
 }
 
 impl ClientStorage {
@@ -195,8 +192,8 @@ impl ClientStorage {
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub struct SerializableSystemTime(std::time::SystemTime);
+#[derive(Clone, Debug, PartialEq)]
+pub struct SerializableSystemTime(pub std::time::SystemTime);
 
 impl ToValue for SerializableSystemTime {
     fn to_value(&self) -> Value {
@@ -272,31 +269,13 @@ mod tests {
                                     std::time::UNIX_EPOCH
                                         + std::time::Duration::from_secs(1640995200),
                                 ),
-                                size: 10,
-                                first_8_bytes: 42,
-                                last_8_bytes: 32,
                                 hash: vec![19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31],
                             },
                         )]),
                     }],
                 },
             }],
-            global_directories_to_sync: vec![DirectoryToSync {
-                path: std::path::PathBuf::from("test/folder/path2"),
-                folder_last_modified_time: None,
-                files_change_detection_data: HashMap::from([(
-                    std::path::PathBuf::from("path/to/file2.txt"),
-                    FileChangeDetectionData {
-                        last_modified_time: SerializableSystemTime(
-                            std::time::UNIX_EPOCH + std::time::Duration::from_secs(1640995200),
-                        ),
-                        size: 10,
-                        first_8_bytes: 42,
-                        last_8_bytes: 32,
-                        hash: vec![19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31],
-                    },
-                )]),
-            }],
+            global_directories_to_sync: vec![std::path::PathBuf::from("test/folder/path2")],
         };
 
         let mut stream = std::io::Cursor::new(Vec::new());
@@ -384,31 +363,13 @@ mod tests {
                                     std::time::UNIX_EPOCH
                                         + std::time::Duration::from_secs(1640995200),
                                 ),
-                                size: 10,
-                                first_8_bytes: 42,
-                                last_8_bytes: 32,
                                 hash: vec![19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31],
                             },
                         )]),
                     }],
                 },
             }],
-            global_directories_to_sync: vec![DirectoryToSync {
-                path: std::path::PathBuf::from("test/folder/path2"),
-                folder_last_modified_time: None,
-                files_change_detection_data: HashMap::from([(
-                    std::path::PathBuf::from("path/to/file2.txt"),
-                    FileChangeDetectionData {
-                        last_modified_time: SerializableSystemTime(
-                            std::time::UNIX_EPOCH + std::time::Duration::from_secs(1640995200),
-                        ),
-                        size: 10,
-                        first_8_bytes: 42,
-                        last_8_bytes: 32,
-                        hash: vec![19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31],
-                    },
-                )]),
-            }],
+            global_directories_to_sync: vec![std::path::PathBuf::from("test/folder/path2")],
         };
 
         let client_storage = ClientStorage::load(std::path::Path::new(
@@ -454,35 +415,69 @@ mod tests {
                                     std::time::UNIX_EPOCH
                                         + std::time::Duration::from_secs(1640995200),
                                 ),
-                                size: 10,
-                                first_8_bytes: 42,
-                                last_8_bytes: 32,
                                 hash: vec![19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31],
                             },
                         )]),
                     }],
                 },
             }],
-            global_directories_to_sync: vec![DirectoryToSync {
-                path: std::path::PathBuf::from("test/folder/path2"),
-                folder_last_modified_time: None,
-                files_change_detection_data: HashMap::from([(
-                    std::path::PathBuf::from("path/to/file2.txt"),
-                    FileChangeDetectionData {
-                        last_modified_time: SerializableSystemTime(
-                            std::time::UNIX_EPOCH + std::time::Duration::from_secs(1640995200),
-                        ),
-                        size: 10,
-                        first_8_bytes: 42,
-                        last_8_bytes: 32,
-                        hash: vec![19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31],
-                    },
-                )]),
-            }],
+            global_directories_to_sync: vec![std::path::PathBuf::from("test/folder/path2")],
         };
 
         let client_storage = ClientStorage::load(std::path::Path::new(
             "../test_data/old_client_storage_versions/version_3.bin",
+        ))
+        .unwrap()
+        .unwrap();
+
+        assert_eq!(client_storage, expected_client_storage);
+    }
+
+    #[test]
+    fn test_given_storage_version_4_when_loaded_then_updated_to_the_latest_version() {
+        let expected_client_storage = ClientStorage {
+            client_name: "Test client".to_string(),
+            paired_servers: vec![PairedServerInfo {
+                server_info: ServerInfo {
+                    id: vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+                    name: "Test server".to_string(),
+                    server_public_key: vec![
+                        10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
+                    ],
+                    client_keys: shared_common::tls::tls_data::TlsData::new(
+                        vec![
+                            20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35,
+                        ],
+                        vec![
+                            30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45,
+                        ],
+                    ),
+                },
+                directories_to_sync: DirectoriesToSync {
+                    inherit_global_settings: false,
+                    directories: vec![DirectoryToSync {
+                        path: std::path::PathBuf::from("test/folder/path"),
+                        folder_last_modified_time: Some(SerializableSystemTime(
+                            std::time::UNIX_EPOCH + std::time::Duration::from_secs(1640995200),
+                        )),
+                        files_change_detection_data: HashMap::from([(
+                            std::path::PathBuf::from("path/to/file1.txt"),
+                            FileChangeDetectionData {
+                                last_modified_time: SerializableSystemTime(
+                                    std::time::UNIX_EPOCH
+                                        + std::time::Duration::from_secs(1640995200),
+                                ),
+                                hash: vec![19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31],
+                            },
+                        )]),
+                    }],
+                },
+            }],
+            global_directories_to_sync: vec![std::path::PathBuf::from("test/folder/path2")],
+        };
+
+        let client_storage = ClientStorage::load(std::path::Path::new(
+            "../test_data/old_client_storage_versions/version_4.bin",
         ))
         .unwrap()
         .unwrap();
