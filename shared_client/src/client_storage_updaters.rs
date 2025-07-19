@@ -19,6 +19,7 @@ fn register_storage_updaters() -> StorageUpdater {
 
     storage_updater.add_update_function(2, v2_add_extended_directory_info);
     storage_updater.add_update_function(3, v3_serialize_tls_data_explicitly);
+    storage_updater.add_update_function(4, v4_remove_extra_file_change_detection_data);
     // add update functions above this line
     // don't forget to update CLIENT_STORAGE_VERSION
 
@@ -145,4 +146,50 @@ fn v3_serialize_tls_data_explicitly(root_value: &mut Value) -> Result<(), String
         "(2)[*](2)",
         &convert_file_change_detection_data,
     )
+}
+
+fn v4_remove_extra_file_change_detection_data(root_value: &mut Value) -> Result<(), String> {
+    bstorage::for_each_value_for_path_mut(root_value, "(1)[*](1)(1)[*](2)(1)[*]", &|value| {
+        match value {
+            Value::Tuple(file_change_detection_data_fields) => {
+                if file_change_detection_data_fields.len() != 5 {
+                    return Err(format!(
+                        "file_change_detection_data_element has {} elements, but it should have 5",
+                        file_change_detection_data_fields.len()
+                    ));
+                }
+
+                file_change_detection_data_fields.remove(3);
+                file_change_detection_data_fields.remove(2);
+                file_change_detection_data_fields.remove(1);
+                Ok(())
+            }
+            _ => Err("file_change_detection_data_element is not a tuple".to_string()),
+        }
+    })?;
+
+    bstorage::for_each_value_for_path_mut(root_value, "(2)[*]", &|value| {
+        let new_value = match value {
+            Value::Tuple(fields) => fields
+                .first_mut()
+                .map(|value| value.swap_replace(Value::Option(None))),
+            _ => {
+                return Err("Element of global_directories_to_sync was not a tuple".to_string());
+            }
+        };
+
+        if let Some(new_value) = new_value {
+            let Value::String(_) = &new_value else {
+                return Err(
+                    "First element of global_directories_to_sync element wasn't a string"
+                        .to_string(),
+                );
+            };
+
+            value.replace(new_value);
+            Ok(())
+        } else {
+            Err("global_directories_to_sync element didn't have the first field".to_string())
+        }
+    })
 }

@@ -58,6 +58,12 @@ impl Value {
     pub fn replace(&mut self, other: Value) {
         *self = other;
     }
+
+    pub fn swap_replace(&mut self, other: Value) -> Value {
+        let mut other = other;
+        std::mem::swap(self, &mut other);
+        other
+    }
 }
 
 pub trait ToValue {

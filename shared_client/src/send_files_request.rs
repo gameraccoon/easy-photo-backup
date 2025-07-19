@@ -8,17 +8,21 @@ use std::sync::Arc;
 pub fn send_files_request(
     destination: NetworkAddress,
     server_public_key: Vec<u8>,
+    sent_files_cache: &mut crate::sent_files_cache::Cache,
     client_key_pair: shared_common::tls::tls_data::TlsData,
-    directories_to_sync: Vec<std::path::PathBuf>,
-) {
+    files_to_send: Vec<crate::file_change_detector::ChangedFile>,
+) -> Result<(), String> {
+    if files_to_send.is_empty() {
+        return Ok(());
+    }
+
     let mut stream = match TcpStream::connect(format!("{}:{}", destination.ip, destination.port)) {
         Ok(stream) => stream,
         Err(e) => {
-            println!(
-                "Failed to connect to server {}:{} : {}",
-                &destination.ip, destination.port, e
-            );
-            return;
+            return Err(format!(
+                "{} /=>/ Failed to connect to server {}:{}",
+                e, destination.ip, destination.port
+            ));
         }
     };
 
@@ -26,8 +30,7 @@ pub fn send_files_request(
     let handshake_result = client_handshake::process_handshake(&mut stream);
 
     let HandshakeResult::Ok(server_version) = handshake_result else {
-        println!("Failed to handshake with server");
-        return;
+        return Err("Failed to handshake with server".to_string());
     };
 
     let request_result = client_requests::make_request(
@@ -37,12 +40,13 @@ pub fn send_files_request(
     let request_result = match request_result {
         RequestWriteResult::Ok(request_result) => request_result,
         RequestWriteResult::OkNoAnswer => {
-            println!("Unexpected request value, the protocol is corrupted");
-            return;
+            return Err("Unexpected request value, the protocol is corrupted".to_string());
         }
         RequestWriteResult::UnknownError(error_text) => {
-            println!("Failed to write request to server: {}", error_text);
-            return;
+            return Err(format!(
+                "{} /=>/ Failed to write request to server",
+                error_text
+            ));
         }
     };
     match request_result {
@@ -50,8 +54,7 @@ pub fn send_files_request(
             println!("Server is ready to receive files");
         }
         _ => {
-            println!("Server rejected the request");
-            return;
+            return Err("Server rejected the request".to_string());
         }
     }
 
@@ -62,8 +65,7 @@ pub fn send_files_request(
         ) {
             Ok(client_tls_config) => client_tls_config,
             Err(e) => {
-                println!("Failed to initialize TLS config: {}", e);
-                return;
+                return Err(format!("{} /=>/ Failed to initialize TLS config", e));
             }
         };
 
@@ -78,48 +80,58 @@ pub fn send_files_request(
     let mut conn = match conn {
         Ok(conn) => conn,
         Err(e) => {
-            println!("Failed to create TLS connection: {}", e);
-            return;
+            return Err(format!("{} /=>/ Failed to create TLS connection", e));
         }
     };
 
-    {
+    let result = {
         let mut tls = rustls::Stream::new(&mut conn, &mut stream);
+        let mut skipped = Vec::new();
 
-        // ToDo: test code here, we need to send in the list of files instead of the directory
-        let result =
-            streamed_file_sender::send_directory(&directories_to_sync.get(0).unwrap(), &mut tls);
-        match result {
-            streamed_file_sender::SendDirectoryResult::AllSent(send_result) => {
-                if send_result.is_empty() {
-                    println!("No files to send");
-                } else {
-                    println!("Successfully sent all files");
-                }
+        let send_result = streamed_file_sender::send_files(
+            files_to_send,
+            &mut skipped,
+            &mut tls,
+            sent_files_cache,
+        );
+        if skipped.is_empty() {
+            if send_result.is_empty() {
+                println!("No files to send");
+            } else {
+                println!("Successfully sent all files");
             }
-            streamed_file_sender::SendDirectoryResult::PartiallySent(sent, skipped) => {
-                println!(
-                    "Successfully sent {} files, skipped {}",
-                    sent.len(),
-                    skipped.len()
-                );
-            }
-            streamed_file_sender::SendDirectoryResult::Aborted(reason) => {
-                println!("Failed to send files: {}", reason);
-            }
+            Ok(())
+        } else if !send_result.is_empty() {
+            println!(
+                "Successfully sent {} files, skipped {}",
+                send_result.len(),
+                skipped.len()
+            );
+            Err(format!(
+                "Not all files were sent, {} files were skipped",
+                skipped.len()
+            ))
+        } else {
+            Err("Failed to send files".to_string())
+        }
+    };
+
+    conn.send_close_notify();
+    {
+        let result = conn.complete_io(&mut stream);
+        if let Err(e) = result {
+            println!("Failed to complete TLS connection: {}", e);
         }
     }
 
-    conn.send_close_notify();
-    let result = conn.complete_io(&mut stream);
-    if let Err(e) = result {
-        println!("Failed to complete TLS connection: {}", e);
-    }
-
-    let result = stream.shutdown(std::net::Shutdown::Both);
-    if let Err(e) = result {
-        println!("Failed to shut down the connection: {}", e);
+    {
+        let result = stream.shutdown(std::net::Shutdown::Both);
+        if let Err(e) = result {
+            println!("Failed to shut down the connection: {}", e);
+        }
     }
 
     println!("Closing the connection to the target machine");
+
+    result
 }

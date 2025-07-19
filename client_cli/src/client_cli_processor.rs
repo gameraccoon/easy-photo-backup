@@ -1,4 +1,3 @@
-use crate::client_config::ClientConfig;
 use shared_client::client_storage::{
     ClientStorage, DirectoriesToSync, PairedServerInfo, ServerInfo,
 };
@@ -10,14 +9,8 @@ use std::sync::{Arc, Mutex};
 const NSD_BROADCAST_PERIOD: std::time::Duration = std::time::Duration::from_secs(1);
 pub const CLIENT_STORAGE_FILE_NAME: &str = "client_storage.bin";
 
-pub fn start_cli_processor(config: ClientConfig, storage: Arc<Mutex<ClientStorage>>) {
+pub fn start_cli_processor(storage: Arc<Mutex<ClientStorage>>) {
     let mut buffer = String::new();
-
-    let directories_to_sync = vec![shared_client::client_storage::DirectoryToSync {
-        path: config.default_folder_to_sync.clone(),
-        folder_last_modified_time: None,
-        files_change_detection_data: Default::default(),
-    }];
 
     loop {
         print!("> ");
@@ -47,7 +40,7 @@ pub fn start_cli_processor(config: ClientConfig, storage: Arc<Mutex<ClientStorag
                 println!("pair - start pairing process with a server");
                 println!("unpair - remove server from the list of paired servers");
                 println!("dir - change the synchronized directory");
-                println!("send - send files to all paired servers");
+                println!("send - send changed files to all paired servers");
                 println!("exit - exit the program");
                 println!("help - show this help");
             }
@@ -58,6 +51,12 @@ pub fn start_cli_processor(config: ClientConfig, storage: Arc<Mutex<ClientStorag
                     println!("Cannot lock storage, try again");
                     continue;
                 };
+
+                if !storage.paired_servers.is_empty() {
+                    println!("Only one server is supported at the moment");
+                    continue;
+                }
+
                 let result = pair_to_server(storage.client_name.clone());
                 let result = match result {
                     Ok(result) => result,
@@ -82,7 +81,7 @@ pub fn start_cli_processor(config: ClientConfig, storage: Arc<Mutex<ClientStorag
 
                 println!("Pairing succeeded, confirm on the other device");
 
-                let result = storage.save(std::path::Path::new(CLIENT_STORAGE_FILE_NAME));
+                let result = storage.save();
                 if let Err(e) = result {
                     println!("Failed to save client storage: {}", e);
                 }
@@ -355,7 +354,7 @@ fn process_change_dir(storage: Arc<Mutex<ClientStorage>>) -> Result<(), String> 
         return Err("No path provided".to_string());
     }
 
-    if let Err(_) = std::fs::read_dir(new_path) {
+    if std::fs::read_dir(new_path).is_err() {
         return Err("Can't access the directory, is the path correct? Aborting".to_string());
     }
 
@@ -385,6 +384,7 @@ fn process_change_dir(storage: Arc<Mutex<ClientStorage>>) -> Result<(), String> 
         .directories_to_sync
         .directories[0]
         .path = std::path::PathBuf::from(new_path);
+
     println!("Successfully changed source folder for this server");
 
     Ok(())
@@ -529,7 +529,7 @@ fn save_storage(storage: Arc<Mutex<ClientStorage>>) {
         }
     };
 
-    let result = client_storage.save(std::path::Path::new(CLIENT_STORAGE_FILE_NAME));
+    let result = client_storage.save();
     if let Err(e) = result {
         println!("Failed to save client storage: {}", e);
     }

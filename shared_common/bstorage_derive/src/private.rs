@@ -14,6 +14,19 @@ fn is_byte_array(field: &syn::Field) -> bool {
     })
 }
 
+fn is_ignored(field: &syn::Field) -> bool {
+    field.attrs.iter().any(|attr| {
+        if attr.path().is_ident("bstorage") {
+            match attr.parse_args::<syn::Path>() {
+                Ok(path) => path.is_ident("ignore"),
+                Err(_) => false,
+            }
+        } else {
+            false
+        }
+    })
+}
+
 pub(crate) fn impl_to_value_by_order(ast: &syn::DeriveInput) -> TokenStream {
     let name = &ast.ident;
 
@@ -22,7 +35,9 @@ pub(crate) fn impl_to_value_by_order(ast: &syn::DeriveInput) -> TokenStream {
             syn::Fields::Named(fields_named) => {
                 let fields = fields_named.named.iter().map(|field| {
                     let field_name = &field.ident;
-                    if is_byte_array(field) {
+                    if is_ignored(field) {
+                        quote! {}
+                    } else if is_byte_array(field) {
                         quote! {
                             bstorage::Value::ByteArray(self.#field_name.clone()),
                         }
@@ -94,7 +109,12 @@ pub(crate) fn impl_from_value_by_order(ast: &syn::DeriveInput) -> TokenStream {
                     let field_name = &field.ident;
                     let field_name_str = field_name.clone().map(|field_name| field_name.to_string());
                     let field_type = &field.ty;
-                    if is_byte_array(field) {
+                    if is_ignored(field) {
+                        quote! {
+                            #field_name: #field_type::default(),
+                        }
+                    }
+                    else if is_byte_array(field) {
                         quote! {
                             #field_name: match iter.next() {
                                 Some(value) => {
@@ -217,7 +237,10 @@ pub(crate) fn impl_to_value_by_name(ast: &syn::DeriveInput) -> TokenStream {
                     let fields = fields_named.named.iter().map(|field| {
                         let field_name = &field.ident;
                         let field_name_str = field_name.clone().map(|field_name| field_name.to_string());
-                        if is_byte_array(field) {
+                        if is_ignored(field) {
+                            quote! {}
+                        }
+                        else if is_byte_array(field) {
                             quote! {
                                 (#field_name_str.to_string(), bstorage::Value::ByteVec(self.#field_name.clone())),
                             }
@@ -275,7 +298,12 @@ pub(crate) fn impl_from_value_by_name(ast: &syn::DeriveInput) -> TokenStream {
                     let field_name = &field.ident;
                     let field_name_str = field_name.clone().map(|field_name| field_name.to_string());
                     let field_type = &field.ty;
-                    if is_byte_array(field) {
+                    if is_ignored(field) {
+                        quote! {
+                            #field_name: #field_type::default(),
+                        }
+                    }
+                    else if is_byte_array(field) {
                         quote! {
                             #field_name: match values.remove(&#field_name_str.to_string()) {
                                 Some(value) => match value {

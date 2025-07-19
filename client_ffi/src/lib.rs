@@ -298,7 +298,6 @@ impl ServerInfo {
 #[derive(uniffi::Object)]
 struct ClientStorage {
     internals: Arc<Mutex<shared_client::client_storage::ClientStorage>>,
-    file_path: std::path::PathBuf,
 }
 
 #[uniffi::export]
@@ -310,13 +309,12 @@ impl ClientStorage {
             internals: Arc::new(Mutex::new(
                 shared_client::client_storage::ClientStorage::load_or_generate(&file_path),
             )),
-            file_path,
         }
     }
 
     pub fn save(&self) {
         if let Ok(internals) = self.internals.lock() {
-            let result = internals.save(&self.file_path);
+            let result = internals.save();
             if let Err(e) = result {
                 println!("Failed to save client storage: {}", e);
             }
@@ -328,7 +326,7 @@ impl ClientStorage {
     pub fn set_device_name(&self, device_name: String) {
         if let Ok(mut internals) = self.internals.lock() {
             internals.client_name = device_name;
-            let result = internals.save(&self.file_path);
+            let result = internals.save();
             if let Err(e) = result {
                 println!("Failed to save client name to storage: {}", e);
             }
@@ -439,7 +437,7 @@ impl PairingProcessor {
                             directories_to_sync: DirectoriesToSync::new(),
                         },
                     );
-                    let result = client_storage_internals.save(&client_storage.file_path);
+                    let result = client_storage_internals.save();
                     if result.is_err() {
                         println!("Failed to save client storage");
                     }
