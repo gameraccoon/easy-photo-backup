@@ -1,5 +1,5 @@
 [package]
-name = "server_digits_gui"
+name = "server-pairing-digits-gui"
 version = "0.4.0"
 edition = "2021"
 

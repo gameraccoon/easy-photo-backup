@@ -128,9 +128,10 @@ pub fn process_pairing_requests(storage_mutex: Arc<std::sync::Mutex<ServerStorag
 fn process_digit_confirmation_gui(digits: String) -> DigitConfirmationResult {
     #[cfg(target_os = "windows")]
     let mut command =
-        std::process::Command::new(get_exe_folder_path().join("server_digits_gui.exe"));
+        std::process::Command::new(get_exe_folder_path().join("server-pairing-digits-gui.exe"));
     #[cfg(not(target_os = "windows"))]
-    let mut command = std::process::Command::new(get_exe_folder_path().join("server_digits_gui"));
+    let mut command =
+        std::process::Command::new(get_exe_folder_path().join("server-pairing-digits-gui"));
 
     let output = command
         .arg(digits)
