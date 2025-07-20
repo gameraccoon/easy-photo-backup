@@ -65,7 +65,8 @@ pub fn send_file(
     #[cfg(windows)]
     let path_string_representation = path_string_representation.replace("\\", "/");
 
-    let result = shared_common::write_string(stream, path_string_representation);
+    #[allow(clippy::needless_borrow)]
+    let result = shared_common::write_string(stream, &path_string_representation);
     if let Err(e) = result {
         println!("Failed to write file path to socket: {}", e);
         return SendFileResult::UnknownConnectionError(format!(

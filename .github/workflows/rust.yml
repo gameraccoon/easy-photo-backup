@@ -64,7 +64,7 @@ jobs:
     #   run: cargo rustc --release -- -C link-args="res/resources.res"
     - name: Move the server executables to data folder
       run: |
-        mkdir -p data/windows/server
+        New-Item -ItemType Directory -Force -Path data\windows\server
         mv target/release/easy-photo-backup-server.exe data/windows/server/
         mv target/release/server-pairing-digits-gui.exe data/windows/server/
     - name: Upload Windows server artifacts
@@ -76,7 +76,7 @@ jobs:
 
     - name: Move the client executable to data folder
       run: |
-        mkdir -p data/windows/client
+        New-Item -ItemType Directory -Force -Path data\windows\client
         mv target/release/easy-photo-backup-client-cli.exe data/windows/client/
     - name: Upload Windows client artifacts
       uses: actions/upload-artifact@v4
