@@ -10,6 +10,10 @@ on:
     - .gitignore
     - '.github/**'
     - '!.github/workflows/rust.yml'
+    - 'client_ffi/**'
+    - 'uniffi-bindgen/**'
+    - 'uniffi-bindgen-swift/**'
+    - 'platforms/**'
 
 env:
   CARGO_TERM_COLOR: always

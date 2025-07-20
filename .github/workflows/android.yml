@@ -2,9 +2,20 @@ name: Android CI
 
 on:
   push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+    branches: '*'
+    paths-ignore:
+    - README.md
+    - LICENSE
+    - CONTRIBUTING.md
+    - .gitignore
+    - '.github/**'
+    - '!.github/workflows/android.yml'
+    - 'client_cli/**'
+    - 'server/**'
+    - 'server_digits_gui/**'
+    - 'uniffi-bindgen-swift/**'
+    - 'test_data/**'
+
 
 jobs:
   build:
