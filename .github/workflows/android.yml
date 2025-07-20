@@ -49,16 +49,29 @@ jobs:
       run: touch local.properties
       working-directory: platforms/android
 
+    - name: Prepare gradle.properties for signing
+      run: |
+        echo -n '${{ secrets.TEST_APK_SIGNING_STORE_FILE }}' | base64 --decode > ~/app_signing_file.jks
+        mkdir -p ~/.gradle
+        echo RELEASE_STORE_FILE=~/app_signing_file.jks >> ~/.gradle/gradle.properties
+        echo RELEASE_STORE_PASSWORD=${{ secrets.TEST_APK_SIGNING_STORE_PASSWORD }} >> ~/.gradle/gradle.properties
+        echo RELEASE_KEY_ALIAS=${{ secrets.TEST_APK_SIGNING_KEY_ALIAS }} >> ~/.gradle/gradle.properties
+        echo RELEASE_KEY_PASSWORD=${{ secrets.TEST_APK_SIGNING_KEY_PASSWORD }} >> ~/.gradle/gradle.properties
+
     - name: Build with Gradle
       run: ./gradlew build
+      working-directory: platforms/android
+
+    - name: Sign the Apk
+      run: ./gradlew assembleRelease
       working-directory: platforms/android
 
     - name: Upload APK artifact
       uses: actions/upload-artifact@v4
       with:
-        name: android-apk-unsigned
+        name: easy-photo-backup_android-client.apk
         path: |
-          platforms/android/app/build/outputs/apk/release/app-release-unsigned.apk
+          platforms/android/app/build/outputs/apk/release/app-release.apk
 
     - name: Verify Kotlin formatting
       env:
