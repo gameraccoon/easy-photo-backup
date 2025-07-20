@@ -1,0 +1,122 @@
+name: Build Windows/Linux/macOS
+
+on:
+  push:
+    branches: '*'
+    paths-ignore:
+    - README.md
+    - LICENSE
+    - CONTRIBUTING.md
+    - .gitignore
+    - '.github/**'
+    - '!.github/workflows/rust.yml'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build_linux_x64:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - run: rustup toolchain install stable --profile minimal
+    - uses: Swatinem/rust-cache@v2
+    - name: Build
+      run: cargo build --release
+    - name: Run tests
+      run: cargo test --release --verbose
+
+    - name: Move the server executables to data folder
+      run: |
+        mkdir -p data/linux/server
+        mv target/release/easy-photo-backup-server data/linux/server/
+        mv target/release/server-pairing-digits-gui data/linux/server/
+    - name: Upload Linux server artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: easy-photo-backup-server-Linux-x64
+        path: data/linux/server*
+        if-no-files-found: error
+
+    - name: Move the client executable to data folder
+      run: |
+        mkdir -p data/linux/client
+        mv target/release/easy-photo-backup-client-cli data/linux/client/
+    - name: Upload Linux client artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: easy-photo-backup-CLI-client-Linux-x64
+        path: data/linux/client/*
+        if-no-files-found: error
+
+  build_windows_x64:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v4
+    - run: rustup toolchain install stable --profile minimal
+    - uses: Swatinem/rust-cache@v2
+    - name: Build
+      run: cargo build --release
+    - name: Run tests
+      run: cargo test --release --verbose
+
+    # - name: Add windows icon
+    #   run: cargo rustc --release -- -C link-args="res/resources.res"
+    - name: Move the server executables to data folder
+      run: |
+        mkdir -p data/windows/server
+        mv target/release/easy-photo-backup-server.exe data/windows/server/
+        mv target/release/server-pairing-digits-gui.exe data/windows/server/
+    - name: Upload Windows server artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: easy-photo-backup-server-Windows-x64
+        path: data/windows/*
+        if-no-files-found: error
+
+    - name: Move the client executable to data folder
+      run: |
+        mkdir -p data/windows/client
+        mv target/release/easy-photo-backup-client-cli.exe data/windows/client/
+    - name: Upload Windows client artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: easy-photo-backup-CLI-client-Windows-x64
+        path: data/windows/client/*
+        if-no-files-found: error
+
+  build_macos_arm:
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v4
+    - run: rustup toolchain install stable --profile minimal
+    - uses: Swatinem/rust-cache@v2
+    - name: Set up arm target
+      run: rustup target add aarch64-apple-darwin
+    - name: Build
+      run: cargo build --release --target=aarch64-apple-darwin
+    - name: Run tests
+      run: cargo test --release --verbose
+
+    - name: Move the server executables to data folder
+      run: |
+        mkdir -p data/macos/server
+        mv target/aarch64-apple-darwin/release/easy-photo-backup-server data/macos/server/
+        mv target/aarch64-apple-darwin/release/server-pairing-digits-gui data/macos/server/
+    - name: Upload macOS server artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: easy-photo-backup-server-MacOS-aarch64
+        path: data/macos/server*
+        if-no-files-found: error
+
+    - name: Move the client executable to data folder
+      run: |
+        mkdir -p data/macos/client
+        mv target/aarch64-apple-darwin/release/easy-photo-backup-client-cli data/macos/client/
+    - name: Upload macOS client artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: easy-photo-backup-CLI-client-MacOS-aarch64
+        path: data/macos/client/*
+        if-no-files-found: error
