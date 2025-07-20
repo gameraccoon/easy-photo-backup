@@ -1,5 +1,6 @@
-use shared_client::client_storage::DirectoriesToSync;
+use shared_client::client_storage::{DirectoriesToSync, DirectoryToSync};
 use shared_client::nsd_client;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 // generate uniffi boilerplate
@@ -347,6 +348,22 @@ impl ClientStorage {
         }
     }
 
+    pub fn get_server_sync_path(&self, device_id: Vec<u8>) -> String {
+        if let Ok(internals) = self.internals.lock() {
+            for server in internals.paired_servers.iter() {
+                if server.server_info.id == device_id {
+                    if let Some(first_element) = server.directories_to_sync.directories.first() {
+                        let path_str = first_element.path.to_str();
+                        if let Some(path) = path_str {
+                            return path.to_string();
+                        }
+                    }
+                }
+            }
+        }
+        String::new()
+    }
+
     pub fn is_device_paired(&self, device_id: Vec<u8>) -> bool {
         if let Ok(internals) = self.internals.lock() {
             internals
@@ -449,6 +466,30 @@ impl PairingProcessor {
             println!("Can't lock internals of pairing processor");
         }
     }
+}
+
+#[uniffi::export]
+fn set_directory_to_sync(client_storage: &ClientStorage, device_id: Vec<u8>, path: String) {
+    let Ok(mut client_storage) = client_storage.internals.lock() else {
+        return;
+    };
+
+    client_storage
+        .paired_servers
+        .iter_mut()
+        .find(|server| server.server_info.id == device_id)
+        .and_then(|server| {
+            server.directories_to_sync.directories.clear();
+            server
+                .directories_to_sync
+                .directories
+                .push(DirectoryToSync {
+                    path: PathBuf::from(path),
+                    folder_last_modified_time: None,
+                    files_change_detection_data: Default::default(),
+                });
+            Some(())
+        });
 }
 
 #[uniffi::export]

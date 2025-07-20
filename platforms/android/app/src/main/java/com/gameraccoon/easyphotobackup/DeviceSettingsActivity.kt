@@ -8,7 +8,11 @@ import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.preference.EditTextPreference
+import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
+import uniffi.client_ffi.ClientStorage
+import uniffi.client_ffi.setDirectoryToSync
 
 class DeviceSettingsActivity : AppCompatActivity() {
   var deviceId: ByteArray = ByteArray(16)
@@ -27,13 +31,50 @@ class DeviceSettingsActivity : AppCompatActivity() {
     deviceId = intent.getByteArrayExtra("id")!!
 
     if (savedInstanceState == null) {
-      supportFragmentManager.beginTransaction().replace(R.id.settings, SettingsFragment()).commit()
+      supportFragmentManager
+          .beginTransaction()
+          .replace(R.id.settings, SettingsFragment(deviceId))
+          .commit()
     }
   }
 
-  class SettingsFragment : PreferenceFragmentCompat() {
+  class SettingsFragment : PreferenceFragmentCompat {
+    private var isDirty = false
+    private var clientStorage: ClientStorage? = null
+    private var deviceId: ByteArray = ByteArray(16)
+
+    constructor(deviceId: ByteArray) : super() {
+      this.deviceId = deviceId
+    }
+
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
       setPreferencesFromResource(R.xml.device_preferences, rootKey)
+
+      val easyPhotoBackupApplication = activity?.application as EasyPhotoBackupApplication
+      clientStorage = easyPhotoBackupApplication.getClientStorage()
+
+      val filePathPreference = findPreference<EditTextPreference>("file_path")
+      val syncPath = clientStorage?.getServerSyncPath(deviceId)
+      if (syncPath == null || syncPath.isEmpty()) {
+        filePathPreference?.text = ""
+      } else {
+        filePathPreference?.text = syncPath
+      }
+
+      filePathPreference?.onPreferenceChangeListener =
+          Preference.OnPreferenceChangeListener { preference, newValue ->
+            setDirectoryToSync(clientStorage!!, deviceId, newValue.toString())
+            isDirty = true
+            true
+          }
+    }
+
+    override fun onPause() {
+      super.onPause()
+      if (isDirty) {
+        clientStorage!!.save()
+        isDirty = false
+      }
     }
   }
 

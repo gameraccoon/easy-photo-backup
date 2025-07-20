@@ -3,8 +3,8 @@
     <PreferenceCategory app:title="@string/category_1_header">
 
         <EditTextPreference
-            app:key="test_setting_1"
-            app:title="@string/text_edit_title"
+            app:key="file_path"
+            app:title="@string/path_to_backup_title"
             app:useSimpleSummaryProvider="true" />
 
         <ListPreference

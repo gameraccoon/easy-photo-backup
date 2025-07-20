@@ -18,7 +18,7 @@
     <!-- Settings temp values -->
     <string name="category_1_header">Header 1</string>
     <string name="category_2_header">Header 2</string>
-    <string name="text_edit_title">Text edit title</string>
+    <string name="path_to_backup_title">Path to backup</string>
     <string name="combo_box_title">Combo box title</string>
     <string name="checkbox_title">Checkbox title</string>
     <string name="dependent_checkbox_title">Dependent checkbox title</string>
