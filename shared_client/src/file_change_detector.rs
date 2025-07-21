@@ -28,8 +28,9 @@ pub fn detect_file_changes(
         Ok(metadata) => metadata,
         Err(e) => {
             return Err(format!(
-                "{} /=>/ Failed to get metadata of source directory",
-                e
+                "{} /=>/ Failed to get metadata of source directory: {}",
+                e,
+                dir.path.display(),
             ));
         }
     };
