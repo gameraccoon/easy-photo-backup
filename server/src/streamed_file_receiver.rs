@@ -204,8 +204,18 @@ pub(crate) fn receive_directory(
     stream: &mut Stream<ServerConnection, TcpStream>,
     receive_strategies: &ReceiveStrategies,
 ) -> Result<(), String> {
+    let result = std::fs::create_dir_all(destination_directory);
+    if let Err(e) = result {
+        return Err(format!("Failed to create directory: {}", e));
+    }
+
     let Ok(canonical_destination_directory) = std::fs::canonicalize(destination_directory) else {
-        return Err("Failed to canonicalize destination directory".to_string());
+        return Err(format!(
+            "Failed to canonicalize destination directory {}",
+            destination_directory
+                .to_str()
+                .unwrap_or("[can't convert to string]")
+        ));
     };
 
     let mut index = 0;
