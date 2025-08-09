@@ -52,7 +52,6 @@ pub fn process_routine(client_storage: &Arc<Mutex<ClientStorage>>) -> Result<(),
                             paired_server_info.directories_to_sync.directories.clone(),
                         )
                     } else {
-                        println!("Failed to find server info by id");
                         return Err("Failed to find server info by id".to_string());
                     }
                 }

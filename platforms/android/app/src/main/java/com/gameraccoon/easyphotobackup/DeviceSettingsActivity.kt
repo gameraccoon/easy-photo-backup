@@ -1,10 +1,13 @@
 package com.gameraccoon.easyphotobackup
 
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.view.MenuItem
 import android.view.View
 import androidx.activity.enableEdgeToEdge
+import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -47,6 +50,7 @@ class DeviceSettingsActivity : AppCompatActivity() {
       this.deviceId = deviceId
     }
 
+    @RequiresApi(Build.VERSION_CODES.R)
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
       setPreferencesFromResource(R.xml.device_preferences, rootKey)
 
@@ -65,6 +69,17 @@ class DeviceSettingsActivity : AppCompatActivity() {
           Preference.OnPreferenceChangeListener { preference, newValue ->
             setDirectoryToSync(clientStorage!!, deviceId, newValue.toString())
             isDirty = true
+
+            val granted =
+                activity?.checkSelfPermission(
+                    android.Manifest.permission.MANAGE_EXTERNAL_STORAGE) ==
+                    PackageManager.PERMISSION_GRANTED
+            if (!granted) {
+              val intent =
+                  Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+              this.startActivity(intent)
+            }
+
             true
           }
     }
