@@ -6,7 +6,7 @@ use std::path::PathBuf;
 pub enum SendFileResult {
     Ok,
     CanNotOpenFile,
-    Skipped,
+    Skipped(String),
     UnknownConnectionError(String),
 }
 
@@ -135,15 +135,22 @@ fn send_continuation_marker(
     }
 }
 
+pub(crate) struct StreamedFileSendingResult {
+    pub(crate) sent_number: usize,
+    pub(crate) skipped_number: usize,
+    pub(crate) skip_reasons: Vec<String>,
+}
+
 pub fn send_files(
     files: Vec<crate::file_change_detector::ChangedFile>,
-    skipped: &mut Vec<PathBuf>,
     stream: &mut Stream<ClientConnection, TcpStream>,
     sent_files_cache: &mut crate::sent_files_cache::Cache,
-) -> Vec<(PathBuf, SendFileResult)> {
+) -> StreamedFileSendingResult {
     let mut files = files;
     let stream: &mut Stream<ClientConnection, TcpStream> = stream;
-    let mut send_result = Vec::new();
+    let mut sent_number = 0;
+    let mut skipped_number = 0;
+    let mut skip_reasons = Vec::new();
     let mut first_skipped_index = files.len();
     for (i, file) in files.iter_mut().enumerate() {
         send_continuation_marker(true, stream);
@@ -160,26 +167,41 @@ pub fn send_files(
 
         sent_files_cache.append(&file_path, &file.new_change_detection_data);
 
-        match &result {
-            SendFileResult::Skipped => {
-                skipped.push(file_path);
+        match result {
+            SendFileResult::Skipped(reason) => {
+                skipped_number += 1;
+                skip_reasons.push(reason);
             }
             SendFileResult::UnknownConnectionError(reason) => {
-                println!("Failed to send file {}: {}", file_path.display(), reason);
                 first_skipped_index = i;
+                skip_reasons.push(reason);
                 break;
             }
-            _ => {
-                send_result.push((file_path, result));
+            SendFileResult::Ok => {
+                sent_number += 1;
+            }
+            SendFileResult::CanNotOpenFile => {
+                skipped_number += 1;
+                skip_reasons.push(format!("Failed to open file '{}'", file_path.display()));
             }
         }
     }
 
     send_continuation_marker(false, stream);
 
-    skipped.extend(files.drain(first_skipped_index..).map(|file| file.path));
+    if first_skipped_index < files.len() {
+        skip_reasons.push(format!(
+            "Connection dropped, skipping the rest of files ({})",
+            files.len() - first_skipped_index
+        ));
+        skipped_number += files.len() - first_skipped_index;
+    }
 
-    send_result
+    StreamedFileSendingResult {
+        sent_number,
+        skipped_number,
+        skip_reasons,
+    }
 }
 
 fn receive_confirmation(stream: &mut Stream<ClientConnection, TcpStream>, i: usize) -> bool {

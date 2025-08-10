@@ -493,9 +493,10 @@ fn set_directory_to_sync(client_storage: &ClientStorage, device_id: Vec<u8>, pat
 }
 
 #[uniffi::export]
-fn process_sending_files(client_storage: &ClientStorage) -> String {
-    match shared_client::file_sending_routine::process_routine(&client_storage.internals) {
-        Ok(()) => String::new(),
-        Err(err) => err,
-    }
+fn process_sending_files(client_storage: &ClientStorage, log_level: i32) -> String {
+    let result = shared_client::file_sending_routine::process_routine(&client_storage.internals);
+    // same but automatically converted to the enum
+    let log_level =
+        shared_client::file_sending_routine::FileSendingRoutineLogLevel::from_i32(log_level);
+    shared_client::file_sending_routine::produce_log_string_from_result(result, log_level)
 }

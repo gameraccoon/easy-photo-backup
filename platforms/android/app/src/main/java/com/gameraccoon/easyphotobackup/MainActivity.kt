@@ -51,7 +51,7 @@ class MainActivity : AppCompatActivity() {
     val easyPhotoBackupApplication = application as EasyPhotoBackupApplication
     val clientStorage = easyPhotoBackupApplication.getClientStorage()
     if (clientStorage != null) {
-      val string = processSendingFiles(clientStorage)
+      val string = processSendingFiles(clientStorage, 4)
       if (!string.isEmpty()) {
         Toast.makeText(this, string, Toast.LENGTH_LONG).show()
         println(string)

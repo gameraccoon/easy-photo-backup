@@ -113,9 +113,13 @@ pub fn start_cli_processor(storage: Arc<Mutex<ClientStorage>>) {
             "send" => {
                 // simulate what a scheduled task would do
                 let result = shared_client::file_sending_routine::process_routine(&storage);
-                if let Err(e) = result {
-                    println!("Failed to process file routine: {}", e);
-                }
+                println!(
+                    "{}",
+                    shared_client::file_sending_routine::produce_log_string_from_result(
+                        result,
+                        shared_client::file_sending_routine::FileSendingRoutineLogLevel::LogAll
+                    )
+                );
             }
             _ => {
                 println!("Unknown command: {}", command);

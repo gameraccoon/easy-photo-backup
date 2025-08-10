@@ -1,9 +1,18 @@
 use crate::client_storage::ClientStorage;
 use crate::nsd_client;
-use crate::send_files_request::send_files_request;
+use crate::send_files_request::{OneServerSendFilesResult, send_files_request};
+use std::cmp::{Ordering, PartialOrd};
 use std::sync::{Arc, Mutex};
 
-pub fn process_routine(client_storage: &Arc<Mutex<ClientStorage>>) -> Result<(), String> {
+pub enum SendFilesResult {
+    // Every server was offline, no work to do
+    NoOnlineServers,
+    PerServerResults(Vec<Result<OneServerSendFilesResult, String>>),
+}
+
+pub fn process_routine(
+    client_storage: &Arc<Mutex<ClientStorage>>,
+) -> Result<SendFilesResult, String> {
     let online_services = {
         const READ_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(600);
 
@@ -28,10 +37,10 @@ pub fn process_routine(client_storage: &Arc<Mutex<ClientStorage>>) -> Result<(),
     };
 
     if online_services.is_empty() {
-        return Ok(());
+        return Ok(SendFilesResult::NoOnlineServers);
     }
 
-    let mut errors = Vec::new();
+    let mut results = Vec::new();
 
     for (address, extra_data) in online_services {
         let Some(server_id) = crate::nsd_data::decode_extra_data(extra_data) else {
@@ -62,7 +71,7 @@ pub fn process_routine(client_storage: &Arc<Mutex<ClientStorage>>) -> Result<(),
 
         if directories_to_sync.len() > 1 {
             println!("Only one directory is supported at the moment");
-            return Ok(());
+            return Err("Only one directory is supported at the moment".to_string());
         }
 
         let mut changed_dirs = std::collections::HashMap::new();
@@ -84,6 +93,7 @@ pub fn process_routine(client_storage: &Arc<Mutex<ClientStorage>>) -> Result<(),
         }
 
         if changed_dirs.is_empty() {
+            results.push(Ok(OneServerSendFilesResult::NoNewFiles));
             continue;
         }
 
@@ -128,11 +138,15 @@ pub fn process_routine(client_storage: &Arc<Mutex<ClientStorage>>) -> Result<(),
                 files_to_send,
             );
 
-            if let Err(e) = result {
-                println!("File sending routine failed: {}", e);
-                errors.push(e);
+            let has_failed = result.is_err();
+            results.push(result);
+
+            if has_failed {
+                println!("File sending routine failed");
                 continue;
             }
+        } else {
+            results.push(Ok(OneServerSendFilesResult::NoNewFiles));
         }
 
         let client_storage = client_storage.lock();
@@ -184,13 +198,100 @@ pub fn process_routine(client_storage: &Arc<Mutex<ClientStorage>>) -> Result<(),
         sent_files_cache.clear();
     }
 
-    if !errors.is_empty() {
-        Err(format!(
-            "Errors encountered {}, Errors: {}",
-            errors.len(),
-            errors.join(" |/| ")
-        ))
-    } else {
-        Ok(())
+    Ok(SendFilesResult::PerServerResults(results))
+}
+
+#[derive(PartialOrd, PartialEq)]
+pub enum FileSendingRoutineLogLevel {
+    NoLogging = 0,
+    LogErrors = 1,
+    LogSentFiles = 2,
+    LogSkippedFiles = 3,
+    LogAll = 4,
+}
+
+impl FileSendingRoutineLogLevel {
+    pub fn from_i32(value: i32) -> Self {
+        match value {
+            0 => FileSendingRoutineLogLevel::NoLogging,
+            1 => FileSendingRoutineLogLevel::LogErrors,
+            2 => FileSendingRoutineLogLevel::LogSentFiles,
+            3 => FileSendingRoutineLogLevel::LogSkippedFiles,
+            4 => FileSendingRoutineLogLevel::LogAll,
+            _ => FileSendingRoutineLogLevel::LogAll,
+        }
+    }
+}
+
+pub fn produce_log_string_from_result(
+    routine_result: Result<SendFilesResult, String>,
+    log_level: FileSendingRoutineLogLevel,
+) -> String {
+    match routine_result {
+        Ok(send_files_result) => match send_files_result {
+            SendFilesResult::NoOnlineServers => {
+                if log_level >= FileSendingRoutineLogLevel::LogAll {
+                    "No online servers".to_string()
+                } else {
+                    String::new()
+                }
+            }
+            SendFilesResult::PerServerResults(results) => {
+                let mut server_logs = Vec::new();
+
+                for result in results {
+                    match result {
+                        Ok(result) => match result {
+                            OneServerSendFilesResult::AllNewFilesSent(count) => {
+                                if log_level >= FileSendingRoutineLogLevel::LogSentFiles {
+                                    server_logs.push(format!("Successfully sent {} files", count));
+                                }
+                            }
+                            OneServerSendFilesResult::NoNewFiles => {
+                                if log_level >= FileSendingRoutineLogLevel::LogSkippedFiles {
+                                    server_logs.push("No new files detected".to_string());
+                                }
+                            }
+                            OneServerSendFilesResult::SomeFilesSkipped(sent, skipped, reasons) => {
+                                match log_level {
+                                    FileSendingRoutineLogLevel::LogSentFiles => {
+                                        server_logs.push(format!(
+                                            "Sent {} files, skipped {}",
+                                            sent, skipped
+                                        ));
+                                    }
+                                    FileSendingRoutineLogLevel::LogSkippedFiles
+                                    | FileSendingRoutineLogLevel::LogAll => {
+                                        server_logs.push(format!(
+                                            "Sent {} files, skipped {}, skip reasons: '{}'",
+                                            sent,
+                                            skipped,
+                                            reasons.join("', '")
+                                        ));
+                                    }
+
+                                    _ => {}
+                                }
+                            }
+                        },
+                        Err(error) => {
+                            if log_level >= FileSendingRoutineLogLevel::LogErrors {
+                                server_logs
+                                    .push(format!("Error sending files to server: {}", error));
+                            }
+                        }
+                    }
+                }
+
+                server_logs.join("\n")
+            }
+        },
+        Err(err) => {
+            if log_level >= FileSendingRoutineLogLevel::NoLogging {
+                err
+            } else {
+                String::new()
+            }
+        }
     }
 }

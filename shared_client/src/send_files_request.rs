@@ -5,15 +5,27 @@ use crate::{client_handshake, client_requests, streamed_file_sender};
 use std::net::TcpStream;
 use std::sync::Arc;
 
+pub enum OneServerSendFilesResult {
+    // Sent the given number of files
+    AllNewFilesSent(usize),
+    // Some/all files were skipped or failed to send
+    // the first number is the number of files that were successfully sent
+    // the second number is the number of files that were skipped
+    // the third number is the reasons why the files were skipped
+    SomeFilesSkipped(usize, usize, Vec<String>),
+    // No new files in the directory were found
+    NoNewFiles,
+}
+
 pub fn send_files_request(
     destination: NetworkAddress,
     server_public_key: Vec<u8>,
     sent_files_cache: &mut crate::sent_files_cache::Cache,
     client_key_pair: shared_common::tls::tls_data::TlsData,
     files_to_send: Vec<crate::file_change_detector::ChangedFile>,
-) -> Result<(), String> {
+) -> Result<OneServerSendFilesResult, String> {
     if files_to_send.is_empty() {
-        return Ok(());
+        return Err("Send files request shouldn't be called with empty list of files".to_string());
     }
 
     let mut stream = match TcpStream::connect(format!("{}:{}", destination.ip, destination.port)) {
@@ -86,33 +98,23 @@ pub fn send_files_request(
 
     let result = {
         let mut tls = rustls::Stream::new(&mut conn, &mut stream);
-        let mut skipped = Vec::new();
 
-        let send_result = streamed_file_sender::send_files(
-            files_to_send,
-            &mut skipped,
-            &mut tls,
-            sent_files_cache,
-        );
-        if skipped.is_empty() {
-            if send_result.is_empty() {
-                println!("No files to send");
+        let send_result =
+            streamed_file_sender::send_files(files_to_send, &mut tls, sent_files_cache);
+        if send_result.skipped_number == 0 {
+            if send_result.sent_number == 0 {
+                Err("No files were reported as sent or skipped, this shouldn't happen".to_string())
             } else {
-                println!("Successfully sent all files");
+                Ok(OneServerSendFilesResult::AllNewFilesSent(
+                    send_result.sent_number,
+                ))
             }
-            Ok(())
-        } else if !send_result.is_empty() {
-            println!(
-                "Successfully sent {} files, skipped {}",
-                send_result.len(),
-                skipped.len()
-            );
-            Err(format!(
-                "Not all files were sent, {} files were skipped",
-                skipped.len()
-            ))
         } else {
-            Err("Failed to send files".to_string())
+            Ok(OneServerSendFilesResult::SomeFilesSkipped(
+                send_result.sent_number,
+                send_result.skipped_number,
+                send_result.skip_reasons,
+            ))
         }
     };
 
