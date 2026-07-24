@@ -33,7 +33,7 @@ static constexpr size_t StaticHeaderSizePartial = StaticHeaderSize + Cryptograph
 
 // a simple test implementation of a message pipe (can be slow, but should be simple to review)
 template<size_t Size>
-class TestMessagePipe
+class TestFileExchangeMessagePipe
 {
 public:
 	void push(std::span<const std::byte> buffer) noexcept
@@ -202,71 +202,71 @@ static FileExchangeTestResult runFileExchangeTest(ClientStorage& clientStorage, 
 
 	const std::unordered_map<std::filesystem::path, size_t> filesToSendIndex = collectIndex(filesToSend);
 
-	TestMessagePipe<Protocol::FileExchange::ChunkSize + Cryptography::CipherAuthDataSize> fileMessages;
-	TestMessagePipe<Protocol::FileExchange::AnswerChunkSize + Cryptography::CipherAuthDataSize> answerMessages;
+	TestFileExchangeMessagePipe<Protocol::FileExchange::ChunkSize + Cryptography::CipherAuthDataSize> fileMessages;
+	TestFileExchangeMessagePipe<Protocol::FileExchange::AnswerChunkSize + Cryptography::CipherAuthDataSize> answerMessages;
 
 	constexpr Network::RawSocket senderSocket = 1;
 	constexpr Network::RawSocket receiverSocket = 2;
 
 	size_t bytesWritten = 0;
-	Network::gSendTestMock = [&instructions, &bytesWritten, &fileMessages, &answerMessages](Network::RawSocket socket, const char* buffer, int dataSize, int /*flags*/) -> int {
+	Network::gSendTestMock = [&instructions, &bytesWritten, &fileMessages, &answerMessages](Network::RawSocket socket, const char* buffer, int bufferSize, int /*flags*/) -> int {
 		if (socket == senderSocket)
 		{
-			bytesWritten += dataSize;
+			bytesWritten += bufferSize;
 			if (bytesWritten > instructions.breakFileSendPipeAfterBytes)
 			{
 				return -1;
 			}
 
-			fileMessages.push(std::span<const std::byte>(reinterpret_cast<const std::byte*>(buffer), dataSize));
+			fileMessages.push(std::span<const std::byte>(reinterpret_cast<const std::byte*>(buffer), bufferSize));
 		}
 		else if (socket == receiverSocket)
 		{
-			answerMessages.push(std::span<const std::byte>(reinterpret_cast<const std::byte*>(buffer), dataSize));
+			answerMessages.push(std::span<const std::byte>(reinterpret_cast<const std::byte*>(buffer), bufferSize));
 		}
 		else
 		{
 			EXPECT_FALSE(true) << "Unexpected send caller";
 		}
 
-		return dataSize;
+		return bufferSize;
 	};
 
 	size_t bytesRead = 0;
-	Network::gRecvTestMock = [&instructions, &bytesRead, &fileMessages, &answerMessages](Network::RawSocket socket, char* buffer, int dataSize, int /*flags*/) -> int {
+	Network::gRecvTestMock = [&instructions, &bytesRead, &fileMessages, &answerMessages](Network::RawSocket socket, char* buffer, int bufferSize, int /*flags*/) -> int {
 		if (socket == senderSocket)
 		{
-			auto receivedBytes = answerMessages.pop();
-			if (!receivedBytes.has_value())
+			auto message = answerMessages.pop();
+			if (!message.has_value())
 			{
 				return -1;
 			}
-			EXPECT_EQ(static_cast<int>(receivedBytes->size()), dataSize);
-			if (dataSize >= static_cast<int>(receivedBytes->size()))
+			EXPECT_EQ(static_cast<int>(message->size()), bufferSize);
+			if (bufferSize >= static_cast<int>(message->size()))
 			{
-				std::memcpy(buffer, reinterpret_cast<const char*>(receivedBytes->data()), receivedBytes->size());
-				return static_cast<int>(receivedBytes->size());
+				std::memcpy(buffer, reinterpret_cast<const char*>(message->data()), message->size());
+				return static_cast<int>(message->size());
 			}
 		}
 		else if (socket == receiverSocket)
 		{
-			bytesRead += dataSize;
+			bytesRead += bufferSize;
 			if (bytesRead > instructions.breakFileSendPipeAfterBytes)
 			{
 				// we know that the pipe is broken, so no need to wait until the timeout
 				return -1;
 			}
 
-			auto receivedBytes = fileMessages.pop();
-			if (!receivedBytes.has_value())
+			auto message = fileMessages.pop();
+			if (!message.has_value())
 			{
 				return -1;
 			}
-			EXPECT_EQ(static_cast<int>(receivedBytes->size()), dataSize);
-			if (dataSize >= static_cast<int>(receivedBytes->size()))
+			EXPECT_EQ(static_cast<int>(message->size()), bufferSize);
+			if (bufferSize >= static_cast<int>(message->size()))
 			{
-				std::memcpy(buffer, reinterpret_cast<const char*>(receivedBytes->data()), receivedBytes->size());
-				return static_cast<int>(receivedBytes->size());
+				std::memcpy(buffer, reinterpret_cast<const char*>(message->data()), message->size());
+				return static_cast<int>(message->size());
 			}
 		}
 		else
