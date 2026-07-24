@@ -77,11 +77,11 @@ IncludeCategories:
   - Regex: '^[<"]client_shared/.*$'
     Priority: 4
   - Regex: '^[<"]server_shared/.*$'
-    Priority: 4
+    Priority: 5
   - Regex: '^[<"]client_cli/.*$'
-    Priority: 5
+    Priority: 6
   - Regex: '^[<"]server_cli/.*$'
-    Priority: 5
+    Priority: 7
     # STL includes that don't contain .h go right after current file include
   - Regex: '^<[a-zA-Z0-9_/]+>$'
     Priority: 1

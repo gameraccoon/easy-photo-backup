@@ -20,6 +20,7 @@
 #include "common_shared/network/protocol.h"
 
 #include "client_shared/file_send_utils.h"
+
 #include "server_shared/file_receive_utils.h"
 
 static constexpr size_t ChunkSize = Protocol::FileExchange::ChunkSize;
