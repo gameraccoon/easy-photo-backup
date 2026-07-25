@@ -29,6 +29,8 @@ namespace FileSendUtils
 
 		// it doesn't make sense to hash very small files as it doesn't save us any bandwidth
 		constexpr static uint64_t MaxSizeWithoutHash = 64;
+		constexpr static uint64_t MbBetweenSavingState = 10;
+		constexpr static uint64_t ChunksBetweenSavingState = (MbBetweenSavingState * 1024 * 1024) / ChunkSize;
 
 #ifdef DEBUG_CHECKS
 		constexpr static bool debugPrint = false;
@@ -355,6 +357,11 @@ namespace FileSendUtils
 			return chunksSent != 0 && chunksSent % ChunksBetweenAnswers == 0;
 		}
 
+		[[nodiscard]] bool shouldSaveState() const noexcept
+		{
+			return chunksSent != 0 && chunksSent % ChunksBetweenSavingState == 0;
+		}
+
 		void fillRemainderWithZeroes() noexcept
 		{
 			std::fill(buffer.raw.begin() + bytesFilledInChunk, buffer.raw.end(), std::byte(0x00));
@@ -567,14 +574,14 @@ namespace FileSendUtils
 		}
 	};
 
-	static void concludeSendingFiles(FileSendingState& sendingState, ClientStorage& storage)
+	static void recordSentFiles(FileSendingState& sendingState, ClientStorage& storage)
 	{
-		const uint64_t firstAwaitingFileBytesConfirmed = sendingState.firstAwaitingFileBytesConfirmed;
-		const std::string partiallySentFilePath = firstAwaitingFileBytesConfirmed > 0 ? std::move(sendingState.filePath) : std::string{};
-		std::vector<std::filesystem::path> confirmedFiles = std::move(sendingState.confirmedFilesCache);
-		std::vector<std::filesystem::path> rejectedPartialFiles = std::move(sendingState.rejectedPartialFiles);
-
-		storage.addSentFiles(confirmedFiles, partiallySentFilePath, firstAwaitingFileBytesConfirmed, rejectedPartialFiles);
+		const bool isSuccess = storage.addSentFiles(sendingState.confirmedFilesCache, sendingState.filePath, sendingState.firstAwaitingFileBytesConfirmed, sendingState.rejectedPartialFiles);
+		if (isSuccess)
+		{
+			sendingState.confirmedFilesCache.clear();
+			sendingState.rejectedPartialFiles.clear();
+		}
 	}
 
 	std::vector<std::filesystem::path> collectFilesFromDirectory(std::filesystem::path folderPath) noexcept
@@ -625,7 +632,7 @@ namespace FileSendUtils
 				if (!sendingState.isFileOpen(file)) [[unlikely]]
 				{
 					reportDebugError("Could not open file for reading: {}", dirEntry.string());
-					return concludeSendingFiles(sendingState, storage);
+					return recordSentFiles(sendingState, storage);
 				}
 				const uint64_t fileLength = sendingState.getFileLength(file);
 				// ToDo: should also save and check hash here, since the file may have changed since we started sending it
@@ -641,7 +648,7 @@ namespace FileSendUtils
 					const size_t fileSizeToHash = partialSendStartByte > 0 ? std::min(fileLength, partialSendStartByte) : fileLength;
 					if (sendingState.calculateFileHash(file, fileSizeToHash, sendingState.fileHash) != 0)
 					{
-						return concludeSendingFiles(sendingState, storage);
+						return recordSentFiles(sendingState, storage);
 					}
 				}
 
@@ -660,15 +667,20 @@ namespace FileSendUtils
 
 						if (!sendingState.sendChunk(socket, sendingCipherstate))
 						{
-							return concludeSendingFiles(sendingState, storage);
+							return recordSentFiles(sendingState, storage);
 						}
 
 						if (sendingState.shouldReadAnswer())
 						{
 							if (!sendingState.readAnswer(socket, receivingCipherState))
 							{
-								return concludeSendingFiles(sendingState, storage);
+								return recordSentFiles(sendingState, storage);
 							}
+						}
+
+						if (sendingState.shouldSaveState())
+						{
+							recordSentFiles(sendingState, storage);
 						}
 
 						sendingState.debugPrintState(FileSendingState::DebugState::StartChunk);
@@ -696,14 +708,14 @@ namespace FileSendUtils
 					{
 						if (!sendingState.sendChunk(socket, sendingCipherstate))
 						{
-							return concludeSendingFiles(sendingState, storage);
+							return recordSentFiles(sendingState, storage);
 						}
 
 						if (sendingState.shouldReadAnswer())
 						{
 							if (!sendingState.readAnswer(socket, receivingCipherState, endingBytesWritten < endingBytes.size()))
 							{
-								return concludeSendingFiles(sendingState, storage);
+								return recordSentFiles(sendingState, storage);
 							}
 						}
 					}
@@ -720,7 +732,7 @@ namespace FileSendUtils
 
 				if (!sendingState.sendChunk(socket, sendingCipherstate))
 				{
-					return concludeSendingFiles(sendingState, storage);
+					return recordSentFiles(sendingState, storage);
 				}
 
 				sendingState.debugPrintState(FileSendingState::DebugState::EndChunk);
@@ -730,7 +742,7 @@ namespace FileSendUtils
 			{
 				if (!sendingState.readAnswer(socket, receivingCipherState))
 				{
-					return concludeSendingFiles(sendingState, storage);
+					return recordSentFiles(sendingState, storage);
 				}
 			}
 
@@ -739,14 +751,14 @@ namespace FileSendUtils
 		catch (std::exception& e)
 		{
 			reportDebugError("An exception caught when sending files: {}", e.what());
-			return concludeSendingFiles(sendingState, storage);
+			return recordSentFiles(sendingState, storage);
 		}
 		catch (...)
 		{
 			reportDebugError("An exception caught when sending files");
-			return concludeSendingFiles(sendingState, storage);
+			return recordSentFiles(sendingState, storage);
 		}
 
-		return concludeSendingFiles(sendingState, storage);
+		return recordSentFiles(sendingState, storage);
 	}
 } // namespace FileSendUtils

@@ -53,18 +53,18 @@ std::optional<ClientStorage> ClientStorage::openStorage(const std::filesystem::p
 	return ClientStorage(envResult.consumeResult());
 }
 
-void ClientStorage::addSentFiles(const std::vector<std::filesystem::path>& newSentFiles, std::string partiallySentPath, uint64_t partiallySentData, const std::vector<std::filesystem::path>& rejectedPartialFiles) noexcept
+bool ClientStorage::addSentFiles(const std::vector<std::filesystem::path>& newSentFiles, const std::string& partiallySentPath, uint64_t partiallySentData, const std::vector<std::filesystem::path>& rejectedPartialFiles) noexcept
 {
 	Lmdb::Result<Lmdb::ReadWriteTransaction> transaction = Lmdb::ReadWriteTransaction::create(mEnvironment);
 	if (transaction.isError())
 	{
-		return;
+		return false;
 	}
 
 	Lmdb::Result<Lmdb::ReadWriteDatabase> sentFilesDb = Lmdb::ReadWriteDatabase::open(*transaction, ClientStorageInternal::SentFilesDatabaseName);
 	if (sentFilesDb.isError())
 	{
-		return;
+		return false;
 	}
 
 	for (const std::filesystem::path& path : newSentFiles)
@@ -72,14 +72,14 @@ void ClientStorage::addSentFiles(const std::vector<std::filesystem::path>& newSe
 		const Lmdb::ReturnCode returnCode = sentFilesDb->put(std::as_bytes(std::span<const char>(path.string())), std::array<std::byte, 1>{ std::byte(0x00) });
 		if (returnCode != Lmdb::ReturnCode::Success)
 		{
-			return;
+			return false;
 		}
 	}
 
 	Lmdb::Result<Lmdb::ReadWriteDatabase> partiallySentDb = Lmdb::ReadWriteDatabase::open(*transaction, ClientStorageInternal::PartiallySentDatabaseName);
 	if (partiallySentDb.isError())
 	{
-		return;
+		return false;
 	}
 
 	if (partiallySentData > 0 && !partiallySentPath.empty())
@@ -87,9 +87,9 @@ void ClientStorage::addSentFiles(const std::vector<std::filesystem::path>& newSe
 		std::array<std::byte, 8> sentDataBytes;
 		Serialization::writeUint64(sentDataBytes, partiallySentData);
 		Lmdb::ReturnCode returnCode = partiallySentDb->put(std::as_bytes(std::span(partiallySentPath)), sentDataBytes);
-		if (returnCode != Lmdb::ReturnCode::Success && returnCode != Lmdb::ReturnCode::NotFound)
+		if (returnCode != Lmdb::ReturnCode::Success)
 		{
-			return;
+			return false;
 		}
 	}
 
@@ -99,15 +99,12 @@ void ClientStorage::addSentFiles(const std::vector<std::filesystem::path>& newSe
 		Lmdb::ReturnCode returnCode = partiallySentDb->deleteKey(std::as_bytes(std::span(pathString)));
 		if (returnCode != Lmdb::ReturnCode::Success)
 		{
-			return;
+			return false;
 		}
 	}
 
 	const Lmdb::ReturnCode returnCode = transaction->commit();
-	if (returnCode != Lmdb::ReturnCode::Success)
-	{
-		return;
-	}
+	return (returnCode == Lmdb::ReturnCode::Success);
 }
 
 void ClientStorage::filterOutSentFiles(const std::filesystem::path& rootPath, std::vector<std::filesystem::path>& inOutPaths, std::vector<uint64_t>& outPreviouslySentBytes) noexcept

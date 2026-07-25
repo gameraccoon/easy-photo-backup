@@ -37,7 +37,7 @@ public:
 
 	static std::optional<ClientStorage> openStorage(const std::filesystem::path& storageRootPath);
 
-	void addSentFiles(const std::vector<std::filesystem::path>& newSentFiles, std::string partiallySentPath, uint64_t partiallySentData, const std::vector<std::filesystem::path>& rejectedPartialFiles) noexcept;
+	bool addSentFiles(const std::vector<std::filesystem::path>& newSentFiles, const std::string& partiallySentPath, uint64_t partiallySentData, const std::vector<std::filesystem::path>& rejectedPartialFiles) noexcept;
 	void filterOutSentFiles(const std::filesystem::path& rootPath, std::vector<std::filesystem::path>& inOutPaths, std::vector<uint64_t>& outPreviouslySentBytes) noexcept;
 
 	void addConfirmedServerBinding(const ClientStorageData::ServerId& serverId, const ClientStorageData::ServerBinding& binding) noexcept;
