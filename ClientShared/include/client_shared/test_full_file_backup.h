@@ -52,7 +52,7 @@ public:
 
 	[[nodiscard]] std::optional<std::string> removeServer(const std::array<std::byte, 16>& serverId) noexcept;
 
-	[[nodiscard]] bool isServerPaired(const std::array<std::byte, 16>& serverName) noexcept;
+	[[nodiscard]] bool isServerPaired(const std::array<std::byte, 16>& serverId) noexcept;
 
 private:
 	std::mutex mDataMutex;
