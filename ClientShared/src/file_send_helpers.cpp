@@ -37,7 +37,7 @@ namespace FileSendHelpers
 		return result;
 	}
 
-	std::optional<std::string> sendFiles(ClientConfigStorage& clientConfigStorage, ClientSentFilesStorage& clientSentFilesStorage, const ServerConnectionInfo& serverInfo, const std::string& folderPath, const std::string& commonRoot) noexcept
+	std::optional<std::string> sendDirectory(ClientConfigStorage& clientConfigStorage, ClientSentFilesStorage& clientSentFilesStorage, const ServerConnectionInfo& serverInfo, const std::string& folderPath, const std::string& commonRoot) noexcept
 	{
 		std::vector<std::filesystem::path> files = collectFilesFromDirectory(folderPath);
 

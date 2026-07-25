@@ -22,5 +22,6 @@ struct PendingServerBinding
 
 namespace PairingHelpers
 {
+	[[nodiscard]] std::optional<std::string> requestServerName(const Network::NetworkAddress& address) noexcept;
 	[[nodiscard]] std::variant<std::string, PendingServerBinding> exchangePairInformationWithServer(const ServerConnectionInfo& serverInfo) noexcept;
 }

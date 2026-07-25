@@ -15,7 +15,8 @@ class FileSendBackgroundWorker(
     appContext: Context,
     params: WorkerParameters
 ) : CoroutineWorker(appContext, params) {
-    private val testFullFileBackup = TestFullFileBackup(appContext.filesDir.absolutePath)
+    private val clientConfigStorage = ClientConfigStorage(appContext.filesDir.absolutePath)
+    private val clientSentFilesStorage = ClientSentFilesStorage(appContext.filesDir.absolutePath)
 
     // this is very test ofc
     private val foldersToSync = arrayOf("DCIM", "Download", "Pictures", "Videos")
@@ -31,25 +32,26 @@ class FileSendBackgroundWorker(
                 "status" to "discovering"
             ))
 
-            testFullFileBackup.startDiscovery()
+            val discoveryClient = ServerDiscoveryClient()
+            discoveryClient.startDiscovery()
             withContext(Dispatchers.IO) {
                 Thread.sleep(3 * 1000)
             }
-            val discoveryResults = testFullFileBackup.getDiscoveryResults()
-            testFullFileBackup.stopDiscovery()
+            val discoveryResults = discoveryClient.getDiscoveryResults()
+            discoveryClient.stopDiscovery()
 
             val statuses = Vector<String>()
             val resultStatus: String
 
             if (!discoveryResults.isEmpty()) {
                 for (discoveryResult in discoveryResults) {
-                    val serverName = testFullFileBackup.requestServerName(discoveryResult)
+                    val serverName = PairingHelpers.requestServerName(discoveryResult)
 
-                    if (!testFullFileBackup.isServerPaired(discoveryResult)) {
+                    if (!PairingHelpers.isServerPaired(clientConfigStorage, discoveryResult)) {
 
                         val liveDangerously = false
                         if (liveDangerously) {
-                            val pendingServerBinding = testFullFileBackup.exchangePairingInformationWithServer(discoveryResult)
+                            val pendingServerBinding = PairingHelpers.exchangePairingInformationWithServer(discoveryResult)
                             if (pendingServerBinding == null)
                             {
                                 statuses.add("\nCould not pair to '$serverName'")
@@ -61,7 +63,7 @@ class FileSendBackgroundWorker(
                             statuses.add("\nPairing code $shortAuthentificationString")
 
                             // DANGER!
-                            val result = testFullFileBackup.approveServer(discoveryResult, pendingServerBinding)
+                            val result = PairingHelpers.approveServer(clientConfigStorage, discoveryResult, pendingServerBinding)
                             if (result != null)
                             {
                                 statuses.add("\nCould not pair to '$serverName': $result")
@@ -79,7 +81,7 @@ class FileSendBackgroundWorker(
                         ))
 
                         val folderPath = "$root/$folder"
-                        val sendStatus = testFullFileBackup.sendFiles(discoveryResult, folderPath, root)
+                        val sendStatus = FileSendHelpers.sendFiles(clientConfigStorage, clientSentFilesStorage,discoveryResult, folderPath, root)
                         if (sendStatus != null)
                         {
                             statuses.add(sendStatus)

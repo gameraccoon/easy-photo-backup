@@ -3,79 +3,50 @@
 
 #include <jni.h>
 
-#include "client_shared/test_full_file_backup.h"
+#include "common_shared/cryptography/utils/connection_id_utils.h"
 
-class TestFullFileBackupNative
+#include "client_shared/file_send_helpers.h"
+#include "client_shared/client_storage.h"
+#include "client_shared/pairing_helpers.h"
+#include "client_shared/server_connection_info.h"
+#include "client_shared/server_discovery_client.h"
+
+class ServerDiscoveryClientNative
 {
 public:
-	TestFullFileBackupNative(const std::filesystem::path& localStorageDirectory)
-		: mTestState(localStorageDirectory)
-	{
-	}
-
 	void startDiscovery()
 	{
-		mTestState.startDiscovery();
+		mServerDiscoveryClient.startDiscovery();
 	}
 
-	[[nodiscard]] std::vector<TestServerInfo> getDiscoveryResults()
+	[[nodiscard]] std::vector<ServerConnectionInfo> getDiscoveryResults()
 	{
-		return mTestState.getDiscoveryResults();
+		return mServerDiscoveryClient.getDiscoveryResults();
 	}
 
 	void stopDiscovery()
 	{
-		mTestState.stopDiscovery();
-	}
-
-	[[nodiscard]] static std::optional<std::string> requestServerName(const Network::NetworkAddress& address)
-	{
-		return TestFullFileBackup::requestServerName(address);
-	}
-
-	[[nodiscard]] std::variant<std::string, PendingServerBinding> exchangePairInformationWithServer(const TestServerInfo& serverInfo)
-	{
-		return mTestState.exchangePairInformationWithServer(serverInfo);
-	}
-
-	[[nodiscard]] std::optional<std::string> approveServer(const TestServerInfo& serverInfo, const PendingServerBinding& serverBindingInfo)
-	{
-		return mTestState.approveServer(serverInfo, serverBindingInfo);
-	}
-
-	[[nodiscard]] std::optional<std::string> sendFiles(const TestServerInfo& serverInfo, const std::string& folderPath, const std::string& commonRoot)
-	{
-		return mTestState.sendFiles(serverInfo, folderPath, commonRoot);
-	}
-
-	[[nodiscard]] std::optional<std::string> removeServer(const std::array<std::byte, 16>& serverId)
-	{
-		return mTestState.removeServer(serverId);
-	}
-
-	[[nodiscard]] bool isServerPaired(const std::array<std::byte, 16>& serverId)
-	{
-		return mTestState.isServerPaired(serverId);
+		mServerDiscoveryClient.stopDiscovery();
 	}
 
 private:
-	TestFullFileBackup mTestState;
+	ServerDiscoveryClient mServerDiscoveryClient;
 };
 
-class TestServerInfoNative
+class ServerConnectionInfoNative
 {
 public:
-	TestServerInfoNative(TestServerInfo&& inServerInfo) noexcept
+	ServerConnectionInfoNative(ServerConnectionInfo&& inServerInfo) noexcept
 		: serverInfo(std::move(inServerInfo))
 	{}
 
-	TestServerInfo serverInfo;
+	ServerConnectionInfo serverInfo;
 };
 
 class PendingServerBindingNative
 {
 public:
-	PendingServerBindingNative(PendingServerBinding&& inServerBinding)
+	PendingServerBindingNative(PendingServerBinding&& inServerBinding) noexcept
 		: serverBinding(std::move(inServerBinding))
 	{}
 
@@ -87,61 +58,76 @@ public:
 	PendingServerBinding serverBinding;
 };
 
+class ClientConfigStorageNative
+{
+public:
+	ClientConfigStorageNative(ClientConfigStorage&& inStorage) noexcept
+		: storage(std::move(inStorage))
+	{}
+
+	ClientConfigStorage storage;
+};
+
+class ClientSentFilesStorageNative
+{
+public:
+	ClientSentFilesStorageNative(ClientSentFilesStorage&& inStorage) noexcept
+		: storage(std::move(inStorage))
+	{}
+
+	ClientSentFilesStorage storage;
+};
+
 extern "C" JNIEXPORT jlong JNICALL
-Java_com_unnamed_easyphotobackup_TestFullFileBackup_create(
+Java_com_unnamed_easyphotobackup_ServerDiscoveryClient_create(
 	JNIEnv* env,
-	jobject /*this*/,
-	jstring localStoragePathJStr
+	jobject /*this*/
 )
 {
-	const char* localStoragePathCStr = env->GetStringUTFChars(localStoragePathJStr, nullptr);
-	const std::filesystem::path localStoragePath(localStoragePathCStr);
-	env->ReleaseStringUTFChars(localStoragePathJStr, localStoragePathCStr);
-
-	TestFullFileBackupNative* obj = new TestFullFileBackupNative(localStoragePath);
+	ServerDiscoveryClientNative* obj = new ServerDiscoveryClientNative();
 	return reinterpret_cast<jlong>(obj);
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_unnamed_easyphotobackup_TestFullFileBackup_destroy(
+Java_com_unnamed_easyphotobackup_ServerDiscoveryClient_destroy(
 	JNIEnv* env,
 	jobject /*this*/,
 	jlong handle
 )
 {
-	TestFullFileBackupNative* obj = reinterpret_cast<TestFullFileBackupNative*>(handle);
+	ServerDiscoveryClientNative* obj = reinterpret_cast<ServerDiscoveryClientNative*>(handle);
 	delete obj;
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_unnamed_easyphotobackup_TestFullFileBackup_startDiscoveryNative(
+Java_com_unnamed_easyphotobackup_ServerDiscoveryClient_startDiscoveryNative(
 	JNIEnv* env,
 	jobject /*this*/,
 	jlong handle
 )
 {
-	TestFullFileBackupNative* obj = reinterpret_cast<TestFullFileBackupNative*>(handle);
+	ServerDiscoveryClientNative* obj = reinterpret_cast<ServerDiscoveryClientNative*>(handle);
 	obj->startDiscovery();
 }
 
 extern "C" JNIEXPORT jlongArray JNICALL
-Java_com_unnamed_easyphotobackup_TestFullFileBackup_getDiscoveryResultsNative(
+Java_com_unnamed_easyphotobackup_ServerDiscoveryClient_getDiscoveryResultsNative(
 	JNIEnv* env,
 	jobject /*this*/,
 	jlong handle
 )
 {
-	TestFullFileBackupNative* obj = reinterpret_cast<TestFullFileBackupNative*>(handle);
-	std::vector<TestServerInfo> discoveryResults = obj->getDiscoveryResults();
+	ServerDiscoveryClientNative* obj = reinterpret_cast<ServerDiscoveryClientNative*>(handle);
+	std::vector<ServerConnectionInfo> discoveryResults = obj->getDiscoveryResults();
 
 	jlongArray result = env->NewLongArray(static_cast<jsize>(discoveryResults.size()));
 
 	std::vector<jlong> handles;
 	handles.reserve(discoveryResults.size());
 
-	for (TestServerInfo& discoveryResult : discoveryResults)
+	for (ServerConnectionInfo& discoveryResult : discoveryResults)
 	{
-		handles.push_back(reinterpret_cast<jlong>(new TestServerInfoNative(std::move(discoveryResult))));
+		handles.push_back(reinterpret_cast<jlong>(new ServerConnectionInfoNative(std::move(discoveryResult))));
 	}
 
 	env->SetLongArrayRegion(
@@ -155,154 +141,24 @@ Java_com_unnamed_easyphotobackup_TestFullFileBackup_getDiscoveryResultsNative(
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_unnamed_easyphotobackup_TestFullFileBackup_stopDiscoveryNative(
+Java_com_unnamed_easyphotobackup_ServerDiscoveryClient_stopDiscoveryNative(
 	JNIEnv* env,
 	jobject /*this*/,
 	jlong handle
 )
 {
-	TestFullFileBackupNative* obj = reinterpret_cast<TestFullFileBackupNative*>(handle);
+	ServerDiscoveryClientNative* obj = reinterpret_cast<ServerDiscoveryClientNative*>(handle);
 	obj->stopDiscovery();
 }
 
-extern "C" JNIEXPORT jstring JNICALL
-Java_com_unnamed_easyphotobackup_TestFullFileBackup_requestServerNameNative(
-	JNIEnv* env,
-	jobject /*this*/,
-	jlong handle,
-	jlong serverInfoHandle
-)
-{
-	TestServerInfoNative* info = reinterpret_cast<TestServerInfoNative*>(serverInfoHandle);
-
-	std::optional<std::string> serverName = TestFullFileBackupNative::requestServerName(info->serverInfo.address);
-
-	if (!serverName.has_value())
-	{
-		return nullptr;
-	}
-
-	return env->NewStringUTF(serverName->c_str());
-}
-
-extern "C" JNIEXPORT jlong JNICALL
-Java_com_unnamed_easyphotobackup_TestFullFileBackup_exchangePairingInformationWithServer(
-	JNIEnv* env,
-	jobject /*this*/,
-	jlong handle,
-	jlong serverInfoHandle
-)
-{
-	TestFullFileBackupNative* obj = reinterpret_cast<TestFullFileBackupNative*>(handle);
-	TestServerInfoNative* info = reinterpret_cast<TestServerInfoNative*>(serverInfoHandle);
-
-	std::variant<std::string, PendingServerBinding> result = obj->exchangePairInformationWithServer(info->serverInfo);
-
-	if (std::holds_alternative<PendingServerBinding>(result))
-	{
-		return reinterpret_cast<jlong>(new PendingServerBindingNative(std::move(std::get<PendingServerBinding>(result))));
-	}
-
-	return 0;
-}
-
-extern "C" JNIEXPORT jstring JNICALL
-Java_com_unnamed_easyphotobackup_TestFullFileBackup_approveServer(
-	JNIEnv* env,
-	jobject /*this*/,
-	jlong handle,
-	jlong serverInfoHandle,
-	jlong pendingServerBindingHandle
-)
-{
-	TestFullFileBackupNative* obj = reinterpret_cast<TestFullFileBackupNative*>(handle);
-	TestServerInfoNative* info = reinterpret_cast<TestServerInfoNative*>(serverInfoHandle);
-	PendingServerBindingNative* pendingServerBindingNative = reinterpret_cast<PendingServerBindingNative*>(pendingServerBindingHandle);
-
-	std::optional<std::string> result = obj->approveServer(info->serverInfo, pendingServerBindingNative->serverBinding);
-
-	if (result.has_value())
-	{
-		return env->NewStringUTF(result->c_str());
-	}
-
-	return nullptr;
-}
-
-extern "C" JNIEXPORT jstring JNICALL
-Java_com_unnamed_easyphotobackup_TestFullFileBackup_sendFilesNative(
-	JNIEnv* env,
-	jobject /*this*/,
-	jlong handle,
-	jlong serverInfoHandle,
-	jstring folderPathJStr,
-	jstring commonRootPathJStr
-)
-{
-	TestFullFileBackupNative* obj = reinterpret_cast<TestFullFileBackupNative*>(handle);
-	TestServerInfoNative* info = reinterpret_cast<TestServerInfoNative*>(serverInfoHandle);
-
-	const char* folderPathChar = env->GetStringUTFChars(folderPathJStr, nullptr);
-	std::string folderPath(folderPathChar);
-	env->ReleaseStringUTFChars(folderPathJStr, folderPathChar);
-
-	const char* commonRootPathChar = env->GetStringUTFChars(commonRootPathJStr, nullptr);
-	std::string commonRootPath(commonRootPathChar);
-	env->ReleaseStringUTFChars(commonRootPathJStr, commonRootPathChar);
-
-	std::optional<std::string> result = obj->sendFiles(info->serverInfo, folderPath, commonRootPath);
-
-	if (result.has_value())
-	{
-		return env->NewStringUTF(result->c_str());
-	}
-
-	return nullptr;
-}
-
-extern "C" JNIEXPORT jstring JNICALL
-Java_com_unnamed_easyphotobackup_TestFullFileBackup_removeServerNative(
-	JNIEnv* env,
-	jobject /*this*/,
-	jlong handle,
-	jlong serverInfoHandle
-)
-{
-	TestFullFileBackupNative* obj = reinterpret_cast<TestFullFileBackupNative*>(handle);
-	TestServerInfoNative* info = reinterpret_cast<TestServerInfoNative*>(serverInfoHandle);
-
-	std::optional<std::string> result = obj->removeServer(info->serverInfo.serverId);
-
-	if (result.has_value())
-	{
-		return env->NewStringUTF(result->c_str());
-	}
-
-	return nullptr;
-}
-
-extern "C" JNIEXPORT jboolean JNICALL
-Java_com_unnamed_easyphotobackup_TestFullFileBackup_isServerPaired(
-	JNIEnv* env,
-	jobject /*this*/,
-	jlong handle,
-	jlong serverInfoHandle
-)
-{
-	TestFullFileBackupNative* obj = reinterpret_cast<TestFullFileBackupNative*>(handle);
-	TestServerInfoNative* info = reinterpret_cast<TestServerInfoNative*>(serverInfoHandle);
-
-	return obj->isServerPaired(info->serverInfo.serverId);
-}
-
 extern "C" JNIEXPORT void JNICALL
-Java_com_unnamed_easyphotobackup_TestServerInfo_destroy(
+Java_com_unnamed_easyphotobackup_ServerConnectionInfo_destroy(
 	JNIEnv* env,
 	jobject /*this*/,
 	jlong handle
 )
 {
-	TestServerInfoNative* obj = reinterpret_cast<TestServerInfoNative*>(handle);
+	ServerConnectionInfoNative* obj = reinterpret_cast<ServerConnectionInfoNative*>(handle);
 	delete obj;
 }
 
@@ -327,4 +183,193 @@ Java_com_unnamed_easyphotobackup_PendingServerBinding_generateShortAuthentificat
 	PendingServerBindingNative* obj = reinterpret_cast<PendingServerBindingNative*>(handle);
 	std::string sas = obj->generateShortAuthentificationString();
 	return env->NewStringUTF(sas.c_str());
+}
+
+extern "C" JNIEXPORT jlong JNICALL
+Java_com_unnamed_easyphotobackup_ClientConfigStorage_open(
+		JNIEnv* env,
+		jobject /*this*/,
+		jstring localStoragePathJStr
+)
+{
+	const char* localStoragePathCStr = env->GetStringUTFChars(localStoragePathJStr, nullptr);
+	const std::filesystem::path localStoragePath(localStoragePathCStr);
+	env->ReleaseStringUTFChars(localStoragePathJStr, localStoragePathCStr);
+
+	std::optional<ClientConfigStorage> clientConfigStorageResult = ClientConfigStorage::openStorage(localStoragePath);
+	if (clientConfigStorageResult.has_value())
+	{
+		ClientConfigStorageNative *obj = new ClientConfigStorageNative(std::move(*clientConfigStorageResult));
+		return reinterpret_cast<jlong>(obj);
+	}
+
+	return 0;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_unnamed_easyphotobackup_ClientConfigStorage_destroy(
+	JNIEnv* env,
+	jobject /*this*/,
+	jlong handle
+)
+{
+	ClientConfigStorageNative* obj = reinterpret_cast<ClientConfigStorageNative*>(handle);
+	delete obj;
+}
+
+extern "C" JNIEXPORT jlong JNICALL
+Java_com_unnamed_easyphotobackup_ClientSentFilesStorage_open(
+		JNIEnv* env,
+		jobject /*this*/,
+		jstring localStoragePathJStr
+)
+{
+	const char* localStoragePathCStr = env->GetStringUTFChars(localStoragePathJStr, nullptr);
+	const std::filesystem::path localStoragePath(localStoragePathCStr);
+	env->ReleaseStringUTFChars(localStoragePathJStr, localStoragePathCStr);
+
+	std::optional<ClientSentFilesStorage> clientSentFilesStorageResult = ClientSentFilesStorage::openStorage(localStoragePath);
+	if (clientSentFilesStorageResult.has_value())
+	{
+		ClientSentFilesStorageNative *obj = new ClientSentFilesStorageNative(std::move(*clientSentFilesStorageResult));
+		return reinterpret_cast<jlong>(obj);
+	}
+
+	return 0;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_unnamed_easyphotobackup_ClientSentFilesStorage_destroy(
+	JNIEnv* env,
+	jobject /*this*/,
+	jlong handle
+)
+{
+	ClientSentFilesStorageNative* obj = reinterpret_cast<ClientSentFilesStorageNative*>(handle);
+	delete obj;
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_unnamed_easyphotobackup_PairingHelpers_requestServerNameNative(
+		JNIEnv* env,
+		jobject /*this*/,
+		jlong serverInfoHandle
+)
+{
+	ServerConnectionInfoNative* info = reinterpret_cast<ServerConnectionInfoNative*>(serverInfoHandle);
+
+	std::optional<std::string> serverName = PairingHelpers::requestServerName(info->serverInfo.address);
+
+	if (!serverName.has_value())
+	{
+		return nullptr;
+	}
+
+	return env->NewStringUTF(serverName->c_str());
+}
+
+extern "C" JNIEXPORT jlong JNICALL
+Java_com_unnamed_easyphotobackup_PairingHelpers_exchangePairingInformationWithServerNative(
+		JNIEnv* env,
+		jobject /*myClass*/,
+		jlong serverInfoHandle
+)
+{
+	ServerConnectionInfoNative* info = reinterpret_cast<ServerConnectionInfoNative*>(serverInfoHandle);
+
+	std::variant<std::string, PendingServerBinding> result = PairingHelpers::exchangePairInformationWithServer(info->serverInfo);
+
+	if (std::holds_alternative<PendingServerBinding>(result))
+	{
+		return reinterpret_cast<jlong>(new PendingServerBindingNative(std::move(std::get<PendingServerBinding>(result))));
+	}
+
+	return 0;
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_unnamed_easyphotobackup_PairingHelpers_approveServerNative(
+		JNIEnv* env,
+		jobject /*this*/,
+		jlong clientConfigStorageHandle,
+		jlong serverInfoHandle,
+		jlong pendingServerBindingHandle
+)
+{
+	ClientConfigStorageNative* clientConfigStorage = reinterpret_cast<ClientConfigStorageNative*>(clientConfigStorageHandle);
+	ServerConnectionInfoNative* info = reinterpret_cast<ServerConnectionInfoNative*>(serverInfoHandle);
+	PendingServerBindingNative* pendingServerBindingNative = reinterpret_cast<PendingServerBindingNative*>(pendingServerBindingHandle);
+
+	clientConfigStorage->storage.addConfirmedServerBinding(
+			info->serverInfo.serverId,
+			ClientConfigStorage::ServerBinding{
+					.serverName = "test_server",
+					.connectionId = Cryptography::generateConnectionId(pendingServerBindingNative->serverBinding.staticKeys.publicKey, pendingServerBindingNative->serverBinding.remoteStaticKey),
+					.remoteStaticKey = std::move(pendingServerBindingNative->serverBinding.remoteStaticKey),
+					.staticKeys = std::move(pendingServerBindingNative->serverBinding.staticKeys),
+			}
+	);
+
+	return nullptr;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_unnamed_easyphotobackup_PairingHelpers_removePairedServerNative(
+		JNIEnv* env,
+		jobject /*this*/,
+		jlong clientConfigStorageHandle,
+		jlong serverInfoHandle
+)
+{
+	ClientConfigStorageNative* clientConfigStorage = reinterpret_cast<ClientConfigStorageNative*>(clientConfigStorageHandle);
+	ServerConnectionInfoNative* info = reinterpret_cast<ServerConnectionInfoNative*>(serverInfoHandle);
+
+	return clientConfigStorage->storage.removeConfirmedServerBinding(info->serverInfo.serverId);
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_unnamed_easyphotobackup_PairingHelpers_isServerPairedNative(
+		JNIEnv* env,
+		jobject /*this*/,
+		jlong clientConfigStorageHandle,
+		jlong serverInfoHandle
+)
+{
+	ClientConfigStorageNative* clientConfigStorage = reinterpret_cast<ClientConfigStorageNative*>(clientConfigStorageHandle);
+	ServerConnectionInfoNative* info = reinterpret_cast<ServerConnectionInfoNative*>(serverInfoHandle);
+
+	return clientConfigStorage->storage.hasConfirmedServerBinding(info->serverInfo.serverId);
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_unnamed_easyphotobackup_FileSendHelpers_sendFilesNative(
+		JNIEnv* env,
+		jobject /*this*/,
+		jlong clientConfigStorageHandle,
+		jlong clientSentFilesStorageHandle,
+		jlong serverInfoHandle,
+		jstring folderPathJStr,
+		jstring commonRootPathJStr
+)
+{
+	ClientConfigStorageNative* clientConfigStorage = reinterpret_cast<ClientConfigStorageNative*>(clientConfigStorageHandle);
+	ClientSentFilesStorageNative* clientSentFilesStorage = reinterpret_cast<ClientSentFilesStorageNative*>(clientSentFilesStorageHandle);
+	ServerConnectionInfoNative* info = reinterpret_cast<ServerConnectionInfoNative*>(serverInfoHandle);
+
+	const char* folderPathChar = env->GetStringUTFChars(folderPathJStr, nullptr);
+	std::string folderPath(folderPathChar);
+	env->ReleaseStringUTFChars(folderPathJStr, folderPathChar);
+
+	const char* commonRootPathChar = env->GetStringUTFChars(commonRootPathJStr, nullptr);
+	std::string commonRootPath(commonRootPathChar);
+	env->ReleaseStringUTFChars(commonRootPathJStr, commonRootPathChar);
+
+	std::optional<std::string> result = FileSendHelpers::sendDirectory(clientConfigStorage->storage, clientSentFilesStorage->storage, info->serverInfo, folderPath, commonRootPath);
+
+	if (result.has_value())
+	{
+		return env->NewStringUTF(result->c_str());
+	}
+
+	return nullptr;
 }
