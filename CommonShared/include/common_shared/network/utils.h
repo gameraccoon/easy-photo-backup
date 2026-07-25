@@ -30,6 +30,7 @@ namespace Network
 #ifdef WITH_TESTS
 	extern std::function<int(RawSocket, const char*, int, int)> gSendTestMock;
 	extern std::function<int(RawSocket, char*, int, int)> gRecvTestMock;
+	extern bool gTestDisableRealSockets;
 #endif
 
 	enum class AddressType : uint8_t

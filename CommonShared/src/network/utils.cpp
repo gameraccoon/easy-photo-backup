@@ -30,6 +30,7 @@ namespace Network
 #ifdef WITH_TESTS
 	std::function<int(RawSocket, const char*, int, int)> gSendTestMock;
 	std::function<int(RawSocket, char*, int, int)> gRecvTestMock;
+	bool gTestDisableRealSockets = false;
 #endif
 
 	[[noreturn]] static void unreachable()
@@ -218,6 +219,13 @@ namespace Network
 
 	std::optional<std::string> setSocketOption(const RawSocket socket, const int optionName)
 	{
+#if WITH_TESTS
+		if (gTestDisableRealSockets)
+		{
+			return std::nullopt;
+		}
+#endif
+
 		constexpr int flagTrue = 1;
 		if (const int errCode = setsockopt(socket, SOL_SOCKET, optionName, reinterpret_cast<const char*>(&flagTrue), sizeof(flagTrue)); errCode == -1) [[unlikely]]
 		{
@@ -229,6 +237,13 @@ namespace Network
 
 	std::optional<std::string> setSocketTimeout(RawSocket socket, const int optionName, int seconds, int microseconds)
 	{
+#if WITH_TESTS
+		if (gTestDisableRealSockets)
+		{
+			return std::nullopt;
+		}
+#endif
+
 #if defined(_WIN32) || defined(_WIN64)
 		DWORD dwRecvTimeoutMs = seconds * 1000 + microseconds / 1000;
 		if (const int errCode = setsockopt(socket, SOL_SOCKET, optionName, (const char*)&dwRecvTimeoutMs, sizeof(DWORD)))
