@@ -29,14 +29,9 @@ namespace Requests
 			return false;
 		}
 
-		InitiatorHandshakeState handshakeState{
-			.ephemeralKeys = {},
-			.staticKeys = serverBinding->staticKeys.clone(),
-			.remoteEphemeralKey = {},
-			.remoteStaticKey = serverBinding->remoteStaticKey.clone(),
-			.symmetricState = {},
-		};
-		Cryptography::HashResult connectionId;
+		InitiatorHandshakeState handshakeState = NoiseKK::initializeInitiator(serverBinding->staticKeys, serverBinding->remoteStaticKey);
+
+		Cryptography::HashResult connectionId = serverBinding->connectionId.clone();
 
 		constexpr size_t BufferSize = SecondMessagePreludeSize + DHLEN + DHLEN + DHLEN + CipherAuthDataSize;
 		Cryptography::ByteSequence<Cryptography::ByteSequenceTag::TempInternalBuffer, BufferSize> buffer;
