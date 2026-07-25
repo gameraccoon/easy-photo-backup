@@ -33,3 +33,20 @@ std::array<std::byte, Size> vectorToArray(const std::span<const std::byte> inVec
 	vectorToArray(inVector, result);
 	return result;
 }
+
+template<typename Fn>
+class TestFinalizer
+{
+public:
+	TestFinalizer(Fn&& fn)
+		: mFn(std::move(fn))
+	{}
+
+	~TestFinalizer()
+	{
+		mFn();
+	}
+
+private:
+	Fn mFn;
+};
