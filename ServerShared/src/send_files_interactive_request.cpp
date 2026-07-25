@@ -118,7 +118,7 @@ namespace Requests
 		return false;
 	}
 
-	void processSendFilesInteractiveRequest(const Cryptography::HashResult& connectionId, std::span<const std::byte> firstMessage, const Network::RawSocket socket, ServerStorage& storage)
+	void processSendFilesInteractiveRequest(const Cryptography::HashResult& connectionId, std::span<const std::byte> firstMessage, const Network::RawSocket socket, ServerStorage& storage, const std::filesystem::path& fileTargetRoot)
 	{
 		Noise::CipherStateSending sendingCipherState;
 		Noise::CipherStateReceiving receivingCipherState;
@@ -142,7 +142,7 @@ namespace Requests
 		}
 
 		Debug::Log::printDebug("Start receiving files");
-		FileReceiveUtils::receiveFiles("./server_target_directory", socket, sendingCipherState, receivingCipherState);
+		FileReceiveUtils::receiveFiles(fileTargetRoot / "server_target_directory", socket, sendingCipherState, receivingCipherState);
 
 		Debug::Log::printDebug("Finished receiving files");
 	}

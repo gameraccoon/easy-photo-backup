@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <filesystem>
 #include <span>
 
 #include "common_shared/cryptography/types/hash_types.h"
@@ -12,5 +13,5 @@ class ServerStorage;
 
 namespace Requests
 {
-	void processSendFilesInteractiveRequest(const Cryptography::HashResult& clientId, std::span<const std::byte> firstMessage, const Network::RawSocket socket, ServerStorage& storage);
+	void processSendFilesInteractiveRequest(const Cryptography::HashResult& clientId, std::span<const std::byte> firstMessage, const Network::RawSocket socket, ServerStorage& storage, const std::filesystem::path& fileTargetRoot);
 }

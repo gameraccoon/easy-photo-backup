@@ -143,7 +143,7 @@ namespace TcpServer
 					}
 				},
 				[socket, &storage](const Requests::SendFiles&& sendFiles) {
-					Requests::processSendFilesInteractiveRequest(sendFiles.connectionId, sendFiles.firstMessage, socket, storage);
+					Requests::processSendFilesInteractiveRequest(sendFiles.connectionId, sendFiles.firstMessage, socket, storage, ".");
 				},
 			},
 			std::move(request)
