@@ -104,7 +104,7 @@ namespace Lmdb
 		const int returnCode = mdb_txn_begin(
 			environment.getRaw(),
 			nullptr,
-			0,
+			MDB_RDONLY,
 			&mdbTransaction
 		);
 		if (returnCode != 0)
