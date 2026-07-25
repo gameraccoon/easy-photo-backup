@@ -133,9 +133,9 @@ namespace ServerStorageInternal
 	}
 } // namespace ServerStorageInternal
 
-ServerStorage ServerStorage::load() noexcept
+ServerStorage ServerStorage::load(const std::filesystem::path& root) noexcept
 {
-	std::optional<std::tuple<BStorage::Value, uint16_t>> loaded = BStorage::loadStorage(ServerStorageInternal::ServerStoragePath);
+	std::optional<std::tuple<BStorage::Value, uint16_t>> loaded = BStorage::loadStorage(root / ServerStorageInternal::ServerStoragePath);
 
 	if (loaded.has_value())
 	{

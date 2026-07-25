@@ -19,7 +19,7 @@ int main()
 {
 	Network::initSocketLib();
 
-	ServerStorage storage = ServerStorage::load();
+	ServerStorage storage = ServerStorage::load(".");
 
 	std::array<std::byte, 16> serverId{};
 	storage.mutate([&serverId](ServerStorageData& storageData) {

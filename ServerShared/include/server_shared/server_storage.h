@@ -4,6 +4,7 @@
 #pragma once
 
 #include <array>
+#include <filesystem>
 #include <functional>
 #include <mutex>
 #include <unordered_map>
@@ -30,7 +31,7 @@ struct ServerStorageData
 class ServerStorage
 {
 public:
-	static ServerStorage load() noexcept;
+	static ServerStorage load(const std::filesystem::path& root) noexcept;
 	[[nodiscard]] bool save() const noexcept;
 
 	void read(const std::function<void(const ServerStorageData&)>& readFn) const noexcept;
