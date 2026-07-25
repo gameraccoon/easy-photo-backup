@@ -123,21 +123,14 @@ namespace TcpServer
 
 						Debug::Log::printDebug(Cryptography::generateSas(pendingClientBinding->handshakeHash, 6));
 
-						storage.mutate([&pendingClientBinding](ServerStorageData& storage) {
-							storage.confirmedClientBindings.emplace(
-								Cryptography::generateConnectionId(pendingClientBinding->remoteStaticKey, pendingClientBinding->staticKeys.publicKey),
-								ServerStorageData::ClientBinding{
-									.name = "test_client",
-									.remoteStaticKey = std::move(pendingClientBinding->remoteStaticKey),
-									.staticKeys = std::move(pendingClientBinding->staticKeys),
-								}
-							);
-						});
-
-						if (storage.save() == false)
-						{
-							reportDebugError("Could not save client data");
-						}
+						storage.addConfirmedClientBinding(
+							Cryptography::generateConnectionId(pendingClientBinding->remoteStaticKey, pendingClientBinding->staticKeys.publicKey),
+							ServerStorage::ClientBinding{
+								.clientName = "test_client",
+								.remoteStaticKey = std::move(pendingClientBinding->remoteStaticKey),
+								.staticKeys = std::move(pendingClientBinding->staticKeys),
+							}
+						);
 
 						Debug::Log::printDebug("The client got automatically approved for testing purposes");
 					}

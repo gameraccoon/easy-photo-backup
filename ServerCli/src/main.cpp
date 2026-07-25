@@ -7,7 +7,6 @@
 #include <format>
 #include <thread>
 
-#include "common_shared/cryptography/utils/random.h"
 #include "common_shared/debug/log.h"
 #include "common_shared/network/utils.h"
 #include "common_shared/nsd/nsd_server.h"
@@ -19,20 +18,21 @@ int main()
 {
 	Network::initSocketLib();
 
-	ServerStorage storage = ServerStorage::load(".");
+	std::optional<ServerStorage> storage = ServerStorage::openStorage(".");
 
-	std::array<std::byte, 16> serverId{};
-	storage.mutate([&serverId](ServerStorageData& storageData) {
-		if (std::all_of(storageData.serverId.begin(), storageData.serverId.end(), [](std::byte b) {
-				return b == std::byte(0x00);
-			}))
-		{
-			// we don't need cryptographically good random here, can use any simpler method
-			Cryptography::fillWithRandomBytes(storageData.serverId);
-		}
+	if (!storage.has_value())
+	{
+		Debug::Log::printDebug("Could not open server storage");
+		return 0;
+	}
 
-		serverId = storageData.serverId;
-	});
+	std::optional<std::array<std::byte, 16>> serverIdResult = storage->getOrGenerateServerId();
+	if (!serverIdResult.has_value())
+	{
+		Debug::Log::printDebug("Could not load or save serverId");
+		return 0;
+	}
+	std::array<std::byte, 16> serverId = std::move(*serverIdResult);
 
 	auto openSocketResult = NsdServer::openNsdSocket(Network::AddressType::IpV4);
 
@@ -57,7 +57,7 @@ int main()
 	std::future<uint16_t> portFuture = portPromise.get_future();
 
 	auto serverThread = std::thread([&storage, &portPromise] {
-		TcpServer::runServer(storage, "0.0.0.0", Network::AddressType::IpV4, portPromise);
+		TcpServer::runServer(*storage, "0.0.0.0", Network::AddressType::IpV4, portPromise);
 	});
 
 	if (auto status = portFuture.wait_for(std::chrono::seconds(3)); status != std::future_status::ready)

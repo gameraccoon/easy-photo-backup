@@ -4,43 +4,39 @@
 #pragma once
 
 #include <array>
-#include <filesystem>
-#include <functional>
-#include <mutex>
-#include <unordered_map>
 
-#include "common_shared/bstorage/value.h"
 #include "common_shared/cryptography/types/dh_types.h"
 #include "common_shared/cryptography/types/hash_types.h"
-
-struct ServerStorageData
-{
-	struct ClientBinding
-	{
-		std::string name;
-		Cryptography::PublicKey remoteStaticKey;
-		Cryptography::Keypair staticKeys;
-	};
-
-	using ConfirmedClientBindingsType = std::unordered_map<Cryptography::HashResult, ClientBinding>;
-
-	ConfirmedClientBindingsType confirmedClientBindings;
-	std::array<std::byte, 16> serverId;
-};
+#include "common_shared/storage/lmdb_environment.h"
 
 class ServerStorage
 {
 public:
-	static ServerStorage load(const std::filesystem::path& root) noexcept;
-	[[nodiscard]] bool save() const noexcept;
+	struct ClientBinding
+	{
+		std::string clientName;
+		Cryptography::PublicKey remoteStaticKey;
+		Cryptography::Keypair staticKeys;
+	};
 
-	void read(const std::function<void(const ServerStorageData&)>& readFn) const noexcept;
-	void mutate(const std::function<void(ServerStorageData&)>& mutateFn) noexcept;
+	using ConnectionId = Cryptography::HashResult;
+
+public:
+	ServerStorage(ServerStorage&&) noexcept = default;
+	ServerStorage& operator=(ServerStorage&&) noexcept = default;
+
+	[[nodiscard]] static std::optional<ServerStorage> openStorage(const std::filesystem::path& storageRootPath) noexcept;
+
+	void addConfirmedClientBinding(const ConnectionId& connectionId, const ClientBinding& binding) noexcept;
+	bool removeConfirmedClientBinding(const ConnectionId& connectionId) noexcept;
+	[[nodiscard]] std::optional<ClientBinding> getConfirmedClientBinding(const ConnectionId& connectionId) noexcept;
+	[[nodiscard]] bool hasConfirmedClientBinding(const ConnectionId& connectionId) noexcept;
+
+	[[nodiscard]] std::optional<std::array<std::byte, 16>> getOrGenerateServerId() noexcept;
 
 private:
-	explicit ServerStorage(BStorage::Value&& value) noexcept;
+	explicit ServerStorage(Lmdb::Environment&& mEnvironment) noexcept;
 
 private:
-	ServerStorageData mStorageData;
-	mutable std::mutex mMutex;
+	Lmdb::Environment mEnvironment;
 };

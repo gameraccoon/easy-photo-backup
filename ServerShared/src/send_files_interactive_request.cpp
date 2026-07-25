@@ -24,21 +24,14 @@ namespace Requests
 
 		constexpr size_t SecondMessagePreludeSize = sizeof(Protocol::RequestAnswerId);
 
-		ResponderHandshakeState handshakeState;
+		std::optional<ServerStorage::ClientBinding> clientBinding = storage.getConfirmedClientBinding(connectionId);
 
-		storage.read([&handshakeState, &connectionId](const ServerStorageData& storageData) {
-			if (auto it = storageData.confirmedClientBindings.find(connectionId); it != storageData.confirmedClientBindings.end())
-			{
-				// for now only apply first found
-				handshakeState = NoiseKK::initializeResponder(it->second.staticKeys, it->second.remoteStaticKey);
-				return;
-			}
-		});
-
-		if (!handshakeState.remoteStaticKey.has_value() || !handshakeState.staticKeys.has_value())
+		if (!clientBinding.has_value())
 		{
 			return false;
 		}
+
+		ResponderHandshakeState handshakeState = NoiseKK::initializeResponder(clientBinding->staticKeys, clientBinding->remoteStaticKey);
 
 		{
 			if (firstMessage.size() != NoiseKK::Message1ExpectedSize)

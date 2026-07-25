@@ -19,7 +19,7 @@ namespace ClientStorageInternal
 	static constexpr std::zstring_view PartiallySentDatabaseName = "part_sent";
 }
 
-std::optional<ClientStorage> ClientStorage::openStorage(const std::filesystem::path& storageRootPath)
+std::optional<ClientStorage> ClientStorage::openStorage(const std::filesystem::path& storageRootPath) noexcept
 {
 	static constexpr size_t maxNamedDatabases = 5;
 
@@ -263,7 +263,6 @@ bool ClientStorage::hasConfirmedServerBinding(const ServerId& serverId) noexcept
 		return false;
 	}
 
-	std::vector<std::byte> value;
 	bool isFound = false;
 	Lmdb::ReturnCode returnCode = wrapper->database.readValue(serverId, [&isFound](std::span<const std::byte>) {
 		isFound = true;

@@ -68,6 +68,7 @@ protected:
 	void SetUp() override
 	{
 		std::filesystem::remove_all("tests/requests_test");
+		std::filesystem::create_directories("tests/requests_test");
 	}
 
 	void TearDown() override
@@ -111,7 +112,6 @@ TEST_F(RequestsTest, PairConfirmAndExchangeFiles_FilesExchanged)
 	constexpr std::string_view fileName = "test_file_to_send";
 	const std::filesystem::path folderToSend = "./tests/requests_tests/files_to_send";
 
-	std::filesystem::remove_all("tests/requests_test");
 	std::filesystem::create_directories(folderToSend);
 	createFile(folderToSend / fileName, fileContent);
 
@@ -158,7 +158,6 @@ TEST_F(RequestsTest, PairConfirmAndExchangeFiles_FilesExchanged)
 		RequestAnswers::Pair pairingInformation = std::get<RequestAnswers::Pair>(std::move(pairingAnswer));
 
 		// client approve
-		std::filesystem::create_directories("tests/requests_test");
 		auto storage = ClientStorage::openStorage("tests/requests_test");
 		ASSERT_TRUE(storage.has_value());
 		storage->addConfirmedServerBinding(
@@ -181,7 +180,8 @@ TEST_F(RequestsTest, PairConfirmAndExchangeFiles_FilesExchanged)
 		clientThread.join();
 	});
 
-	ServerStorage storage = ServerStorage::load("tests/requests_test");
+	std::optional<ServerStorage> storage = ServerStorage::openStorage("tests/requests_test");
+	ASSERT_TRUE(storage.has_value());
 
 	// server pair
 	std::array<std::byte, Protocol::MaxRequestSize> buffer;
@@ -199,16 +199,14 @@ TEST_F(RequestsTest, PairConfirmAndExchangeFiles_FilesExchanged)
 	ASSERT_TRUE(pendingClientBinding.has_value());
 
 	// server approve
-	storage.mutate([&pendingClientBinding](ServerStorageData& storage) {
-		storage.confirmedClientBindings.emplace(
-			Cryptography::generateConnectionId(pendingClientBinding->remoteStaticKey, pendingClientBinding->staticKeys.publicKey),
-			ServerStorageData::ClientBinding{
-				.name = "test_client",
-				.remoteStaticKey = std::move(pendingClientBinding->remoteStaticKey),
-				.staticKeys = std::move(pendingClientBinding->staticKeys),
-			}
-		);
-	});
+	storage->addConfirmedClientBinding(
+		Cryptography::generateConnectionId(pendingClientBinding->remoteStaticKey, pendingClientBinding->staticKeys.publicKey),
+		ServerStorage::ClientBinding{
+			.clientName = "test_client",
+			.remoteStaticKey = std::move(pendingClientBinding->remoteStaticKey),
+			.staticKeys = std::move(pendingClientBinding->staticKeys),
+		}
+	);
 
 	// server receive
 	if (auto result = Network::recv(serverSocket, buffer, -1, readBytes); result.has_value())
@@ -220,7 +218,7 @@ TEST_F(RequestsTest, PairConfirmAndExchangeFiles_FilesExchanged)
 	auto sendFilesRequest = Requests::parseRequest(buffer[2], std::span(buffer.data() + MessagePreludeSize, buffer.data() + readBytes));
 	ASSERT_TRUE(std::holds_alternative<Requests::SendFiles>(sendFilesRequest));
 	Requests::SendFiles sendFiles = std::get<Requests::SendFiles>(std::move(sendFilesRequest));
-	Requests::processSendFilesInteractiveRequest(sendFiles.connectionId, sendFiles.firstMessage, serverSocket, storage, "./tests/requests_tests");
+	Requests::processSendFilesInteractiveRequest(sendFiles.connectionId, sendFiles.firstMessage, serverSocket, *storage, "./tests/requests_tests");
 
 	checkFile(folderToSend / fileName, fileContent);
 }
