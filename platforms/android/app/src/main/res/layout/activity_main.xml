@@ -16,13 +16,13 @@
         android:gravity="center">
 
         <Button
-            android:id="@+id/discoverButton"
+            android:id="@+id/syncButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Start sync" />
 
         <TextView
-        android:id="@+id/sample_text"
+        android:id="@+id/sendFilesStatus"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Hello World!"
@@ -30,9 +30,14 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
+        <Button
+            android:id="@+id/discoverButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Discover Servers" />
 
     <LinearLayout
-        android:id="@+id/buttonContainer"
+        android:id="@+id/serverContainer"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical" />

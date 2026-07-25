@@ -48,31 +48,8 @@ class FileSendBackgroundWorker(
                     val serverName = PairingHelpers.requestServerName(discoveryResult)
 
                     if (!PairingHelpers.isServerPaired(clientConfigStorage, discoveryResult)) {
-
-                        val liveDangerously = false
-                        if (liveDangerously) {
-                            val pendingServerBinding = PairingHelpers.exchangePairingInformationWithServer(discoveryResult)
-                            if (pendingServerBinding == null)
-                            {
-                                statuses.add("\nCould not pair to '$serverName'")
-                                continue
-                            }
-
-                            val shortAuthentificationString = pendingServerBinding.generateShortAuthentificationString();
-
-                            statuses.add("\nPairing code $shortAuthentificationString")
-
-                            // DANGER!
-                            val result = PairingHelpers.approveServer(clientConfigStorage, discoveryResult, pendingServerBinding)
-                            if (result != null)
-                            {
-                                statuses.add("\nCould not pair to '$serverName': $result")
-                                continue
-                            }
-                        } else {
-                            statuses.add("\nSkipped unknown server '$serverName'")
-                            continue
-                        }
+                        statuses.add("\nSkipped unknown server '$serverName'")
+                        continue
                     }
 
                     for (folder in foldersToSync) {
@@ -104,7 +81,7 @@ class FileSendBackgroundWorker(
             }
 
             Result.success()
-        } catch (e: CancellationException) {
+        } catch (_: CancellationException) {
             // ToDo: stop sending files here
             prefs.edit {
                 putString("last_status", "cancelled")
