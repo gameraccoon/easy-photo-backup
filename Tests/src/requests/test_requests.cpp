@@ -175,7 +175,7 @@ TEST_F(RequestsTest, PairConfirmAndExchangeFiles_FilesExchanged)
 		std::vector<std::filesystem::path> files = FileSendUtils::collectFilesFromDirectory(folderToSend);
 		std::vector<uint64_t> previouslySentBytes;
 		storage->filterOutSentFiles(folderToSend, files, previouslySentBytes);
-		Requests::sendAndProcessSendFilesInteractiveRequest(clientSocket, *storage, "./tests/requests_tests", serverId, files, previouslySentBytes, folderToSend);
+		Requests::sendAndProcessSendFilesInteractiveRequest(clientSocket, *storage, serverId, files, previouslySentBytes, folderToSend);
 	});
 	TestFinalizer f([&clientThread] {
 		clientThread.join();

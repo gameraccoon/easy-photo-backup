@@ -328,7 +328,7 @@ static FileExchangeTestResult runFileExchangeTest(ClientStorage& clientStorage, 
 		}
 		std::vector<uint64_t> previouslySentBytes;
 		clientStorage.filterOutSentFiles("", filePathsToSend, previouslySentBytes);
-		FileSendUtils::sendFiles(filePathsToSend, previouslySentBytes, "", senderSocket, clientStorage, "", cipherStateSending, cipherStateReceiving, sendMocks);
+		FileSendUtils::sendFiles(filePathsToSend, previouslySentBytes, "", senderSocket, clientStorage, cipherStateSending, cipherStateReceiving, sendMocks);
 	});
 
 	std::vector<TestFileExchangeFile> receivedFiles = instructions.existingFiles;

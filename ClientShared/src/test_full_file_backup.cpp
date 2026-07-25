@@ -25,7 +25,6 @@ std::string PendingServerBinding::generateShortAuthentificationString() const no
 
 TestFullFileBackup::TestFullFileBackup(const std::filesystem::path& localDataPath) noexcept
 	: mClientStorage(*ClientStorage::openStorage(localDataPath))
-	, mLocalDataPath(localDataPath)
 {
 }
 
@@ -223,8 +222,8 @@ std::optional<std::string> TestFullFileBackup::sendFiles(const TestServerInfo& s
 		serverInfo.address.ip.data(),
 		serverInfo.address.addressType,
 		serverInfo.address.port,
-		[&storage = mClientStorage, &serverId = serverInfo.serverId, &files, &previouslySentBytes, &commonRoot, localDataPath = mLocalDataPath](Network::RawSocket socket) -> RequestAnswers::RequestAnswer {
-			return Requests::sendAndProcessSendFilesInteractiveRequest(socket, storage, localDataPath, serverId, files, previouslySentBytes, std::filesystem::path(commonRoot));
+		[&storage = mClientStorage, &serverId = serverInfo.serverId, &files, &previouslySentBytes, &commonRoot](Network::RawSocket socket) -> RequestAnswers::RequestAnswer {
+			return Requests::sendAndProcessSendFilesInteractiveRequest(socket, storage, serverId, files, previouslySentBytes, std::filesystem::path(commonRoot));
 		}
 	);
 

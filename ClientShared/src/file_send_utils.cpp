@@ -12,8 +12,6 @@
 #include "common_shared/network/utils.h"
 #include "common_shared/serialization/number_serialization.h"
 
-#include "client_shared/file_list_cache.h"
-
 namespace FileSendUtils
 {
 	/// Files are sent in chunks of 1024 bytes + auth data,
@@ -128,13 +126,8 @@ namespace FileSendUtils
 		Cryptography::HashResult fileHash;
 		std::vector<std::filesystem::path> filesAwaitingConfirmation;
 		uint64_t firstAwaitingFileBytesConfirmed = 0;
-		FileListCache confirmedFilesCache;
+		std::vector<std::filesystem::path> confirmedFilesCache;
 		std::vector<std::filesystem::path> rejectedPartialFiles;
-
-		FileSendingState(const std::filesystem::path& localDataRoot)
-			: confirmedFilesCache(localDataRoot / "sent_cache.txt")
-		{
-		}
 
 		[[nodiscard]] bool isBufferEmpty() const noexcept
 		{
@@ -390,7 +383,7 @@ namespace FileSendUtils
 					}
 				}
 
-				confirmedFilesCache.recordFile(filesAwaitingConfirmation[i]);
+				confirmedFilesCache.push_back(filesAwaitingConfirmation[i]);
 			}
 
 			if (shouldRecordLast)
@@ -578,7 +571,7 @@ namespace FileSendUtils
 	{
 		const uint64_t firstAwaitingFileBytesConfirmed = sendingState.firstAwaitingFileBytesConfirmed;
 		const std::string partiallySentFilePath = firstAwaitingFileBytesConfirmed > 0 ? std::move(sendingState.filePath) : std::string{};
-		std::vector<std::filesystem::path> confirmedFiles = sendingState.confirmedFilesCache.consumeAllFiles();
+		std::vector<std::filesystem::path> confirmedFiles = std::move(sendingState.confirmedFilesCache);
 		std::vector<std::filesystem::path> rejectedPartialFiles = std::move(sendingState.rejectedPartialFiles);
 
 		storage.addSentFiles(confirmedFiles, partiallySentFilePath, firstAwaitingFileBytesConfirmed, rejectedPartialFiles);
@@ -610,9 +603,9 @@ namespace FileSendUtils
 		return result;
 	}
 
-	void sendFiles(const std::vector<std::filesystem::path>& files, const std::vector<uint64_t>& previouslySentBytes, const std::filesystem::path& commonRoot, Network::RawSocket socket, ClientStorage& storage, const std::filesystem::path& localDataPath, Noise::CipherStateSending& sendingCipherstate, Noise::CipherStateReceiving& receivingCipherState, [[maybe_unused]] Mocks mocks) noexcept
+	void sendFiles(const std::vector<std::filesystem::path>& files, const std::vector<uint64_t>& previouslySentBytes, const std::filesystem::path& commonRoot, Network::RawSocket socket, ClientStorage& storage, Noise::CipherStateSending& sendingCipherstate, Noise::CipherStateReceiving& receivingCipherState, [[maybe_unused]] Mocks mocks) noexcept
 	{
-		FileSendingState sendingState{ localDataPath };
+		FileSendingState sendingState;
 
 #ifdef WITH_TESTS
 		sendingState.mocks = std::move(mocks);

@@ -60,5 +60,4 @@ private:
 	std::vector<TestServerInfo> mDiscoveredServers;
 	std::atomic_bool mNsdStopFlag{};
 	ClientStorage mClientStorage;
-	std::filesystem::path mLocalDataPath;
 };
