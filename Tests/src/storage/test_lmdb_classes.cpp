@@ -198,6 +198,42 @@ TEST_F(LmdbTest, Database_PutThenGet_ReturnsStoredValue)
 	}
 }
 
+TEST_F(LmdbTest, Database_PutThenGetDynamic_ReturnsStoredValue)
+{
+	auto env = Lmdb::Environment::open("test_lmdb_env_path", 10);
+	ASSERT_TRUE(env.isValid());
+
+	const std::string keyString = "key";
+	const std::string valueString = "value";
+	const auto key = std::as_bytes(std::span(keyString));
+	const auto value = std::as_bytes(std::span(valueString));
+
+	{
+		auto transaction = Lmdb::ReadWriteTransaction::create(*env);
+		ASSERT_TRUE(transaction.isValid());
+
+		auto db = Lmdb::ReadWriteDatabase::open(*transaction, "test_db");
+		ASSERT_TRUE(db.isValid());
+
+		EXPECT_EQ(Lmdb::ReturnCode::Success, db->put(key, value));
+		EXPECT_EQ(Lmdb::ReturnCode::Success, transaction->commit());
+	}
+
+	{
+		auto transaction = Lmdb::ReadOnlyTransaction::create(*env);
+		ASSERT_TRUE(transaction.isValid());
+
+		auto db = Lmdb::ReadOnlyDatabase::open(*transaction, "test_db");
+		ASSERT_TRUE(db.isValid());
+
+		std::vector<std::byte> buffer;
+		EXPECT_EQ(Lmdb::ReturnCode::Success, db->getDynamic(key, buffer));
+
+		EXPECT_EQ(5u, buffer.size());
+		EXPECT_EQ(std::string(reinterpret_cast<char*>(buffer.data()), buffer.size()), valueString);
+	}
+}
+
 TEST_F(LmdbTest, DatabaseRecord_RewriteWithNewValueAndRead_ReturnsNewValue)
 {
 	auto env = Lmdb::Environment::open("test_lmdb_env_path", 10);

@@ -71,7 +71,7 @@ namespace Lmdb
 		return ReturnCode::Success;
 	}
 
-	ReturnCode Database::getDynamic(std::span<const std::byte> key, std::vector<std::byte> outValue) noexcept
+	ReturnCode Database::getDynamic(std::span<const std::byte> key, std::vector<std::byte>& outValue) noexcept
 	{
 		const void* valueData = nullptr;
 		size_t readBytes = 0;

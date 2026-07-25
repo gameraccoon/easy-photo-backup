@@ -27,7 +27,7 @@ namespace Lmdb
 		Database& operator=(Database&&) noexcept;
 
 		[[nodiscard]] ReturnCode get(std::span<const std::byte> key, std::span<std::byte> outBuffer, size_t& readBytes) noexcept;
-		[[nodiscard]] ReturnCode getDynamic(std::span<const std::byte> key, std::vector<std::byte> outValue) noexcept;
+		[[nodiscard]] ReturnCode getDynamic(std::span<const std::byte> key, std::vector<std::byte>& outValue) noexcept;
 
 		// doesn't perform extra copy of the buffer, but need to be careful not to store pointers to the value data
 		[[nodiscard]] ReturnCode readValue(std::span<const std::byte> key, auto readFn) noexcept
