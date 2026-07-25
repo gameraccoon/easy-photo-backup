@@ -10,15 +10,9 @@
 #include "common_shared/cryptography/types/hash_types.h"
 #include "common_shared/storage/lmdb_environment.h"
 
-class ClientStorage
+class ClientStorageConfig
 {
 public:
-	struct PartiallySentFile
-	{
-		std::string path;
-		uint64_t sentData;
-	};
-
 	struct ServerBinding
 	{
 		std::string serverName;
@@ -30,13 +24,10 @@ public:
 	using ServerId = std::array<std::byte, 16>;
 
 public:
-	ClientStorage(ClientStorage&&) noexcept = default;
-	ClientStorage& operator=(ClientStorage&&) noexcept = default;
+	ClientStorageConfig(ClientStorageConfig&&) noexcept = default;
+	ClientStorageConfig& operator=(ClientStorageConfig&&) noexcept = default;
 
-	[[nodiscard]] static std::optional<ClientStorage> openStorage(const std::filesystem::path& storageRootPath) noexcept;
-
-	bool addSentFiles(const std::vector<std::filesystem::path>& newSentFiles, const std::string& partiallySentPath, uint64_t partiallySentData, const std::vector<std::filesystem::path>& rejectedPartialFiles) noexcept;
-	void filterOutSentFiles(const std::filesystem::path& rootPath, std::vector<std::filesystem::path>& inOutPaths, std::vector<uint64_t>& outPreviouslySentBytes) noexcept;
+	[[nodiscard]] static std::optional<ClientStorageConfig> openStorage(const std::filesystem::path& storageRootPath) noexcept;
 
 	void addConfirmedServerBinding(const ServerId& serverId, const ServerBinding& binding) noexcept;
 	bool removeConfirmedServerBinding(const ServerId& serverId) noexcept;
@@ -44,7 +35,34 @@ public:
 	[[nodiscard]] bool hasConfirmedServerBinding(const ServerId& serverId) noexcept;
 
 private:
-	explicit ClientStorage(Lmdb::Environment&& mEnvironment) noexcept;
+	explicit ClientStorageConfig(Lmdb::Environment&& mEnvironment) noexcept;
+
+private:
+	Lmdb::Environment mEnvironment;
+};
+
+class ClientStorageSentFiles
+{
+public:
+	struct PartiallySentFile
+	{
+		std::string path;
+		uint64_t sentData;
+	};
+
+	using ServerId = std::array<std::byte, 16>;
+
+public:
+	ClientStorageSentFiles(ClientStorageSentFiles&&) noexcept = default;
+	ClientStorageSentFiles& operator=(ClientStorageSentFiles&&) noexcept = default;
+
+	[[nodiscard]] static std::optional<ClientStorageSentFiles> openStorage(const std::filesystem::path& storageRootPath) noexcept;
+
+	bool addSentFiles(const std::vector<std::filesystem::path>& newSentFiles, const std::string& partiallySentPath, uint64_t partiallySentData, const std::vector<std::filesystem::path>& rejectedPartialFiles) noexcept;
+	void filterOutSentFiles(const std::filesystem::path& rootPath, std::vector<std::filesystem::path>& inOutPaths, std::vector<uint64_t>& outPreviouslySentBytes) noexcept;
+
+private:
+	explicit ClientStorageSentFiles(Lmdb::Environment&& mEnvironment) noexcept;
 
 private:
 	Lmdb::Environment mEnvironment;

@@ -7,7 +7,6 @@
 
 #include "common_shared/cryptography/utils/connection_id_utils.h"
 #include "common_shared/cryptography/utils/short_authentification_string_utils.h"
-#include "common_shared/debug/assert.h"
 #include "common_shared/debug/log.h"
 #include "common_shared/nsd/nsd_client.h"
 #include "common_shared/template_utils.h"
@@ -24,7 +23,8 @@ std::string PendingServerBinding::generateShortAuthentificationString() const no
 }
 
 TestFullFileBackup::TestFullFileBackup(const std::filesystem::path& localDataPath) noexcept
-	: mClientStorage(*ClientStorage::openStorage(localDataPath))
+	: mClientStorageConfig(*ClientStorageConfig::openStorage(localDataPath))
+	, mClientStorageSentFiles(*ClientStorageSentFiles::openStorage(localDataPath))
 {
 }
 
@@ -147,7 +147,7 @@ std::optional<std::string> TestFullFileBackup::requestServerName(const Network::
 
 std::variant<std::string, PendingServerBinding> TestFullFileBackup::exchangePairInformationWithServer(const TestServerInfo& serverInfo) noexcept
 {
-	const bool isPaired = mClientStorage.hasConfirmedServerBinding(serverInfo.serverId);
+	const bool isPaired = mClientStorageConfig.hasConfirmedServerBinding(serverInfo.serverId);
 
 	if (isPaired)
 	{
@@ -191,9 +191,9 @@ std::variant<std::string, PendingServerBinding> TestFullFileBackup::exchangePair
 
 std::optional<std::string> TestFullFileBackup::approveServer(const TestServerInfo& serverInfo, const PendingServerBinding& serverBindingInfo) noexcept
 {
-	mClientStorage.addConfirmedServerBinding(
+	mClientStorageConfig.addConfirmedServerBinding(
 		serverInfo.serverId,
-		ClientStorage::ServerBinding{
+		ClientStorageConfig::ServerBinding{
 			.serverName = "test server",
 			.connectionId = Cryptography::generateConnectionId(serverBindingInfo.staticKeys.publicKey, serverBindingInfo.remoteStaticKey),
 			.remoteStaticKey = serverBindingInfo.remoteStaticKey.clone(),
@@ -211,7 +211,7 @@ std::optional<std::string> TestFullFileBackup::sendFiles(const TestServerInfo& s
 	std::vector<std::filesystem::path> files = FileSendUtils::collectFilesFromDirectory(folderPath);
 
 	std::vector<uint64_t> previouslySentBytes;
-	mClientStorage.filterOutSentFiles(commonRoot, files, previouslySentBytes);
+	mClientStorageSentFiles.filterOutSentFiles(commonRoot, files, previouslySentBytes);
 
 	if (files.empty())
 	{
@@ -222,8 +222,8 @@ std::optional<std::string> TestFullFileBackup::sendFiles(const TestServerInfo& s
 		serverInfo.address.ip.data(),
 		serverInfo.address.addressType,
 		serverInfo.address.port,
-		[&storage = mClientStorage, &serverId = serverInfo.serverId, &files, &previouslySentBytes, &commonRoot](Network::RawSocket socket) -> RequestAnswers::RequestAnswer {
-			return Requests::sendAndProcessSendFilesInteractiveRequest(socket, storage, serverId, files, previouslySentBytes, std::filesystem::path(commonRoot));
+		[&storageConfig = mClientStorageConfig, &storageSentFiles = mClientStorageSentFiles, &serverId = serverInfo.serverId, &files, &previouslySentBytes, &commonRoot](Network::RawSocket socket) -> RequestAnswers::RequestAnswer {
+			return Requests::sendAndProcessSendFilesInteractiveRequest(socket, storageConfig, storageSentFiles, serverId, files, previouslySentBytes, std::filesystem::path(commonRoot));
 		}
 	);
 
@@ -251,11 +251,11 @@ std::optional<std::string> TestFullFileBackup::sendFiles(const TestServerInfo& s
 
 std::optional<std::string> TestFullFileBackup::removeServer(const std::array<std::byte, 16>& serverId) noexcept
 {
-	mClientStorage.removeConfirmedServerBinding(serverId);
+	mClientStorageConfig.removeConfirmedServerBinding(serverId);
 	return std::nullopt;
 }
 
 bool TestFullFileBackup::isServerPaired(const std::array<std::byte, 16>& serverId) noexcept
 {
-	return mClientStorage.hasConfirmedServerBinding(serverId);
+	return mClientStorageConfig.hasConfirmedServerBinding(serverId);
 }

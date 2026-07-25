@@ -13,17 +13,18 @@
 
 namespace ClientStorageInternal
 {
-	static constexpr std::string_view ClientStorageEnviromentName = "client_storage";
+	static constexpr std::string_view ClientStorageConfigEnviromentName = "client_config";
+	static constexpr std::string_view ClientStorageSentFilesEnviromentName = "client_sent_files";
 	static constexpr std::zstring_view ConfirmedDatabaseName = "confirmed";
 	static constexpr std::zstring_view SentFilesDatabaseName = "sent_files";
 	static constexpr std::zstring_view PartiallySentDatabaseName = "part_sent";
 }
 
-std::optional<ClientStorage> ClientStorage::openStorage(const std::filesystem::path& storageRootPath) noexcept
+std::optional<ClientStorageConfig> ClientStorageConfig::openStorage(const std::filesystem::path& storageRootPath) noexcept
 {
 	static constexpr size_t maxNamedDatabases = 5;
 
-	std::filesystem::path dbPath = storageRootPath / ClientStorageInternal::ClientStorageEnviromentName;
+	std::filesystem::path dbPath = storageRootPath / ClientStorageInternal::ClientStorageConfigEnviromentName;
 	Lmdb::Result<Lmdb::Environment> envResult = Lmdb::Environment::open(dbPath, maxNamedDatabases);
 
 	if (envResult.isError())
@@ -50,10 +51,162 @@ std::optional<ClientStorage> ClientStorage::openStorage(const std::filesystem::p
 		return std::nullopt;
 	}
 
-	return ClientStorage(envResult.consumeResult());
+	return ClientStorageConfig(envResult.consumeResult());
 }
 
-bool ClientStorage::addSentFiles(const std::vector<std::filesystem::path>& newSentFiles, const std::string& partiallySentPath, uint64_t partiallySentData, const std::vector<std::filesystem::path>& rejectedPartialFiles) noexcept
+void ClientStorageConfig::addConfirmedServerBinding(const ServerId& serverId, const ServerBinding& binding) noexcept
+{
+	if (serverId.size() > 255)
+	{
+		reportReleaseError("Too long server ID to serialize {}", serverId.size());
+		return;
+	}
+
+	Lmdb::Result<Lmdb::ReadWriteSingleDbWrapper> wrapper = Lmdb::openReadWriteSingleDbTransaction(mEnvironment, ClientStorageInternal::ConfirmedDatabaseName);
+	if (wrapper.isError())
+	{
+		return;
+	}
+
+	std::vector<std::byte> value;
+	value.resize(1 + binding.serverName.size() + binding.connectionId.size() + binding.remoteStaticKey.size() + binding.staticKeys.publicKey.size() + binding.staticKeys.secretKey.size());
+	Serialization::GenericSerializationWrapper serializer{ value };
+
+	if (!serializer.writeShortString(binding.serverName, "serverName")) { return; }
+	if (!serializer.writeFixedData(binding.connectionId, "connectionId")) { return; }
+	if (!serializer.writeFixedData(binding.remoteStaticKey, "remoteStaticKey")) { return; }
+	if (!serializer.writeFixedData(binding.staticKeys.publicKey, "publicKey")) { return; }
+	if (!serializer.writeFixedData(binding.staticKeys.secretKey, "secretKey")) { return; }
+	assertFatalRelease(serializer.getBytesWritten() == value.size(), "Logical error, serialization of confirmed binding leaves not filled bytes, buffer size: {} written: {}", value.size(), serializer.getBytesWritten());
+
+	Lmdb::ReturnCode returnCode = wrapper->database.put(serverId, value);
+	if (returnCode != Lmdb::ReturnCode::Success)
+	{
+		return;
+	}
+
+	returnCode = wrapper->transaction.commit();
+	if (returnCode != Lmdb::ReturnCode::Success)
+	{
+		return;
+	}
+}
+
+bool ClientStorageConfig::removeConfirmedServerBinding(const ServerId& serverId) noexcept
+{
+	Lmdb::Result<Lmdb::ReadWriteSingleDbWrapper> wrapper = Lmdb::openReadWriteSingleDbTransaction(mEnvironment, ClientStorageInternal::ConfirmedDatabaseName);
+	if (wrapper.isError())
+	{
+		return false;
+	}
+
+	Lmdb::ReturnCode returnCode = wrapper->database.deleteKey(serverId);
+	if (returnCode != Lmdb::ReturnCode::Success)
+	{
+		return false;
+	}
+
+	returnCode = wrapper->transaction.commit();
+	if (returnCode != Lmdb::ReturnCode::Success)
+	{
+		return false;
+	}
+
+	return true;
+}
+
+std::optional<ClientStorageConfig::ServerBinding> ClientStorageConfig::getConfirmedServerBinding(const ServerId& serverId) noexcept
+{
+	Lmdb::Result<Lmdb::ReadOnlySingleDbWrapper> wrapper = Lmdb::openReadOnlySingleDbTransaction(mEnvironment, ClientStorageInternal::ConfirmedDatabaseName);
+	if (wrapper.isError())
+	{
+		return std::nullopt;
+	}
+
+	std::vector<std::byte> value;
+	Lmdb::ReturnCode returnCode = wrapper->database.getDynamic(serverId, value);
+	if (returnCode != Lmdb::ReturnCode::Success)
+	{
+		return std::nullopt;
+	}
+
+	ServerBinding result{};
+	Serialization::GenericDeserializationWrapper deserializer{ value };
+
+	if (!deserializer.readShortString(result.serverName, "serverName")) { return std::nullopt; }
+	if (!deserializer.readFixedData(result.connectionId, "connectionId")) { return std::nullopt; }
+	if (!deserializer.readFixedData(result.remoteStaticKey, "remoteStaticKey")) { return std::nullopt; }
+	if (!deserializer.readFixedData(result.staticKeys.publicKey, "publicKey")) { return std::nullopt; }
+	if (!deserializer.readFixedData(result.staticKeys.secretKey, "secretKey")) { return std::nullopt; }
+
+	if (deserializer.getBytesRead() != value.size())
+	{
+		reportReleaseError("Deserialization of server binding read incorrect number of bytes: got {}, read {}", value.size(), deserializer.getBytesRead());
+		return std::nullopt;
+	}
+
+	return result;
+}
+
+bool ClientStorageConfig::hasConfirmedServerBinding(const ServerId& serverId) noexcept
+{
+	Lmdb::Result<Lmdb::ReadOnlySingleDbWrapper> wrapper = Lmdb::openReadOnlySingleDbTransaction(mEnvironment, ClientStorageInternal::ConfirmedDatabaseName);
+	if (wrapper.isError())
+	{
+		return false;
+	}
+
+	bool isFound = false;
+	Lmdb::ReturnCode returnCode = wrapper->database.readValue(serverId, [&isFound](std::span<const std::byte>) {
+		isFound = true;
+	});
+	if (returnCode != Lmdb::ReturnCode::Success)
+	{
+		return false;
+	}
+	return isFound;
+}
+
+ClientStorageConfig::ClientStorageConfig(Lmdb::Environment&& environment) noexcept
+	: mEnvironment(std::move(environment))
+{
+}
+
+std::optional<ClientStorageSentFiles> ClientStorageSentFiles::openStorage(const std::filesystem::path& storageRootPath) noexcept
+{
+	static constexpr size_t maxNamedDatabases = 5;
+
+	std::filesystem::path dbPath = storageRootPath / ClientStorageInternal::ClientStorageSentFilesEnviromentName;
+	Lmdb::Result<Lmdb::Environment> envResult = Lmdb::Environment::open(dbPath, maxNamedDatabases);
+
+	if (envResult.isError())
+	{
+		switch (envResult.getError())
+		{
+		case Lmdb::ReturnCode::Corrupted:
+		case Lmdb::ReturnCode::InvalidFile:
+		case Lmdb::ReturnCode::Panic:
+		case Lmdb::ReturnCode::Problem:
+			// on fatal problems just recreate the DB
+			std::filesystem::remove_all(dbPath);
+			envResult = Lmdb::Environment::open(dbPath, maxNamedDatabases);
+			break;
+		default:
+			break;
+		}
+	}
+
+	// ToDo: on non-fatal problems wait and try again
+
+	if (envResult.isError())
+	{
+		return std::nullopt;
+	}
+
+	return ClientStorageSentFiles(envResult.consumeResult());
+}
+
+bool ClientStorageSentFiles::addSentFiles(const std::vector<std::filesystem::path>& newSentFiles, const std::string& partiallySentPath, uint64_t partiallySentData, const std::vector<std::filesystem::path>& rejectedPartialFiles) noexcept
 {
 	Lmdb::Result<Lmdb::ReadWriteTransaction> transaction = Lmdb::ReadWriteTransaction::create(mEnvironment);
 	if (transaction.isError())
@@ -107,7 +260,7 @@ bool ClientStorage::addSentFiles(const std::vector<std::filesystem::path>& newSe
 	return (returnCode == Lmdb::ReturnCode::Success);
 }
 
-void ClientStorage::filterOutSentFiles(const std::filesystem::path& rootPath, std::vector<std::filesystem::path>& inOutPaths, std::vector<uint64_t>& outPreviouslySentBytes) noexcept
+void ClientStorageSentFiles::filterOutSentFiles(const std::filesystem::path& rootPath, std::vector<std::filesystem::path>& inOutPaths, std::vector<uint64_t>& outPreviouslySentBytes) noexcept
 {
 	Lmdb::Result<Lmdb::ReadOnlyTransaction> transaction = Lmdb::ReadOnlyTransaction::create(mEnvironment);
 	if (transaction.isError())
@@ -161,120 +314,7 @@ void ClientStorage::filterOutSentFiles(const std::filesystem::path& rootPath, st
 	}
 }
 
-void ClientStorage::addConfirmedServerBinding(const ServerId& serverId, const ServerBinding& binding) noexcept
-{
-	if (serverId.size() > 255)
-	{
-		reportReleaseError("Too long server ID to serialize {}", serverId.size());
-		return;
-	}
-
-	Lmdb::Result<Lmdb::ReadWriteSingleDbWrapper> wrapper = Lmdb::openReadWriteSingleDbTransaction(mEnvironment, ClientStorageInternal::ConfirmedDatabaseName);
-	if (wrapper.isError())
-	{
-		return;
-	}
-
-	std::vector<std::byte> value;
-	value.resize(1 + binding.serverName.size() + binding.connectionId.size() + binding.remoteStaticKey.size() + binding.staticKeys.publicKey.size() + binding.staticKeys.secretKey.size());
-	Serialization::GenericSerializationWrapper serializer{ value };
-
-	if (!serializer.writeShortString(binding.serverName, "serverName")) { return; }
-	if (!serializer.writeFixedData(binding.connectionId, "connectionId")) { return; }
-	if (!serializer.writeFixedData(binding.remoteStaticKey, "remoteStaticKey")) { return; }
-	if (!serializer.writeFixedData(binding.staticKeys.publicKey, "publicKey")) { return; }
-	if (!serializer.writeFixedData(binding.staticKeys.secretKey, "secretKey")) { return; }
-	assertFatalRelease(serializer.getBytesWritten() == value.size(), "Logical error, serialization of confirmed binding leaves not filled bytes, buffer size: {} written: {}", value.size(), serializer.getBytesWritten());
-
-	Lmdb::ReturnCode returnCode = wrapper->database.put(serverId, value);
-	if (returnCode != Lmdb::ReturnCode::Success)
-	{
-		return;
-	}
-
-	returnCode = wrapper->transaction.commit();
-	if (returnCode != Lmdb::ReturnCode::Success)
-	{
-		return;
-	}
-}
-
-bool ClientStorage::removeConfirmedServerBinding(const ServerId& serverId) noexcept
-{
-	Lmdb::Result<Lmdb::ReadWriteSingleDbWrapper> wrapper = Lmdb::openReadWriteSingleDbTransaction(mEnvironment, ClientStorageInternal::ConfirmedDatabaseName);
-	if (wrapper.isError())
-	{
-		return false;
-	}
-
-	Lmdb::ReturnCode returnCode = wrapper->database.deleteKey(serverId);
-	if (returnCode != Lmdb::ReturnCode::Success)
-	{
-		return false;
-	}
-
-	returnCode = wrapper->transaction.commit();
-	if (returnCode != Lmdb::ReturnCode::Success)
-	{
-		return false;
-	}
-
-	return true;
-}
-
-std::optional<ClientStorage::ServerBinding> ClientStorage::getConfirmedServerBinding(const ServerId& serverId) noexcept
-{
-	Lmdb::Result<Lmdb::ReadOnlySingleDbWrapper> wrapper = Lmdb::openReadOnlySingleDbTransaction(mEnvironment, ClientStorageInternal::ConfirmedDatabaseName);
-	if (wrapper.isError())
-	{
-		return std::nullopt;
-	}
-
-	std::vector<std::byte> value;
-	Lmdb::ReturnCode returnCode = wrapper->database.getDynamic(serverId, value);
-	if (returnCode != Lmdb::ReturnCode::Success)
-	{
-		return std::nullopt;
-	}
-
-	ServerBinding result{};
-	Serialization::GenericDeserializationWrapper deserializer{ value };
-
-	if (!deserializer.readShortString(result.serverName, "serverName")) { return std::nullopt; }
-	if (!deserializer.readFixedData(result.connectionId, "connectionId")) { return std::nullopt; }
-	if (!deserializer.readFixedData(result.remoteStaticKey, "remoteStaticKey")) { return std::nullopt; }
-	if (!deserializer.readFixedData(result.staticKeys.publicKey, "publicKey")) { return std::nullopt; }
-	if (!deserializer.readFixedData(result.staticKeys.secretKey, "secretKey")) { return std::nullopt; }
-
-	if (deserializer.getBytesRead() != value.size())
-	{
-		reportReleaseError("Deserialization of server binding read incorrect number of bytes: got {}, read {}", value.size(), deserializer.getBytesRead());
-		return std::nullopt;
-	}
-
-	return result;
-}
-
-bool ClientStorage::hasConfirmedServerBinding(const ServerId& serverId) noexcept
-{
-	Lmdb::Result<Lmdb::ReadOnlySingleDbWrapper> wrapper = Lmdb::openReadOnlySingleDbTransaction(mEnvironment, ClientStorageInternal::ConfirmedDatabaseName);
-	if (wrapper.isError())
-	{
-		return false;
-	}
-
-	bool isFound = false;
-	Lmdb::ReturnCode returnCode = wrapper->database.readValue(serverId, [&isFound](std::span<const std::byte>) {
-		isFound = true;
-	});
-	if (returnCode != Lmdb::ReturnCode::Success)
-	{
-		return false;
-	}
-	return isFound;
-}
-
-ClientStorage::ClientStorage(Lmdb::Environment&& environment) noexcept
+ClientStorageSentFiles::ClientStorageSentFiles(Lmdb::Environment&& environment) noexcept
 	: mEnvironment(std::move(environment))
 {
 }

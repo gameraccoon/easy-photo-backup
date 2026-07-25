@@ -150,7 +150,7 @@ TEST_F(RequestsTest, PairConfirmAndExchangeFiles_FilesExchanged)
 	Network::gTestDisableRealSockets = true;
 
 	std::thread clientThread = std::thread([&folderToSend]() {
-		const ClientStorage::ServerId serverId = vectorToArray<16>(hexToBytes("1234567890abcdef1234567890abcdef"));
+		const ClientStorageConfig::ServerId serverId = vectorToArray<16>(hexToBytes("1234567890abcdef1234567890abcdef"));
 
 		// client pair
 		RequestAnswers::RequestAnswer pairingAnswer = Requests::sendAndProcessPairingInteractiveRequest(clientSocket);
@@ -158,11 +158,11 @@ TEST_F(RequestsTest, PairConfirmAndExchangeFiles_FilesExchanged)
 		RequestAnswers::Pair pairingInformation = std::get<RequestAnswers::Pair>(std::move(pairingAnswer));
 
 		// client approve
-		auto storage = ClientStorage::openStorage("tests/requests_test");
-		ASSERT_TRUE(storage.has_value());
-		storage->addConfirmedServerBinding(
+		auto storageConfig = ClientStorageConfig::openStorage("tests/requests_test");
+		ASSERT_TRUE(storageConfig.has_value());
+		storageConfig->addConfirmedServerBinding(
 			serverId,
-			ClientStorage::ServerBinding{
+			ClientStorageConfig::ServerBinding{
 				.serverName = "test server",
 				.connectionId = Cryptography::generateConnectionId(pairingInformation.staticKeys.publicKey, pairingInformation.remoteStaticKey),
 				.remoteStaticKey = pairingInformation.remoteStaticKey.clone(),
@@ -171,10 +171,11 @@ TEST_F(RequestsTest, PairConfirmAndExchangeFiles_FilesExchanged)
 		);
 
 		// client send
+		auto storageSentFiles = ClientStorageSentFiles::openStorage("tests/requests_test");
 		std::vector<std::filesystem::path> files = FileSendUtils::collectFilesFromDirectory(folderToSend);
 		std::vector<uint64_t> previouslySentBytes;
-		storage->filterOutSentFiles(folderToSend, files, previouslySentBytes);
-		Requests::sendAndProcessSendFilesInteractiveRequest(clientSocket, *storage, serverId, files, previouslySentBytes, folderToSend);
+		storageSentFiles->filterOutSentFiles(folderToSend, files, previouslySentBytes);
+		Requests::sendAndProcessSendFilesInteractiveRequest(clientSocket, *storageConfig, *storageSentFiles, serverId, files, previouslySentBytes, folderToSend);
 	});
 	TestFinalizer f([&clientThread] {
 		clientThread.join();
