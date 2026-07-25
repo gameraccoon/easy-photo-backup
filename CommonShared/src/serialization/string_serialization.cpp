@@ -54,10 +54,10 @@ namespace Serialization
 
 		const size_t providedStringSize = static_cast<size_t>(buffer[0]);
 
-		if (providedStringSize + 1 < buffer.size()) [[unlikely]]
+		if (providedStringSize + 1 > buffer.size()) [[unlikely]]
 		{
-			reportDebugError("The string size is greater than the space in the buffer, string size: {}, buffer size", providedStringSize, buffer.size());
-			return std::format("The string size is greater than the space in the buffer, string size: {}, buffer size", providedStringSize, buffer.size());
+			reportDebugError("The string size is greater than the space in the buffer, string size: {}, buffer size {}", providedStringSize, buffer.size());
+			return std::format("The string size is greater than the space in the buffer, string size: {}, buffer size {}", providedStringSize, buffer.size());
 		}
 
 		if (providedStringSize > maxStringLength) [[unlikely]]
