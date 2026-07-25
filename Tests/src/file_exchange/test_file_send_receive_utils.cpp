@@ -371,8 +371,8 @@ static FileExchangeTestResult runFileExchangeTest(ClientSentFilesStorage& client
 					});
 					expectedFileIt != instructions.expectedOverriddenFiles.end())
 				{
+					overriddenFileFlags[std::distance(instructions.expectedOverriddenFiles.begin(), expectedFileIt)] = true;
 					FAIL() << std::format("Expected file '{}' to be overridden, instead of created anew", expectedFileIt->path);
-					overriddenFileFlags[std::distance(instructions.expectedOverriddenFiles.begin(), expectedFileIt)] = true; // already reported, can mark it now
 				}
 				receivedFiles.push_back(TestFileExchangeFile{
 					.path = path,
