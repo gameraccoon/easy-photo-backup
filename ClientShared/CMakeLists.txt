@@ -26,7 +26,7 @@ target_sources(ClientShared
 	PRIVATE
 		${CLIENT_SHARED_SRC_DIR}/client_storage.cpp
 		${CLIENT_SHARED_SRC_DIR}/file_send_helpers.cpp
-		${CLIENT_SHARED_SRC_DIR}/file_send_utils.cpp
+		${CLIENT_SHARED_SRC_DIR}/file_transfer_send_logic.cpp
 		${CLIENT_SHARED_SRC_DIR}/requests.cpp
 		${CLIENT_SHARED_SRC_DIR}/pairing_interactive_request.cpp
 		${CLIENT_SHARED_SRC_DIR}/pairing_helpers.cpp
@@ -36,7 +36,7 @@ target_sources(ClientShared
 	PUBLIC
 		${CLIENT_SHARED_INCLUDE_DIR}/client_storage.h
 		${CLIENT_SHARED_INCLUDE_DIR}/file_send_helpers.h
-		${CLIENT_SHARED_INCLUDE_DIR}/file_send_utils.h
+		${CLIENT_SHARED_INCLUDE_DIR}/file_transfer_send_logic.h
 		${CLIENT_SHARED_INCLUDE_DIR}/pairing_interactive_request.h
 		${CLIENT_SHARED_INCLUDE_DIR}/pairing_helpers.h
 		${CLIENT_SHARED_INCLUDE_DIR}/request_answers.h

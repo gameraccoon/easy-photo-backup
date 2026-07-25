@@ -8,7 +8,7 @@
 #include "common_shared/network/protocol.h"
 #include "common_shared/network/raw_sockets.h"
 
-#include "server_shared/file_receive_utils.h"
+#include "server_shared/file_transfer_receive_logic.h"
 #include "server_shared/server_storage.h"
 
 namespace Requests
@@ -135,7 +135,7 @@ namespace Requests
 		}
 
 		Debug::Log::printDebug("Start receiving files");
-		FileReceiveUtils::receiveFiles(fileTargetRoot / "server_target_directory", socket, sendingCipherState, receivingCipherState);
+		FileTransferReceiveLogic::receiveFiles(fileTargetRoot / "server_target_directory", socket, sendingCipherState, receivingCipherState);
 
 		Debug::Log::printDebug("Finished receiving files");
 	}

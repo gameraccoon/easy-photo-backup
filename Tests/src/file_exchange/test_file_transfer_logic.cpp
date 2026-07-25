@@ -19,9 +19,9 @@
 #include "common_shared/cryptography/utils/random.h"
 #include "common_shared/network/protocol.h"
 
-#include "client_shared/file_send_utils.h"
+#include "client_shared/file_transfer_send_logic.h"
 
-#include "server_shared/file_receive_utils.h"
+#include "server_shared/file_transfer_receive_logic.h"
 
 static constexpr size_t ChunkSize = Protocol::FileExchange::ChunkSize;
 static constexpr size_t TransportChunkSize = ChunkSize + Cryptography::CipherAuthDataSize;
@@ -279,7 +279,7 @@ static FileExchangeTestResult runFileExchangeTest(ClientSentFilesStorage& client
 	auto sendingThread = std::thread([&filesToSend, &filesToSendIndex, &cipherKeyFromSenderToReceiver, &cipherKeyFromReceiverToSender, &clientStorage]() {
 		int fileToWriteIdx = -1;
 		size_t fileCursor = 0;
-		FileSendUtils::Mocks sendMocks{
+		FileTransferSendLogic::Mocks sendMocks{
 			.openFile = [&filesToSendIndex, &fileToWriteIdx, &fileCursor](std::ifstream&, const std::filesystem::path& path) {
 				auto it = filesToSendIndex.find(path);
 
@@ -328,7 +328,7 @@ static FileExchangeTestResult runFileExchangeTest(ClientSentFilesStorage& client
 		}
 		std::vector<uint64_t> previouslySentBytes;
 		clientStorage.filterOutSentFiles("", filePathsToSend, previouslySentBytes);
-		FileSendUtils::sendFiles(filePathsToSend, previouslySentBytes, "", senderSocket, clientStorage, cipherStateSending, cipherStateReceiving, sendMocks);
+		FileTransferSendLogic::sendFiles(filePathsToSend, previouslySentBytes, "", senderSocket, clientStorage, cipherStateSending, cipherStateReceiving, sendMocks);
 	});
 
 	std::vector<TestFileExchangeFile> receivedFiles = instructions.existingFiles;
@@ -338,7 +338,7 @@ static FileExchangeTestResult runFileExchangeTest(ClientSentFilesStorage& client
 	std::vector<bool> overriddenFileFlags;
 	overriddenFileFlags.resize(instructions.expectedOverriddenFiles.size(), false);
 
-	FileReceiveUtils::Mocks receiveMocks{
+	FileTransferReceiveLogic::Mocks receiveMocks{
 		.isFileExists = [&receivedFilesIndex](const std::filesystem::path& path) {
 			return receivedFilesIndex.contains(path);
 		},
@@ -442,7 +442,7 @@ static FileExchangeTestResult runFileExchangeTest(ClientSentFilesStorage& client
 	Noise::CipherStateReceiving cipherStateReceiving;
 	cipherStateReceiving.cipherKey = cipherKeyFromSenderToReceiver.clone();
 
-	FileReceiveUtils::receiveFiles("", receiverSocket, cipherStateSending, cipherStateReceiving, receiveMocks);
+	FileTransferReceiveLogic::receiveFiles("", receiverSocket, cipherStateSending, cipherStateReceiving, receiveMocks);
 	sendingThread.join();
 
 	EXPECT_EQ(size_t(0), fileMessages.size());

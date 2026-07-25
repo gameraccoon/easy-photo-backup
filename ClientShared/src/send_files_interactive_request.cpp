@@ -11,7 +11,7 @@
 #include "common_shared/serialization/number_serialization.h"
 
 #include "client_shared/client_storage.h"
-#include "client_shared/file_send_utils.h"
+#include "client_shared/file_transfer_send_logic.h"
 
 namespace Requests
 {
@@ -151,7 +151,7 @@ namespace Requests
 
 		Debug::Log::printDebug("Start sending files");
 
-		FileSendUtils::sendFiles(files, previouslySentBytes, commonRoot, socket, storageSentFiles, sendingCipherState, receivingCipherState);
+		FileTransferSendLogic::sendFiles(files, previouslySentBytes, commonRoot, socket, storageSentFiles, sendingCipherState, receivingCipherState);
 
 		return Protocol::RequestAnswers::SendFiles{};
 	}

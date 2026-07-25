@@ -16,7 +16,7 @@
 
 #include "client_shared/client_storage.h"
 
-namespace FileSendUtils
+namespace FileTransferSendLogic
 {
 #ifdef WITH_TESTS
 	struct Mocks

@@ -12,7 +12,6 @@
 #include "client_shared/pairing_interactive_request.h"
 #include "client_shared/requests.h"
 
-
 std::string PendingServerBinding::generateShortAuthentificationString() const noexcept
 {
 	return Cryptography::generateSas(this->handshakeHash, 6);

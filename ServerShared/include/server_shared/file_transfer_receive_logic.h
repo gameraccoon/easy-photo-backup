@@ -14,7 +14,7 @@
 #include "common_shared/cryptography/types/hash_types.h"
 #include "common_shared/network/utils.h"
 
-namespace FileReceiveUtils
+namespace FileTransferReceiveLogic
 {
 #ifdef WITH_TESTS
 	struct Mocks
@@ -32,4 +32,4 @@ namespace FileReceiveUtils
 #endif
 
 	void receiveFiles(const std::filesystem::path& targetDirectory, Network::RawSocket socket, Noise::CipherStateSending& sendingCipherstate, Noise::CipherStateReceiving& receivingCipherState, Mocks mocks = {});
-} // namespace FileReceiveUtils
+} // namespace FileTransferReceiveLogic

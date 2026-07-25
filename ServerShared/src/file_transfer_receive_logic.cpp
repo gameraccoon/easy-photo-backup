@@ -1,7 +1,7 @@
 // Copyright (C) Pavel Grebnev 2026
 // Distributed under the MIT License (license terms are at http://opensource.org/licenses/MIT).
 
-#include "server_shared/file_receive_utils.h"
+#include "server_shared/file_transfer_receive_logic.h"
 
 #include <fstream>
 #include <limits>
@@ -15,7 +15,7 @@
 #include "common_shared/network/utils.h"
 #include "common_shared/serialization/number_serialization.h"
 
-namespace FileReceiveUtils
+namespace FileTransferReceiveLogic
 {
 	/// Files are sent in chunks of 1024 bytes + auth data,
 	/// each message is encrypted separately,
@@ -794,4 +794,4 @@ namespace FileReceiveUtils
 			return;
 		}
 	}
-} // namespace FileReceiveUtils
+} // namespace FileTransferReceiveLogic

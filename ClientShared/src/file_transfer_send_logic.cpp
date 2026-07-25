@@ -1,7 +1,7 @@
 // Copyright (C) Pavel Grebnev 2026
 // Distributed under the MIT License (license terms are at http://opensource.org/licenses/MIT).
 
-#include "client_shared/file_send_utils.h"
+#include "client_shared/file_transfer_send_logic.h"
 
 #include <fstream>
 
@@ -12,7 +12,7 @@
 #include "common_shared/network/utils.h"
 #include "common_shared/serialization/number_serialization.h"
 
-namespace FileSendUtils
+namespace FileTransferSendLogic
 {
 	/// Files are sent in chunks of 1024 bytes + auth data,
 	/// each message is encrypted separately,
@@ -735,4 +735,4 @@ namespace FileSendUtils
 
 		return recordSentFiles(sendingState, storage);
 	}
-} // namespace FileSendUtils
+} // namespace FileTransferSendLogic
