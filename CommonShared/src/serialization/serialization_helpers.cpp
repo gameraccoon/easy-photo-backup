@@ -58,7 +58,7 @@ namespace Serialization
 	bool GenericDeserializationWrapper::readShortString(std::string& outData, std::string_view logName, size_t lengthLimit) noexcept
 	{
 		std::optional<std::string> readResult = Serialization::readShortString(mBuffer.subspan(mBytesRead), outData, lengthLimit);
-		mBytesRead += outData.size();
+		mBytesRead += outData.size() + 1;
 		return Internal::reportIfReadError(readResult, logName);
 	}
 } // namespace Serialization
