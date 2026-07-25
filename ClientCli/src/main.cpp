@@ -3,45 +3,67 @@
 
 #include <thread>
 
+#include "common_shared/cryptography/utils/connection_id_utils.h"
 #include "common_shared/debug/log.h"
 #include "common_shared/network/utils.h"
 
-#include "client_shared/test_full_file_backup.h"
+#include "client_shared/client_storage.h"
+#include "client_shared/file_send_helpers.h"
+#include "client_shared/pairing_helpers.h"
+#include "client_shared/server_discovery_client.h"
 
 int main()
 {
 	Network::initSocketLib();
 
-	TestFullFileBackup test{ "." };
-	test.startDiscovery();
-	std::vector<TestServerInfo> discoveryResults;
+	ServerDiscoveryClient nsdClient;
+	nsdClient.startDiscovery();
+	std::vector<ServerConnectionInfo> discoveryResults;
 	int tries = 0;
 	do {
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
-		discoveryResults = test.getDiscoveryResults();
+		discoveryResults = nsdClient.getDiscoveryResults();
 		++tries;
 	} while (discoveryResults.empty() && tries < 1000);
-	test.stopDiscovery();
+	nsdClient.stopDiscovery();
+
+	std::optional<ClientStorageConfig> clientConfigStorage = ClientStorageConfig::openStorage(".");
+	if (!clientConfigStorage.has_value())
+	{
+		Debug::Log::printDebug("Could not open client config storage");
+	}
 
 	if (!discoveryResults.empty())
 	{
-		if (!test.isServerPaired(discoveryResults.front().serverId))
+		if (!clientConfigStorage->hasConfirmedServerBinding(discoveryResults.front().serverId))
 		{
-			std::variant<std::string, PendingServerBinding> pairintExchangeResult = test.exchangePairInformationWithServer(discoveryResults.front());
+			std::variant<std::string, PendingServerBinding> pairintExchangeResult = PairingHelpers::exchangePairInformationWithServer(discoveryResults.front());
 
 			if (std::holds_alternative<std::string>(pairintExchangeResult))
 			{
 				Debug::Log::printDebug("Error when exchanging pairing information: {}", std::get<std::string>(std::move(pairintExchangeResult)));
 			}
 
-			if (auto error = test.approveServer(discoveryResults.front(), std::get<PendingServerBinding>(std::move(pairintExchangeResult))); error.has_value())
-			{
-				Debug::Log::printDebug("Error when approving paired server: {}", std::move(*error));
-				return 0;
-			}
+			PendingServerBinding pairingExchange = std::get<PendingServerBinding>(std::move(pairintExchangeResult));
+
+			clientConfigStorage->addConfirmedServerBinding(
+				discoveryResults.front().serverId,
+				ClientStorageConfig::ServerBinding{
+					.serverName = "test_server",
+					.connectionId = Cryptography::generateConnectionId(pairingExchange.staticKeys.publicKey, pairingExchange.remoteStaticKey),
+					.remoteStaticKey = std::move(pairingExchange.remoteStaticKey),
+					.staticKeys = std::move(pairingExchange.staticKeys),
+				}
+			);
 		}
 
-		if (auto error = test.sendFiles(discoveryResults.front(), "./client_files_to_send", "./client_files_to_send"); error.has_value())
+		std::optional<ClientStorageSentFiles> clientSentFilesStorage = ClientStorageSentFiles::openStorage(".");
+		if (!clientSentFilesStorage.has_value())
+		{
+			Debug::Log::printDebug("Could not open client sent files storage");
+			return 0;
+		}
+		if (auto error = FileSendHelpers::sendFiles(*clientConfigStorage, *clientSentFilesStorage, discoveryResults.front(), "./client_files_to_send", "./client_files_to_send"); error.has_value())
 		{
 			Debug::Log::printDebug("Error when exchanging files: {}", std::move(*error));
 			return 0;

@@ -12,7 +12,7 @@
 #include "common_shared/template_utils.h"
 
 #include "client_shared/client_storage.h"
-#include "client_shared/file_send_utils.h"
+#include "client_shared/file_send_helpers.h"
 #include "client_shared/pairing_interactive_request.h"
 #include "client_shared/requests.h"
 #include "client_shared/send_files_interactive_request.h"
@@ -208,7 +208,7 @@ std::optional<std::string> TestFullFileBackup::approveServer(const TestServerInf
 
 std::optional<std::string> TestFullFileBackup::sendFiles(const TestServerInfo& serverInfo, const std::string& folderPath, const std::string& commonRoot) noexcept
 {
-	std::vector<std::filesystem::path> files = FileSendUtils::collectFilesFromDirectory(folderPath);
+	std::vector<std::filesystem::path> files = FileSendHelpers::collectFilesFromDirectory(folderPath);
 
 	std::vector<uint64_t> previouslySentBytes;
 	mClientStorageSentFiles.filterOutSentFiles(commonRoot, files, previouslySentBytes);

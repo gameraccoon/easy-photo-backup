@@ -584,32 +584,6 @@ namespace FileSendUtils
 		}
 	}
 
-	std::vector<std::filesystem::path> collectFilesFromDirectory(std::filesystem::path folderPath) noexcept
-	{
-		std::vector<std::filesystem::path> result;
-
-		try
-		{
-			for (const std::filesystem::directory_entry& dirEntry : std::filesystem::recursive_directory_iterator(folderPath))
-			{
-				if (!std::filesystem::is_directory(dirEntry))
-				{
-					result.push_back(dirEntry.path());
-				}
-			}
-		}
-		catch (std::exception& e)
-		{
-			reportDebugError("An exception caught when reading files: {}", e.what());
-		}
-		catch (...)
-		{
-			reportDebugError("An exception caught when reading files");
-		}
-
-		return result;
-	}
-
 	void sendFiles(const std::vector<std::filesystem::path>& files, const std::vector<uint64_t>& previouslySentBytes, const std::filesystem::path& commonRoot, Network::RawSocket socket, ClientStorageSentFiles& storage, Noise::CipherStateSending& sendingCipherstate, Noise::CipherStateReceiving& receivingCipherState, [[maybe_unused]] Mocks mocks) noexcept
 	{
 		FileSendingState sendingState;

@@ -8,12 +8,12 @@
 #include <mutex>
 #include <optional>
 #include <thread>
-#include <variant>
 #include <vector>
 
 #include "common_shared/network/utils.h"
 
 #include "client_shared/client_storage.h"
+#include "client_shared/pairing_helpers.h"
 
 // This is a test implementation for quick testing of file transfer
 // it should be removed as soon as a complete interactive implementation is ready
@@ -23,15 +23,6 @@ struct TestServerInfo
 {
 	Network::NetworkAddress address;
 	std::array<std::byte, 16> serverId;
-};
-
-struct PendingServerBinding
-{
-	Cryptography::Keypair staticKeys;
-	Cryptography::PublicKey remoteStaticKey;
-	Cryptography::HashResult handshakeHash;
-
-	[[nodiscard]] std::string generateShortAuthentificationString() const noexcept;
 };
 
 class TestFullFileBackup

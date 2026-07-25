@@ -2,6 +2,7 @@
 // Distributed under the MIT License (license terms are at http://opensource.org/licenses/MIT).
 
 #include <filesystem>
+#include <fstream>
 
 #include <gtest/gtest.h>
 #include <tests/helper_utils.h>
@@ -9,7 +10,7 @@
 #include "common_shared/cryptography/utils/connection_id_utils.h"
 
 #include "client_shared/client_storage.h"
-#include "client_shared/file_send_utils.h"
+#include "client_shared/file_send_helpers.h"
 #include "client_shared/pairing_interactive_request.h"
 #include "client_shared/send_files_interactive_request.h"
 
@@ -172,7 +173,7 @@ TEST_F(RequestsTest, PairConfirmAndExchangeFiles_FilesExchanged)
 
 		// client send
 		auto storageSentFiles = ClientStorageSentFiles::openStorage("tests/requests_test");
-		std::vector<std::filesystem::path> files = FileSendUtils::collectFilesFromDirectory(folderToSend);
+		std::vector<std::filesystem::path> files = FileSendHelpers::collectFilesFromDirectory(folderToSend);
 		std::vector<uint64_t> previouslySentBytes;
 		storageSentFiles->filterOutSentFiles(folderToSend, files, previouslySentBytes);
 		Requests::sendAndProcessSendFilesInteractiveRequest(clientSocket, *storageConfig, *storageSentFiles, serverId, files, previouslySentBytes, folderToSend);
