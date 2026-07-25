@@ -172,7 +172,7 @@ std::optional<std::array<std::byte, 16>> ServerStorage::getOrGenerateServerId() 
 	if (returnCode == Lmdb::ReturnCode::NotFound)
 	{
 		Cryptography::fillWithRandomBytes(result);
-		Lmdb::ReturnCode returnCode = wrapper->database.put(std::as_bytes(std::span<const char>(ServerStorageInternal::ServerIdKey)), result);
+		returnCode = wrapper->database.put(std::as_bytes(std::span<const char>(ServerStorageInternal::ServerIdKey)), result);
 		if (returnCode != Lmdb::ReturnCode::Success)
 		{
 			return std::nullopt;
