@@ -8,5 +8,5 @@
 struct ServerConnectionInfo
 {
 	Network::NetworkAddress address;
-	std::array<std::byte, 16> serverId;
+	std::array<std::byte, 16> serverId{};
 };
