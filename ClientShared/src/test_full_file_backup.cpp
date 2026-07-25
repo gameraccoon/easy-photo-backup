@@ -193,7 +193,7 @@ std::optional<std::string> TestFullFileBackup::approveServer(const TestServerInf
 {
 	mClientStorage.addConfirmedServerBinding(
 		serverInfo.serverId,
-		ClientStorageData::ServerBinding{
+		ClientStorage::ServerBinding{
 			.serverName = "test server",
 			.connectionId = Cryptography::generateConnectionId(serverBindingInfo.staticKeys.publicKey, serverBindingInfo.remoteStaticKey),
 			.remoteStaticKey = serverBindingInfo.remoteStaticKey.clone(),

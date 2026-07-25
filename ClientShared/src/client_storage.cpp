@@ -139,7 +139,7 @@ void ClientStorage::filterOutSentFiles(const std::filesystem::path& rootPath, st
 		return;
 	}
 
-	std::vector<ClientStorageData::PartiallySentFile> partiallySent;
+	std::vector<PartiallySentFile> partiallySent;
 	Lmdb::ReturnCode returnCode = Lmdb::readAllDbRecords(*transaction, *partiallySentDb, [&partiallySent](std::span<const std::byte> key, std::span<const std::byte> value) {
 		uint64_t readBytes = Serialization::readUint64(value);
 		partiallySent.emplace_back(std::string(reinterpret_cast<const char*>(key.data()), key.size()), readBytes);
@@ -161,7 +161,7 @@ void ClientStorage::filterOutSentFiles(const std::filesystem::path& rootPath, st
 	}
 }
 
-void ClientStorage::addConfirmedServerBinding(const ClientStorageData::ServerId& serverId, const ClientStorageData::ServerBinding& binding) noexcept
+void ClientStorage::addConfirmedServerBinding(const ServerId& serverId, const ServerBinding& binding) noexcept
 {
 	if (serverId.size() > 255)
 	{
@@ -199,7 +199,7 @@ void ClientStorage::addConfirmedServerBinding(const ClientStorageData::ServerId&
 	}
 }
 
-bool ClientStorage::removeConfirmedServerBinding(const ClientStorageData::ServerId& serverId) noexcept
+bool ClientStorage::removeConfirmedServerBinding(const ServerId& serverId) noexcept
 {
 	Lmdb::Result<Lmdb::ReadWriteSingleDbWrapper> wrapper = Lmdb::openReadWriteSingleDbTransaction(mEnvironment, ClientStorageInternal::ConfirmedDatabaseName);
 	if (wrapper.isError())
@@ -222,7 +222,7 @@ bool ClientStorage::removeConfirmedServerBinding(const ClientStorageData::Server
 	return true;
 }
 
-std::optional<ClientStorageData::ServerBinding> ClientStorage::getConfirmedServerBinding(const ClientStorageData::ServerId& serverId) noexcept
+std::optional<ClientStorage::ServerBinding> ClientStorage::getConfirmedServerBinding(const ServerId& serverId) noexcept
 {
 	Lmdb::Result<Lmdb::ReadOnlySingleDbWrapper> wrapper = Lmdb::openReadOnlySingleDbTransaction(mEnvironment, ClientStorageInternal::ConfirmedDatabaseName);
 	if (wrapper.isError())
@@ -237,7 +237,7 @@ std::optional<ClientStorageData::ServerBinding> ClientStorage::getConfirmedServe
 		return std::nullopt;
 	}
 
-	ClientStorageData::ServerBinding result{};
+	ServerBinding result{};
 	Serialization::GenericDeserializationWrapper deserializer{ value };
 
 	if (!deserializer.readShortString(result.serverName, "serverName")) { return std::nullopt; }
@@ -255,7 +255,7 @@ std::optional<ClientStorageData::ServerBinding> ClientStorage::getConfirmedServe
 	return result;
 }
 
-bool ClientStorage::hasConfirmedServerBinding(const ClientStorageData::ServerId& serverId) noexcept
+bool ClientStorage::hasConfirmedServerBinding(const ServerId& serverId) noexcept
 {
 	Lmdb::Result<Lmdb::ReadOnlySingleDbWrapper> wrapper = Lmdb::openReadOnlySingleDbTransaction(mEnvironment, ClientStorageInternal::ConfirmedDatabaseName);
 	if (wrapper.isError())

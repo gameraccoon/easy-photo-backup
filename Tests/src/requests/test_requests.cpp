@@ -150,7 +150,7 @@ TEST_F(RequestsTest, PairConfirmAndExchangeFiles_FilesExchanged)
 	Network::gTestDisableRealSockets = true;
 
 	std::thread clientThread = std::thread([&folderToSend]() {
-		const ClientStorageData::ServerId serverId = vectorToArray<16>(hexToBytes("1234567890abcdef1234567890abcdef"));
+		const ClientStorage::ServerId serverId = vectorToArray<16>(hexToBytes("1234567890abcdef1234567890abcdef"));
 
 		// client pair
 		RequestAnswers::RequestAnswer pairingAnswer = Requests::sendAndProcessPairingInteractiveRequest(clientSocket);
@@ -163,7 +163,7 @@ TEST_F(RequestsTest, PairConfirmAndExchangeFiles_FilesExchanged)
 		ASSERT_TRUE(storage.has_value());
 		storage->addConfirmedServerBinding(
 			serverId,
-			ClientStorageData::ServerBinding{
+			ClientStorage::ServerBinding{
 				.serverName = "test server",
 				.connectionId = Cryptography::generateConnectionId(pairingInformation.staticKeys.publicKey, pairingInformation.remoteStaticKey),
 				.remoteStaticKey = pairingInformation.remoteStaticKey.clone(),

@@ -22,7 +22,7 @@ namespace Requests
 		constexpr size_t FirstMessagePreludeSize = sizeof(Protocol::NetworkProtocolVersion) + sizeof(Protocol::RequestId) + DHLEN;
 		constexpr size_t SecondMessagePreludeSize = sizeof(Protocol::RequestAnswerId);
 
-		std::optional<ClientStorageData::ServerBinding> serverBinding = clientStorage.getConfirmedServerBinding(serverId);
+		std::optional<ClientStorage::ServerBinding> serverBinding = clientStorage.getConfirmedServerBinding(serverId);
 
 		if (!serverBinding.has_value())
 		{
