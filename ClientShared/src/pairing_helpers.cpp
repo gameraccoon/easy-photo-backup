@@ -5,9 +5,9 @@
 
 #include <format>
 
-#include "common_shared/template_utils.h"
-#include "common_shared/debug/log.h"
 #include "common_shared/cryptography/utils/short_authentification_string_utils.h"
+#include "common_shared/debug/log.h"
+#include "common_shared/template_utils.h"
 
 #include "client_shared/pairing_interactive_request.h"
 #include "client_shared/requests.h"

@@ -5,8 +5,8 @@
 
 #include "common_shared/cryptography/utils/connection_id_utils.h"
 
-#include "client_shared/file_send_helpers.h"
 #include "client_shared/client_storage.h"
+#include "client_shared/file_send_helpers.h"
 #include "client_shared/pairing_helpers.h"
 #include "client_shared/server_connection_info.h"
 #include "client_shared/server_discovery_client.h"
@@ -187,9 +187,9 @@ Java_com_unnamed_easyphotobackup_PendingServerBinding_generateShortAuthentificat
 
 extern "C" JNIEXPORT jlong JNICALL
 Java_com_unnamed_easyphotobackup_ClientConfigStorage_open(
-		JNIEnv* env,
-		jobject /*this*/,
-		jstring localStoragePathJStr
+	JNIEnv* env,
+	jobject /*this*/,
+	jstring localStoragePathJStr
 )
 {
 	const char* localStoragePathCStr = env->GetStringUTFChars(localStoragePathJStr, nullptr);
@@ -199,7 +199,7 @@ Java_com_unnamed_easyphotobackup_ClientConfigStorage_open(
 	std::optional<ClientConfigStorage> clientConfigStorageResult = ClientConfigStorage::openStorage(localStoragePath);
 	if (clientConfigStorageResult.has_value())
 	{
-		ClientConfigStorageNative *obj = new ClientConfigStorageNative(std::move(*clientConfigStorageResult));
+		ClientConfigStorageNative* obj = new ClientConfigStorageNative(std::move(*clientConfigStorageResult));
 		return reinterpret_cast<jlong>(obj);
 	}
 
@@ -219,9 +219,9 @@ Java_com_unnamed_easyphotobackup_ClientConfigStorage_destroy(
 
 extern "C" JNIEXPORT jlong JNICALL
 Java_com_unnamed_easyphotobackup_ClientSentFilesStorage_open(
-		JNIEnv* env,
-		jobject /*this*/,
-		jstring localStoragePathJStr
+	JNIEnv* env,
+	jobject /*this*/,
+	jstring localStoragePathJStr
 )
 {
 	const char* localStoragePathCStr = env->GetStringUTFChars(localStoragePathJStr, nullptr);
@@ -231,7 +231,7 @@ Java_com_unnamed_easyphotobackup_ClientSentFilesStorage_open(
 	std::optional<ClientSentFilesStorage> clientSentFilesStorageResult = ClientSentFilesStorage::openStorage(localStoragePath);
 	if (clientSentFilesStorageResult.has_value())
 	{
-		ClientSentFilesStorageNative *obj = new ClientSentFilesStorageNative(std::move(*clientSentFilesStorageResult));
+		ClientSentFilesStorageNative* obj = new ClientSentFilesStorageNative(std::move(*clientSentFilesStorageResult));
 		return reinterpret_cast<jlong>(obj);
 	}
 
@@ -251,9 +251,9 @@ Java_com_unnamed_easyphotobackup_ClientSentFilesStorage_destroy(
 
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_unnamed_easyphotobackup_PairingHelpers_requestServerNameNative(
-		JNIEnv* env,
-		jobject /*this*/,
-		jlong serverInfoHandle
+	JNIEnv* env,
+	jobject /*this*/,
+	jlong serverInfoHandle
 )
 {
 	ServerConnectionInfoNative* info = reinterpret_cast<ServerConnectionInfoNative*>(serverInfoHandle);
@@ -270,9 +270,9 @@ Java_com_unnamed_easyphotobackup_PairingHelpers_requestServerNameNative(
 
 extern "C" JNIEXPORT jlong JNICALL
 Java_com_unnamed_easyphotobackup_PairingHelpers_exchangePairingInformationWithServerNative(
-		JNIEnv* env,
-		jobject /*myClass*/,
-		jlong serverInfoHandle
+	JNIEnv* env,
+	jobject /*myClass*/,
+	jlong serverInfoHandle
 )
 {
 	ServerConnectionInfoNative* info = reinterpret_cast<ServerConnectionInfoNative*>(serverInfoHandle);
@@ -289,11 +289,11 @@ Java_com_unnamed_easyphotobackup_PairingHelpers_exchangePairingInformationWithSe
 
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_unnamed_easyphotobackup_PairingHelpers_approveServerNative(
-		JNIEnv* env,
-		jobject /*this*/,
-		jlong clientConfigStorageHandle,
-		jlong serverInfoHandle,
-		jlong pendingServerBindingHandle
+	JNIEnv* env,
+	jobject /*this*/,
+	jlong clientConfigStorageHandle,
+	jlong serverInfoHandle,
+	jlong pendingServerBindingHandle
 )
 {
 	ClientConfigStorageNative* clientConfigStorage = reinterpret_cast<ClientConfigStorageNative*>(clientConfigStorageHandle);
@@ -301,13 +301,13 @@ Java_com_unnamed_easyphotobackup_PairingHelpers_approveServerNative(
 	PendingServerBindingNative* pendingServerBindingNative = reinterpret_cast<PendingServerBindingNative*>(pendingServerBindingHandle);
 
 	clientConfigStorage->storage.addConfirmedServerBinding(
-			info->serverInfo.serverId,
-			ClientConfigStorage::ServerBinding{
-					.serverName = "test_server",
-					.connectionId = Cryptography::generateConnectionId(pendingServerBindingNative->serverBinding.staticKeys.publicKey, pendingServerBindingNative->serverBinding.remoteStaticKey),
-					.remoteStaticKey = std::move(pendingServerBindingNative->serverBinding.remoteStaticKey),
-					.staticKeys = std::move(pendingServerBindingNative->serverBinding.staticKeys),
-			}
+		info->serverInfo.serverId,
+		ClientConfigStorage::ServerBinding{
+			.serverName = "test_server",
+			.connectionId = Cryptography::generateConnectionId(pendingServerBindingNative->serverBinding.staticKeys.publicKey, pendingServerBindingNative->serverBinding.remoteStaticKey),
+			.remoteStaticKey = std::move(pendingServerBindingNative->serverBinding.remoteStaticKey),
+			.staticKeys = std::move(pendingServerBindingNative->serverBinding.staticKeys),
+		}
 	);
 
 	return nullptr;
@@ -315,10 +315,10 @@ Java_com_unnamed_easyphotobackup_PairingHelpers_approveServerNative(
 
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_unnamed_easyphotobackup_PairingHelpers_removePairedServerNative(
-		JNIEnv* env,
-		jobject /*this*/,
-		jlong clientConfigStorageHandle,
-		jlong serverInfoHandle
+	JNIEnv* env,
+	jobject /*this*/,
+	jlong clientConfigStorageHandle,
+	jlong serverInfoHandle
 )
 {
 	ClientConfigStorageNative* clientConfigStorage = reinterpret_cast<ClientConfigStorageNative*>(clientConfigStorageHandle);
@@ -329,10 +329,10 @@ Java_com_unnamed_easyphotobackup_PairingHelpers_removePairedServerNative(
 
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_unnamed_easyphotobackup_PairingHelpers_isServerPairedNative(
-		JNIEnv* env,
-		jobject /*this*/,
-		jlong clientConfigStorageHandle,
-		jlong serverInfoHandle
+	JNIEnv* env,
+	jobject /*this*/,
+	jlong clientConfigStorageHandle,
+	jlong serverInfoHandle
 )
 {
 	ClientConfigStorageNative* clientConfigStorage = reinterpret_cast<ClientConfigStorageNative*>(clientConfigStorageHandle);
@@ -343,13 +343,13 @@ Java_com_unnamed_easyphotobackup_PairingHelpers_isServerPairedNative(
 
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_unnamed_easyphotobackup_FileSendHelpers_sendFilesNative(
-		JNIEnv* env,
-		jobject /*this*/,
-		jlong clientConfigStorageHandle,
-		jlong clientSentFilesStorageHandle,
-		jlong serverInfoHandle,
-		jstring folderPathJStr,
-		jstring commonRootPathJStr
+	JNIEnv* env,
+	jobject /*this*/,
+	jlong clientConfigStorageHandle,
+	jlong clientSentFilesStorageHandle,
+	jlong serverInfoHandle,
+	jstring folderPathJStr,
+	jstring commonRootPathJStr
 )
 {
 	ClientConfigStorageNative* clientConfigStorage = reinterpret_cast<ClientConfigStorageNative*>(clientConfigStorageHandle);
