@@ -574,7 +574,7 @@ namespace FileSendUtils
 		}
 	};
 
-	static void recordSentFiles(FileSendingState& sendingState, ClientStorageSentFiles& storage)
+	static void recordSentFiles(FileSendingState& sendingState, ClientSentFilesStorage& storage)
 	{
 		const bool isSuccess = storage.addSentFiles(sendingState.confirmedFilesCache, sendingState.filePath, sendingState.firstAwaitingFileBytesConfirmed, sendingState.rejectedPartialFiles);
 		if (isSuccess)
@@ -584,7 +584,7 @@ namespace FileSendUtils
 		}
 	}
 
-	void sendFiles(const std::vector<std::filesystem::path>& files, const std::vector<uint64_t>& previouslySentBytes, const std::filesystem::path& commonRoot, Network::RawSocket socket, ClientStorageSentFiles& storage, Noise::CipherStateSending& sendingCipherstate, Noise::CipherStateReceiving& receivingCipherState, [[maybe_unused]] Mocks mocks) noexcept
+	void sendFiles(const std::vector<std::filesystem::path>& files, const std::vector<uint64_t>& previouslySentBytes, const std::filesystem::path& commonRoot, Network::RawSocket socket, ClientSentFilesStorage& storage, Noise::CipherStateSending& sendingCipherstate, Noise::CipherStateReceiving& receivingCipherState, [[maybe_unused]] Mocks mocks) noexcept
 	{
 		FileSendingState sendingState;
 

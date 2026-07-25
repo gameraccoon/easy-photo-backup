@@ -27,7 +27,7 @@ int main()
 	} while (discoveryResults.empty() && tries < 1000);
 	nsdClient.stopDiscovery();
 
-	std::optional<ClientStorageConfig> clientConfigStorage = ClientStorageConfig::openStorage(".");
+	std::optional<ClientConfigStorage> clientConfigStorage = ClientConfigStorage::openStorage(".");
 	if (!clientConfigStorage.has_value())
 	{
 		Debug::Log::printDebug("Could not open client config storage");
@@ -48,7 +48,7 @@ int main()
 
 			clientConfigStorage->addConfirmedServerBinding(
 				discoveryResults.front().serverId,
-				ClientStorageConfig::ServerBinding{
+				ClientConfigStorage::ServerBinding{
 					.serverName = "test_server",
 					.connectionId = Cryptography::generateConnectionId(pairingExchange.staticKeys.publicKey, pairingExchange.remoteStaticKey),
 					.remoteStaticKey = std::move(pairingExchange.remoteStaticKey),
@@ -57,7 +57,7 @@ int main()
 			);
 		}
 
-		std::optional<ClientStorageSentFiles> clientSentFilesStorage = ClientStorageSentFiles::openStorage(".");
+		std::optional<ClientSentFilesStorage> clientSentFilesStorage = ClientSentFilesStorage::openStorage(".");
 		if (!clientSentFilesStorage.has_value())
 		{
 			Debug::Log::printDebug("Could not open client sent files storage");

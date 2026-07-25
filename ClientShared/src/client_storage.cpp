@@ -13,18 +13,18 @@
 
 namespace ClientStorageInternal
 {
-	static constexpr std::string_view ClientStorageConfigEnviromentName = "client_config";
-	static constexpr std::string_view ClientStorageSentFilesEnviromentName = "client_sent_files";
+	static constexpr std::string_view ClientConfigStorageEnviromentName = "client_config";
+	static constexpr std::string_view ClientSentFilesStorageEnviromentName = "client_sent_files";
 	static constexpr std::zstring_view ConfirmedDatabaseName = "confirmed";
 	static constexpr std::zstring_view SentFilesDatabaseName = "sent_files";
 	static constexpr std::zstring_view PartiallySentDatabaseName = "part_sent";
 }
 
-std::optional<ClientStorageConfig> ClientStorageConfig::openStorage(const std::filesystem::path& storageRootPath) noexcept
+std::optional<ClientConfigStorage> ClientConfigStorage::openStorage(const std::filesystem::path& storageRootPath) noexcept
 {
 	static constexpr size_t maxNamedDatabases = 5;
 
-	std::filesystem::path dbPath = storageRootPath / ClientStorageInternal::ClientStorageConfigEnviromentName;
+	std::filesystem::path dbPath = storageRootPath / ClientStorageInternal::ClientConfigStorageEnviromentName;
 	Lmdb::Result<Lmdb::Environment> envResult = Lmdb::Environment::open(dbPath, maxNamedDatabases);
 
 	if (envResult.isError())
@@ -51,10 +51,10 @@ std::optional<ClientStorageConfig> ClientStorageConfig::openStorage(const std::f
 		return std::nullopt;
 	}
 
-	return ClientStorageConfig(envResult.consumeResult());
+	return ClientConfigStorage(envResult.consumeResult());
 }
 
-void ClientStorageConfig::addConfirmedServerBinding(const ServerId& serverId, const ServerBinding& binding) noexcept
+void ClientConfigStorage::addConfirmedServerBinding(const ServerId& serverId, const ServerBinding& binding) noexcept
 {
 	if (serverId.size() > 255)
 	{
@@ -92,7 +92,7 @@ void ClientStorageConfig::addConfirmedServerBinding(const ServerId& serverId, co
 	}
 }
 
-bool ClientStorageConfig::removeConfirmedServerBinding(const ServerId& serverId) noexcept
+bool ClientConfigStorage::removeConfirmedServerBinding(const ServerId& serverId) noexcept
 {
 	Lmdb::Result<Lmdb::ReadWriteSingleDbWrapper> wrapper = Lmdb::openReadWriteSingleDbTransaction(mEnvironment, ClientStorageInternal::ConfirmedDatabaseName);
 	if (wrapper.isError())
@@ -115,7 +115,7 @@ bool ClientStorageConfig::removeConfirmedServerBinding(const ServerId& serverId)
 	return true;
 }
 
-std::optional<ClientStorageConfig::ServerBinding> ClientStorageConfig::getConfirmedServerBinding(const ServerId& serverId) noexcept
+std::optional<ClientConfigStorage::ServerBinding> ClientConfigStorage::getConfirmedServerBinding(const ServerId& serverId) noexcept
 {
 	Lmdb::Result<Lmdb::ReadOnlySingleDbWrapper> wrapper = Lmdb::openReadOnlySingleDbTransaction(mEnvironment, ClientStorageInternal::ConfirmedDatabaseName);
 	if (wrapper.isError())
@@ -148,7 +148,7 @@ std::optional<ClientStorageConfig::ServerBinding> ClientStorageConfig::getConfir
 	return result;
 }
 
-bool ClientStorageConfig::hasConfirmedServerBinding(const ServerId& serverId) noexcept
+bool ClientConfigStorage::hasConfirmedServerBinding(const ServerId& serverId) noexcept
 {
 	Lmdb::Result<Lmdb::ReadOnlySingleDbWrapper> wrapper = Lmdb::openReadOnlySingleDbTransaction(mEnvironment, ClientStorageInternal::ConfirmedDatabaseName);
 	if (wrapper.isError())
@@ -167,16 +167,16 @@ bool ClientStorageConfig::hasConfirmedServerBinding(const ServerId& serverId) no
 	return isFound;
 }
 
-ClientStorageConfig::ClientStorageConfig(Lmdb::Environment&& environment) noexcept
+ClientConfigStorage::ClientConfigStorage(Lmdb::Environment&& environment) noexcept
 	: mEnvironment(std::move(environment))
 {
 }
 
-std::optional<ClientStorageSentFiles> ClientStorageSentFiles::openStorage(const std::filesystem::path& storageRootPath) noexcept
+std::optional<ClientSentFilesStorage> ClientSentFilesStorage::openStorage(const std::filesystem::path& storageRootPath) noexcept
 {
 	static constexpr size_t maxNamedDatabases = 5;
 
-	std::filesystem::path dbPath = storageRootPath / ClientStorageInternal::ClientStorageSentFilesEnviromentName;
+	std::filesystem::path dbPath = storageRootPath / ClientStorageInternal::ClientSentFilesStorageEnviromentName;
 	Lmdb::Result<Lmdb::Environment> envResult = Lmdb::Environment::open(dbPath, maxNamedDatabases);
 
 	if (envResult.isError())
@@ -203,10 +203,10 @@ std::optional<ClientStorageSentFiles> ClientStorageSentFiles::openStorage(const 
 		return std::nullopt;
 	}
 
-	return ClientStorageSentFiles(envResult.consumeResult());
+	return ClientSentFilesStorage(envResult.consumeResult());
 }
 
-bool ClientStorageSentFiles::addSentFiles(const std::vector<std::filesystem::path>& newSentFiles, const std::string& partiallySentPath, uint64_t partiallySentData, const std::vector<std::filesystem::path>& rejectedPartialFiles) noexcept
+bool ClientSentFilesStorage::addSentFiles(const std::vector<std::filesystem::path>& newSentFiles, const std::string& partiallySentPath, uint64_t partiallySentData, const std::vector<std::filesystem::path>& rejectedPartialFiles) noexcept
 {
 	Lmdb::Result<Lmdb::ReadWriteTransaction> transaction = Lmdb::ReadWriteTransaction::create(mEnvironment);
 	if (transaction.isError())
@@ -260,7 +260,7 @@ bool ClientStorageSentFiles::addSentFiles(const std::vector<std::filesystem::pat
 	return (returnCode == Lmdb::ReturnCode::Success);
 }
 
-void ClientStorageSentFiles::filterOutSentFiles(const std::filesystem::path& rootPath, std::vector<std::filesystem::path>& inOutPaths, std::vector<uint64_t>& outPreviouslySentBytes) noexcept
+void ClientSentFilesStorage::filterOutSentFiles(const std::filesystem::path& rootPath, std::vector<std::filesystem::path>& inOutPaths, std::vector<uint64_t>& outPreviouslySentBytes) noexcept
 {
 	Lmdb::Result<Lmdb::ReadOnlyTransaction> transaction = Lmdb::ReadOnlyTransaction::create(mEnvironment);
 	if (transaction.isError())
@@ -314,7 +314,7 @@ void ClientStorageSentFiles::filterOutSentFiles(const std::filesystem::path& roo
 	}
 }
 
-ClientStorageSentFiles::ClientStorageSentFiles(Lmdb::Environment&& environment) noexcept
+ClientSentFilesStorage::ClientSentFilesStorage(Lmdb::Environment&& environment) noexcept
 	: mEnvironment(std::move(environment))
 {
 }

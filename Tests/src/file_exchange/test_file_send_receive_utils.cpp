@@ -193,7 +193,7 @@ struct FileExchangeTestResult
 	std::vector<TestFileExchangeFile> totalReceivedFiles = {};
 };
 
-static FileExchangeTestResult runFileExchangeTest(ClientStorageSentFiles& clientStorage, const std::vector<TestFileExchangeFile>& filesToSend, std::vector<TestFileExchangeFile> expectedFilesToReceive, const std::vector<TestFileExchangeFile>& expectedFilesToConfirm, const FileExchangeTestInstructions& instructions = {})
+static FileExchangeTestResult runFileExchangeTest(ClientSentFilesStorage& clientStorage, const std::vector<TestFileExchangeFile>& filesToSend, std::vector<TestFileExchangeFile> expectedFilesToReceive, const std::vector<TestFileExchangeFile>& expectedFilesToConfirm, const FileExchangeTestInstructions& instructions = {})
 {
 	Cryptography::CipherKey cipherKeyFromSenderToReceiver;
 	Cryptography::fillWithRandomBytes(cipherKeyFromSenderToReceiver);
@@ -504,7 +504,7 @@ protected:
 
 TEST_F(FileSendReceiveTest, Roundtrip_SendAndReceiveOneEmptyFile_SuccessfullyReceived)
 {
-	ClientStorageSentFiles clientStorage = *ClientStorageSentFiles::openStorage("test_storage");
+	ClientSentFilesStorage clientStorage = *ClientSentFilesStorage::openStorage("test_storage");
 	std::vector<TestFileExchangeFile> filesToSend;
 	filesToSend.push_back(TestFileExchangeFile{
 		.path = std::format("empty.txt"),
@@ -516,7 +516,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_SendAndReceiveOneEmptyFile_SuccessfullyRec
 
 TEST_F(FileSendReceiveTest, Roundtrip_SendAndReceiveOneTinyFile_SuccessfullyReceived)
 {
-	ClientStorageSentFiles clientStorage = *ClientStorageSentFiles::openStorage("test_storage");
+	ClientSentFilesStorage clientStorage = *ClientSentFilesStorage::openStorage("test_storage");
 	std::vector<TestFileExchangeFile> filesToSend;
 	filesToSend.push_back(TestFileExchangeFile{
 		.path = "tiny.txt",
@@ -528,7 +528,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_SendAndReceiveOneTinyFile_SuccessfullyRece
 
 TEST_F(FileSendReceiveTest, Roundtrip_SendAndReceiveOneSmallFile_SuccessfullyReceived)
 {
-	ClientStorageSentFiles clientStorage = *ClientStorageSentFiles::openStorage("test_storage");
+	ClientSentFilesStorage clientStorage = *ClientSentFilesStorage::openStorage("test_storage");
 	std::vector<TestFileExchangeFile> filesToSend;
 	filesToSend.push_back(TestFileExchangeFile{
 		.path = "small.txt",
@@ -540,7 +540,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_SendAndReceiveOneSmallFile_SuccessfullyRec
 
 TEST_F(FileSendReceiveTest, Roundtrip_SendAndReceiveOneMediumFile_SuccessfullyReceived)
 {
-	ClientStorageSentFiles clientStorage = *ClientStorageSentFiles::openStorage("test_storage");
+	ClientSentFilesStorage clientStorage = *ClientSentFilesStorage::openStorage("test_storage");
 	std::vector<TestFileExchangeFile> filesToSend;
 	filesToSend.push_back(TestFileExchangeFile{
 		.path = "med.txt",
@@ -552,7 +552,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_SendAndReceiveOneMediumFile_SuccessfullyRe
 
 TEST_F(FileSendReceiveTest, Roundtrip_SendAndReceiveOneBigFile_SuccessfullyReceived)
 {
-	ClientStorageSentFiles clientStorage = *ClientStorageSentFiles::openStorage("test_storage");
+	ClientSentFilesStorage clientStorage = *ClientSentFilesStorage::openStorage("test_storage");
 	std::vector<TestFileExchangeFile> filesToSend;
 	filesToSend.push_back(TestFileExchangeFile{
 		.path = "big.txt",
@@ -589,7 +589,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_SendAndReceiveTwentyFiles_SuccessfullyRece
 		size_t(23),
 	};
 
-	ClientStorageSentFiles clientStorage = *ClientStorageSentFiles::openStorage("test_storage");
+	ClientSentFilesStorage clientStorage = *ClientSentFilesStorage::openStorage("test_storage");
 	std::vector<TestFileExchangeFile> filesToSend;
 	filesToSend.reserve(sizes.size());
 	const std::minstd_rand::result_type seed = getRandomSeed();
@@ -615,7 +615,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_EverySecondEscapesRoot_EverySecondRejected
 		size_t(Protocol::FileExchange::ChunkSize * Protocol::FileExchange::ChunksBetweenAnswers - std::min(size_t(300 + 180 + 10), Protocol::FileExchange::ChunkSize * Protocol::FileExchange::ChunksBetweenAnswers)), // rejected right at the border of the last chunk before answer
 	};
 
-	ClientStorageSentFiles clientStorage = *ClientStorageSentFiles::openStorage("test_storage");
+	ClientSentFilesStorage clientStorage = *ClientSentFilesStorage::openStorage("test_storage");
 	std::vector<TestFileExchangeFile> filesToSend;
 	filesToSend.reserve(sizes.size());
 	std::vector<TestFileExchangeFile> expectedFilesToReceive;
@@ -659,7 +659,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_SendAndReceiveFilesWithWrongPath_AllReject
 		size_t(100),
 	};
 
-	ClientStorageSentFiles clientStorage = *ClientStorageSentFiles::openStorage("test_storage");
+	ClientSentFilesStorage clientStorage = *ClientSentFilesStorage::openStorage("test_storage");
 	std::vector<TestFileExchangeFile> filesToSend;
 	filesToSend.reserve(sizes.size());
 	const std::minstd_rand::result_type seed = getRandomSeed();
@@ -677,7 +677,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_SendAndReceiveFilesWithWrongPath_AllReject
 
 TEST_F(FileSendReceiveTest, Roundtrip_10000EmptyFiles_SuccessfullyReceived)
 {
-	ClientStorageSentFiles clientStorage = *ClientStorageSentFiles::openStorage("test_storage");
+	ClientSentFilesStorage clientStorage = *ClientSentFilesStorage::openStorage("test_storage");
 	std::vector<TestFileExchangeFile> filesToSend;
 	constexpr size_t FilesCount = 10000;
 	filesToSend.reserve(FilesCount);
@@ -694,7 +694,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_10000EmptyFiles_SuccessfullyReceived)
 
 TEST_F(FileSendReceiveTest, Roundtrip_10000EmptyFilesEscapingRoot_AllRejected)
 {
-	ClientStorageSentFiles clientStorage = *ClientStorageSentFiles::openStorage("test_storage");
+	ClientSentFilesStorage clientStorage = *ClientSentFilesStorage::openStorage("test_storage");
 	std::vector<TestFileExchangeFile> filesToSend;
 	constexpr size_t FilesCount = 10000;
 	filesToSend.reserve(FilesCount);
@@ -712,7 +712,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_10000EmptyFilesEscapingRoot_AllRejected)
 
 TEST_F(FileSendReceiveTest, Roundtrip_BigAlreadyExistingFiles_AllSkipped)
 {
-	ClientStorageSentFiles clientStorage = *ClientStorageSentFiles::openStorage("test_storage");
+	ClientSentFilesStorage clientStorage = *ClientSentFilesStorage::openStorage("test_storage");
 	std::vector<TestFileExchangeFile> filesToSend;
 	constexpr size_t FilesCount = 5;
 	filesToSend.reserve(FilesCount);
@@ -739,7 +739,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_BigAlreadyExistingFiles_AllSkipped)
 
 TEST_F(FileSendReceiveTest, Roundtrip_BigAlreadyExistingButWithHashMismatch_AllReceived)
 {
-	ClientStorageSentFiles clientStorage = *ClientStorageSentFiles::openStorage("test_storage");
+	ClientSentFilesStorage clientStorage = *ClientSentFilesStorage::openStorage("test_storage");
 	constexpr size_t FilesCount = 5;
 	std::vector<TestFileExchangeFile> filesToSend;
 	filesToSend.reserve(FilesCount);
@@ -782,7 +782,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_BigAlreadyExistingButWithHashMismatch_AllR
 
 TEST_F(FileSendReceiveTest, Roundtrip_BigFilesReceivedCorrupted_AllRejected)
 {
-	ClientStorageSentFiles clientStorage = *ClientStorageSentFiles::openStorage("test_storage");
+	ClientSentFilesStorage clientStorage = *ClientSentFilesStorage::openStorage("test_storage");
 	constexpr size_t FilesCount = 5;
 	std::vector<TestFileExchangeFile> filesToSend;
 	filesToSend.reserve(FilesCount);
@@ -815,7 +815,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_BigFilesReceivedCorrupted_AllRejected)
 
 TEST_F(FileSendReceiveTest, Roundtrip_BigFilesPartiallySentAndThenContinued_OnlyTheRemainderIsReceived)
 {
-	ClientStorageSentFiles clientStorage = *ClientStorageSentFiles::openStorage("test_storage");
+	ClientSentFilesStorage clientStorage = *ClientSentFilesStorage::openStorage("test_storage");
 	std::vector<TestFileExchangeFile> filesToSend;
 	constexpr size_t FilesCount = 7;
 	filesToSend.reserve(FilesCount);
@@ -873,7 +873,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_BigFilesPartiallySentAndThenContinued_Only
 
 TEST_F(FileSendReceiveTest, Roundtrip_BigFilesPartiallySentAndThenDiscoveredCorrupted_ThePartiallySentFileIsFullyResent)
 {
-	ClientStorageSentFiles clientStorage = *ClientStorageSentFiles::openStorage("test_storage");
+	ClientSentFilesStorage clientStorage = *ClientSentFilesStorage::openStorage("test_storage");
 	std::vector<TestFileExchangeFile> filesToSend;
 	constexpr size_t FilesCount = 7;
 	filesToSend.reserve(FilesCount);
@@ -956,7 +956,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_BigFilesPartiallySentAndThenDiscoveredCorr
 
 TEST_F(FileSendReceiveTest, Roundtrip_BigFilePartiallySentFourTimesAndThenSentFully_ThePartiallySentFileIsFullyResent)
 {
-	ClientStorageSentFiles clientStorage = *ClientStorageSentFiles::openStorage("test_storage");
+	ClientSentFilesStorage clientStorage = *ClientSentFilesStorage::openStorage("test_storage");
 	const std::minstd_rand::result_type seed = getRandomSeed();
 	const TestFileExchangeFile fileToSend{
 		.path = "file",
@@ -1073,7 +1073,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_BigFilePartiallySentFourTimesAndThenSentFu
 
 TEST_F(FileSendReceiveTest, Roundtrip_FileMarkedPartiallySentAtEOF_FileIsSkipped)
 {
-	ClientStorageSentFiles clientStorage = *ClientStorageSentFiles::openStorage("test_storage");
+	ClientSentFilesStorage clientStorage = *ClientSentFilesStorage::openStorage("test_storage");
 
 	const auto seed = getRandomSeed();
 
@@ -1098,7 +1098,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_FileMarkedPartiallySentAtEOF_FileIsSkipped
 
 TEST_F(FileSendReceiveTest, Roundtrip_InvalidResumeOffset_FileIsResentFromBeginning)
 {
-	ClientStorageSentFiles clientStorage = *ClientStorageSentFiles::openStorage("test_storage");
+	ClientSentFilesStorage clientStorage = *ClientSentFilesStorage::openStorage("test_storage");
 
 	const auto seed = getRandomSeed();
 

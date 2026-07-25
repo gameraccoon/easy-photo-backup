@@ -37,12 +37,12 @@ namespace FileSendHelpers
 		return result;
 	}
 
-	std::optional<std::string> sendFiles(ClientStorageConfig& clientStorageConfig, ClientStorageSentFiles& clientStorageSentFiles, const ServerConnectionInfo& serverInfo, const std::string& folderPath, const std::string& commonRoot) noexcept
+	std::optional<std::string> sendFiles(ClientConfigStorage& clientConfigStorage, ClientSentFilesStorage& clientSentFilesStorage, const ServerConnectionInfo& serverInfo, const std::string& folderPath, const std::string& commonRoot) noexcept
 	{
 		std::vector<std::filesystem::path> files = collectFilesFromDirectory(folderPath);
 
 		std::vector<uint64_t> previouslySentBytes;
-		clientStorageSentFiles.filterOutSentFiles(commonRoot, files, previouslySentBytes);
+		clientSentFilesStorage.filterOutSentFiles(commonRoot, files, previouslySentBytes);
 
 		if (files.empty())
 		{
@@ -53,7 +53,7 @@ namespace FileSendHelpers
 			serverInfo.address.ip.data(),
 			serverInfo.address.addressType,
 			serverInfo.address.port,
-			[&storageConfig = clientStorageConfig, &storageSentFiles = clientStorageSentFiles, &serverId = serverInfo.serverId, &files, &previouslySentBytes, &commonRoot](Network::RawSocket socket) -> RequestAnswers::RequestAnswer {
+			[&storageConfig = clientConfigStorage, &storageSentFiles = clientSentFilesStorage, &serverId = serverInfo.serverId, &files, &previouslySentBytes, &commonRoot](Network::RawSocket socket) -> RequestAnswers::RequestAnswer {
 				return Requests::sendAndProcessSendFilesInteractiveRequest(socket, storageConfig, storageSentFiles, serverId, files, previouslySentBytes, std::filesystem::path(commonRoot));
 			}
 		);

@@ -50,6 +50,6 @@ private:
 	std::thread mDiscoveryThread;
 	std::vector<TestServerInfo> mDiscoveredServers;
 	std::atomic_bool mNsdStopFlag{};
-	ClientStorageConfig mClientStorageConfig;
-	ClientStorageSentFiles mClientStorageSentFiles;
+	ClientConfigStorage mClientConfigStorage;
+	ClientSentFilesStorages mClientSentFilesStorage;
 };

@@ -151,7 +151,7 @@ TEST_F(RequestsTest, PairConfirmAndExchangeFiles_FilesExchanged)
 	Network::gTestDisableRealSockets = true;
 
 	std::thread clientThread = std::thread([&folderToSend]() {
-		const ClientStorageConfig::ServerId serverId = vectorToArray<16>(hexToBytes("1234567890abcdef1234567890abcdef"));
+		const ClientConfigStorage::ServerId serverId = vectorToArray<16>(hexToBytes("1234567890abcdef1234567890abcdef"));
 
 		// client pair
 		RequestAnswers::RequestAnswer pairingAnswer = Requests::sendAndProcessPairingInteractiveRequest(clientSocket);
@@ -159,11 +159,11 @@ TEST_F(RequestsTest, PairConfirmAndExchangeFiles_FilesExchanged)
 		RequestAnswers::Pair pairingInformation = std::get<RequestAnswers::Pair>(std::move(pairingAnswer));
 
 		// client approve
-		auto storageConfig = ClientStorageConfig::openStorage("tests/requests_test");
+		auto storageConfig = ClientConfigStorage::openStorage("tests/requests_test");
 		ASSERT_TRUE(storageConfig.has_value());
 		storageConfig->addConfirmedServerBinding(
 			serverId,
-			ClientStorageConfig::ServerBinding{
+			ClientConfigStorage::ServerBinding{
 				.serverName = "test server",
 				.connectionId = Cryptography::generateConnectionId(pairingInformation.staticKeys.publicKey, pairingInformation.remoteStaticKey),
 				.remoteStaticKey = pairingInformation.remoteStaticKey.clone(),
@@ -172,7 +172,7 @@ TEST_F(RequestsTest, PairConfirmAndExchangeFiles_FilesExchanged)
 		);
 
 		// client send
-		auto storageSentFiles = ClientStorageSentFiles::openStorage("tests/requests_test");
+		auto storageSentFiles = ClientSentFilesStorage::openStorage("tests/requests_test");
 		std::vector<std::filesystem::path> files = FileSendHelpers::collectFilesFromDirectory(folderToSend);
 		std::vector<uint64_t> previouslySentBytes;
 		storageSentFiles->filterOutSentFiles(folderToSend, files, previouslySentBytes);

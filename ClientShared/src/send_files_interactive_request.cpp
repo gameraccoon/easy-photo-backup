@@ -15,14 +15,14 @@
 
 namespace Requests
 {
-	bool processKkHandshake(Network::RawSocket socket, ClientStorageConfig& clientStorage, const std::array<std::byte, 16>& serverId, Noise::CipherStateSending& outSendingCipherState, Noise::CipherStateReceiving& outReceivingCipherState) noexcept
+	bool processKkHandshake(Network::RawSocket socket, ClientConfigStorage& clientStorage, const std::array<std::byte, 16>& serverId, Noise::CipherStateSending& outSendingCipherState, Noise::CipherStateReceiving& outReceivingCipherState) noexcept
 	{
 		using namespace Noise;
 
 		constexpr size_t FirstMessagePreludeSize = sizeof(Protocol::NetworkProtocolVersion) + sizeof(Protocol::RequestId) + DHLEN;
 		constexpr size_t SecondMessagePreludeSize = sizeof(Protocol::RequestAnswerId);
 
-		std::optional<ClientStorageConfig::ServerBinding> serverBinding = clientStorage.getConfirmedServerBinding(serverId);
+		std::optional<ClientConfigStorage::ServerBinding> serverBinding = clientStorage.getConfirmedServerBinding(serverId);
 
 		if (!serverBinding.has_value())
 		{
@@ -123,7 +123,7 @@ namespace Requests
 		return false;
 	}
 
-	RequestAnswers::RequestAnswer sendAndProcessSendFilesInteractiveRequest(Network::RawSocket socket, ClientStorageConfig& storageConfig, ClientStorageSentFiles& storageSentFiles, const std::array<std::byte, 16>& serverId, const std::vector<std::filesystem::path>& files, const std::vector<uint64_t>& previouslySentBytes, const std::filesystem::path& commonRoot) noexcept
+	RequestAnswers::RequestAnswer sendAndProcessSendFilesInteractiveRequest(Network::RawSocket socket, ClientConfigStorage& storageConfig, ClientSentFilesStorage& storageSentFiles, const std::array<std::byte, 16>& serverId, const std::vector<std::filesystem::path>& files, const std::vector<uint64_t>& previouslySentBytes, const std::filesystem::path& commonRoot) noexcept
 	{
 		constexpr const int FileTransferMessagesTimeoutSeconds = 20;
 		constexpr const int FileTransferMessagesTimeoutMicroseconds = 0;
