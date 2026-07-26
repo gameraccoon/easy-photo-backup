@@ -46,7 +46,7 @@ namespace FileSendHelpers
 
 		if (files.empty())
 		{
-			return "No new files to send";
+			return std::nullopt;
 		}
 
 		RequestAnswers::RequestAnswer SendFilesAnswer = Requests::prepareConnectionAndProcess(
