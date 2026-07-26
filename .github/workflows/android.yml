@@ -52,7 +52,7 @@ jobs:
         echo RELEASE_KEY_ALIAS=${{ secrets.TEST_APK_SIGNING_KEY_ALIAS }} >> ~/.gradle/gradle.properties
         echo RELEASE_KEY_PASSWORD=${{ secrets.TEST_APK_SIGNING_KEY_PASSWORD }} >> ~/.gradle/gradle.properties
 
-    - uses: burrunan/gradle-cache-action@v3
+    - uses: burrunan/gradle-cache-action@4b67497abd37a511d6c1dc6299bdd84ff39f7bf5
       name: Build with Gradle
       with:
         arguments: assembleRelease
