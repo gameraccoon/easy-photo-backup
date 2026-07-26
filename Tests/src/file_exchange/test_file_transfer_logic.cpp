@@ -361,6 +361,7 @@ static FileExchangeTestResult runFileExchangeTest(ClientSentFilesStorage& client
 		}
 	});
 
+	const std::filesystem::path serverRootFolder = "sr";
 	std::vector<TestFileExchangeFile> receivedFiles = instructions.existingFiles;
 	receivedFiles.reserve(receivedFiles.size() + filesToSend.size());
 	std::unordered_map<std::filesystem::path, size_t> receivedFilesIndex = collectIndex(receivedFiles);
@@ -369,15 +370,16 @@ static FileExchangeTestResult runFileExchangeTest(ClientSentFilesStorage& client
 	overriddenFileFlags.resize(instructions.expectedOverriddenFiles.size(), false);
 
 	FileTransferReceiveLogic::Mocks receiveMocks{
-		.isFileExists = [&receivedFilesIndex](const std::filesystem::path& path) {
-			return receivedFilesIndex.contains(path);
+		.isFileExists = [&receivedFilesIndex, &serverRootFolder](const std::filesystem::path& path) {
+			return receivedFilesIndex.contains(path.lexically_relative(serverRootFolder));
 		},
-		.openFile = [&receivedFiles, &receivedFilesIndex, &instructions, &overriddenFileIdx, &overriddenFileFlags](std::ofstream&, size_t cursor, const std::filesystem::path& path) {
+		.openFile = [&receivedFiles, &receivedFilesIndex, &instructions, &overriddenFileIdx, &overriddenFileFlags, &serverRootFolder](std::ofstream&, size_t cursor, const std::filesystem::path& path) {
+			const std::filesystem::path relativePath = path.lexically_relative(serverRootFolder);
 			overriddenFileIdx = std::numeric_limits<size_t>::max();
-			if (auto it = receivedFilesIndex.find(path); it != receivedFilesIndex.end())
+			if (auto it = receivedFilesIndex.find(relativePath); it != receivedFilesIndex.end())
 			{
-				if (auto expectedFileIt = std::find_if(instructions.expectedOverriddenFiles.begin(), instructions.expectedOverriddenFiles.end(), [&path](auto& element) {
-						return element.path == path;
+				if (auto expectedFileIt = std::find_if(instructions.expectedOverriddenFiles.begin(), instructions.expectedOverriddenFiles.end(), [&relativePath](auto& element) {
+						return element.path == relativePath;
 					});
 					expectedFileIt != instructions.expectedOverriddenFiles.end())
 				{
@@ -387,7 +389,7 @@ static FileExchangeTestResult runFileExchangeTest(ClientSentFilesStorage& client
 				}
 				else
 				{
-					FAIL() << std::format("File {} is being overridden, which is not expected", path.string());
+					FAIL() << std::format("File {} is being overridden, which is not expected", relativePath.string());
 				}
 				size_t position = it->second;
 				std::swap(receivedFiles.back(), receivedFiles[position]);
@@ -396,8 +398,8 @@ static FileExchangeTestResult runFileExchangeTest(ClientSentFilesStorage& client
 			}
 			else
 			{
-				if (auto expectedFileIt = std::find_if(instructions.expectedOverriddenFiles.begin(), instructions.expectedOverriddenFiles.end(), [&path](auto& element) {
-						return element.path == path;
+				if (auto expectedFileIt = std::find_if(instructions.expectedOverriddenFiles.begin(), instructions.expectedOverriddenFiles.end(), [&relativePath](auto& element) {
+						return element.path == relativePath;
 					});
 					expectedFileIt != instructions.expectedOverriddenFiles.end())
 				{
@@ -405,15 +407,15 @@ static FileExchangeTestResult runFileExchangeTest(ClientSentFilesStorage& client
 					FAIL() << std::format("Expected file '{}' to be overridden, instead of created anew", expectedFileIt->path);
 				}
 				receivedFiles.push_back(TestFileExchangeFile{
-					.path = path,
+					.path = relativePath,
 					.data = {},
 				});
-				receivedFilesIndex.emplace(path, receivedFiles.size() - 1);
+				receivedFilesIndex.emplace(relativePath, receivedFiles.size() - 1);
 			}
 
 			ASSERT_LE(cursor, receivedFiles.back().data.size());
 			receivedFiles.back().data.resize(cursor);
-			ASSERT_FALSE(instructions.checkNoFilesWritten);
+			ASSERT_FALSE(instructions.checkNoFilesWritten) << "Opening a file, when expected no files to be written to";
 		},
 		.isFileOpen = [](std::ofstream&) -> bool {
 			return true;
@@ -444,7 +446,7 @@ static FileExchangeTestResult runFileExchangeTest(ClientSentFilesStorage& client
 		},
 		.writeSpanIntoStream = [&receivedFiles, &instructions, &overriddenFileIdx](std::ofstream&, std::span<const std::byte> buffer) {
 			ASSERT_FALSE(receivedFiles.empty());
-			ASSERT_FALSE(instructions.checkNoFilesWritten);
+			ASSERT_FALSE(instructions.checkNoFilesWritten) << "Writing to a file, when expected no files to be written to";
 			if (instructions.corruptReceivedFilesPattern.has_value())
 			{
 				std::vector<std::byte>& fileBuffer = receivedFiles.back().data;
@@ -472,7 +474,7 @@ static FileExchangeTestResult runFileExchangeTest(ClientSentFilesStorage& client
 	Noise::CipherStateReceiving cipherStateReceiving;
 	cipherStateReceiving.cipherKey = cipherKeyFromSenderToReceiver.clone();
 
-	FileTransferReceiveLogic::receiveFiles("", receiverSocket, cipherStateSending, cipherStateReceiving, receiveMocks);
+	FileTransferReceiveLogic::receiveFiles(serverRootFolder, receiverSocket, cipherStateSending, cipherStateReceiving, receiveMocks);
 	sendingThread.join();
 
 	EXPECT_EQ(size_t(0), fileMessages.size());
