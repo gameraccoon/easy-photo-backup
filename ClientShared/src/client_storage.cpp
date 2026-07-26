@@ -292,10 +292,16 @@ void ClientSentFilesStorage::filterOutSentFiles(const std::filesystem::path& roo
 		return;
 	}
 
+	struct PartiallySentFile
+	{
+		std::filesystem::path path;
+		uint64_t sentData;
+	};
+
 	std::vector<PartiallySentFile> partiallySent;
-	Lmdb::ReturnCode returnCode = Lmdb::readAllDbRecords(*transaction, *partiallySentDb, [&partiallySent](std::span<const std::byte> key, std::span<const std::byte> value) {
+	Lmdb::ReturnCode returnCode = Lmdb::readAllDbRecords(*transaction, *partiallySentDb, [&partiallySent, &rootPath](std::span<const std::byte> key, std::span<const std::byte> value) {
 		uint64_t readBytes = Serialization::readUint64(value);
-		partiallySent.emplace_back(std::string(reinterpret_cast<const char*>(key.data()), key.size()), readBytes);
+		partiallySent.emplace_back(rootPath / std::string(reinterpret_cast<const char*>(key.data()), key.size()), readBytes);
 	});
 	debugAssert(returnCode == Lmdb::ReturnCode::Success, "Unexpected result from cursor iteration");
 

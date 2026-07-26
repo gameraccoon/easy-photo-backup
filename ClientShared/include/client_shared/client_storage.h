@@ -44,15 +44,6 @@ private:
 class ClientSentFilesStorage
 {
 public:
-	struct PartiallySentFile
-	{
-		std::string path;
-		uint64_t sentData;
-	};
-
-	using ServerId = std::array<std::byte, 16>;
-
-public:
 	ClientSentFilesStorage(ClientSentFilesStorage&&) noexcept = default;
 	ClientSentFilesStorage& operator=(ClientSentFilesStorage&&) noexcept = default;
 

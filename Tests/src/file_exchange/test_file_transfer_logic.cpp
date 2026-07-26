@@ -276,15 +276,18 @@ static FileExchangeTestResult runFileExchangeTest(ClientSentFilesStorage& client
 		return -1;
 	};
 
-	auto sendingThread = std::thread([&filesToSend, &filesToSendIndex, &cipherKeyFromSenderToReceiver, &cipherKeyFromReceiverToSender, &clientStorage]() {
+	auto sendingThread = std::thread([&filesToSend, &filesToSendIndex, &expectedFilesToConfirm, &cipherKeyFromSenderToReceiver, &cipherKeyFromReceiverToSender, &clientStorage]() {
 		int fileToWriteIdx = -1;
 		size_t fileCursor = 0;
+		const std::filesystem::path clientRootFolder = "cr";
+
 		FileTransferSendLogic::Mocks sendMocks{
-			.openFile = [&filesToSendIndex, &fileToWriteIdx, &fileCursor](std::ifstream&, const std::filesystem::path& path) {
-				auto it = filesToSendIndex.find(path);
+			.openFile = [&filesToSendIndex, &fileToWriteIdx, &fileCursor, &clientRootFolder](std::ifstream&, const std::filesystem::path& path) {
+				auto it = filesToSendIndex.find(path.lexically_relative(clientRootFolder));
 
 				if (it == filesToSendIndex.end())
 				{
+					fileToWriteIdx = -1;
 					return;
 				}
 
@@ -294,13 +297,18 @@ static FileExchangeTestResult runFileExchangeTest(ClientSentFilesStorage& client
 			.getFileLength = [&filesToSend, &fileToWriteIdx](std::ifstream&) -> uint64_t {
 				return static_cast<uint64_t>(filesToSend[fileToWriteIdx].data.size());
 			},
-			.isFileOpen = [](std::ifstream&) -> bool {
-				return true;
+			.isFileOpen = [&fileToWriteIdx](std::ifstream&) -> bool {
+				return fileToWriteIdx != -1;
 			},
 			.seek = [&fileCursor](std::ifstream&, size_t position) -> void {
 				fileCursor = position;
 			},
 			.calculateFileHash = [&filesToSend, &fileToWriteIdx](std::ifstream&, size_t size, Cryptography::HashResult& result) -> int {
+				if (fileToWriteIdx >= static_cast<int>(filesToSend.size()))
+				{
+					return -1;
+				}
+
 				if (size > filesToSend[fileToWriteIdx].data.size())
 				{
 					return -1;
@@ -315,20 +323,42 @@ static FileExchangeTestResult runFileExchangeTest(ClientSentFilesStorage& client
 			},
 		};
 
-		Noise::CipherStateSending cipherStateSending;
-		cipherStateSending.cipherKey = cipherKeyFromSenderToReceiver.clone();
-		Noise::CipherStateReceiving cipherStateReceiving;
-		cipherStateReceiving.cipherKey = cipherKeyFromReceiverToSender.clone();
-
-		std::vector<std::filesystem::path> filePathsToSend;
-		filePathsToSend.reserve(filesToSend.size());
-		for (const auto& file : filesToSend)
+		// now actually send files
 		{
-			filePathsToSend.push_back(file.path);
+			Noise::CipherStateSending cipherStateSending;
+			cipherStateSending.cipherKey = cipherKeyFromSenderToReceiver.clone();
+			Noise::CipherStateReceiving cipherStateReceiving;
+			cipherStateReceiving.cipherKey = cipherKeyFromReceiverToSender.clone();
+
+			std::vector<std::filesystem::path> filePathsToSend;
+			filePathsToSend.reserve(filesToSend.size());
+			for (const auto& file : filesToSend)
+			{
+				filePathsToSend.push_back(clientRootFolder / file.path);
+			}
+
+			std::vector<uint64_t> previouslySentBytes;
+			clientStorage.filterOutSentFiles(clientRootFolder, filePathsToSend, previouslySentBytes);
+			FileTransferSendLogic::sendFiles(filePathsToSend, previouslySentBytes, clientRootFolder, senderSocket, clientStorage, cipherStateSending, cipherStateReceiving, sendMocks);
 		}
-		std::vector<uint64_t> previouslySentBytes;
-		clientStorage.filterOutSentFiles("", filePathsToSend, previouslySentBytes);
-		FileTransferSendLogic::sendFiles(filePathsToSend, previouslySentBytes, "", senderSocket, clientStorage, cipherStateSending, cipherStateReceiving, sendMocks);
+
+		// validate confirmed files
+		{
+			std::vector<std::filesystem::path> filesToConfirm;
+			filesToConfirm.reserve(expectedFilesToConfirm.size());
+			for (const TestFileExchangeFile& fileToConfirm : expectedFilesToConfirm)
+			{
+				filesToConfirm.push_back(clientRootFolder / fileToConfirm.path);
+			}
+
+			std::vector<uint64_t> previouslySentBytes;
+			clientStorage.filterOutSentFiles(clientRootFolder, filesToConfirm, previouslySentBytes);
+			EXPECT_EQ(filesToConfirm.size() - previouslySentBytes.size(), size_t(0)) << std::format("Some files were not confirmed (confirmed {} out of {})", expectedFilesToConfirm.size() - filesToConfirm.size() + previouslySentBytes.size(), expectedFilesToConfirm.size());
+			for (size_t i = previouslySentBytes.size(); i < filesToConfirm.size(); ++i)
+			{
+				EXPECT_TRUE(false) << std::format("{} expected to be confirmed but it hasn't been", filesToConfirm[i].string());
+			}
+		}
 	});
 
 	std::vector<TestFileExchangeFile> receivedFiles = instructions.existingFiles;
@@ -455,19 +485,6 @@ static FileExchangeTestResult runFileExchangeTest(ClientSentFilesStorage& client
 		EXPECT_TRUE(overriddenFileFlags[i]) << std::format("File '{}' expected to be overridden but it hasn't beeen touched", instructions.expectedOverriddenFiles[i].path);
 	}
 
-	std::vector<std::filesystem::path> filesToConfirm;
-	filesToConfirm.reserve(expectedFilesToConfirm.size());
-	for (const TestFileExchangeFile& fileToConfirm : expectedFilesToConfirm)
-	{
-		filesToConfirm.push_back(fileToConfirm.path);
-	}
-	std::vector<uint64_t> previouslySentBytes;
-	clientStorage.filterOutSentFiles("", filesToConfirm, previouslySentBytes);
-	EXPECT_EQ(filesToConfirm.size() - previouslySentBytes.size(), size_t(0)) << std::format("Some files were not confirmed (confirmed {} out of {})", expectedFilesToConfirm.size() - filesToConfirm.size() + previouslySentBytes.size(), expectedFilesToConfirm.size());
-	for (size_t i = previouslySentBytes.size(); i < filesToConfirm.size(); ++i)
-	{
-		EXPECT_TRUE(false) << std::format("{} expected to be confirmed but it hasn't been", filesToConfirm[i].string());
-	}
 	return FileExchangeTestResult{
 		.totalReceivedFiles = receivedFiles,
 	};
