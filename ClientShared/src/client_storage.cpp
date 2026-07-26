@@ -307,16 +307,14 @@ void ClientSentFilesStorage::filterOutSentFiles(const std::filesystem::path& roo
 
 	for (auto& file : partiallySent)
 	{
-		auto it = std::find(inOutPaths.begin(), inOutPaths.end(), file.path);
-		if (it == inOutPaths.end())
+		if (auto it = std::find(inOutPaths.begin(), inOutPaths.end(), file.path); it != inOutPaths.end())
 		{
-			inOutPaths.emplace(inOutPaths.begin(), file.path);
+			if (it != inOutPaths.begin())
+			{
+				std::rotate(inOutPaths.begin(), it, it + 1);
+			}
+			outPreviouslySentBytes.emplace(outPreviouslySentBytes.begin(), file.sentData);
 		}
-		else if (it != inOutPaths.begin())
-		{
-			std::rotate(inOutPaths.begin(), it, it + 1);
-		}
-		outPreviouslySentBytes.emplace(outPreviouslySentBytes.begin(), file.sentData);
 	}
 }
 
