@@ -6,4 +6,4 @@
 	url = git@github.com:gameraccoon/zstring_view-cpp-20.git
 [submodule "CommonShared/deps/lmdb"]
 	path = CommonShared/deps/lmdb
-	url = git@github.com:gameraccoon/lmdb.git
+	url = git@github.com:LMDB/lmdb.git
