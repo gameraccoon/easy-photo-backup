@@ -10,13 +10,10 @@ import androidx.core.app.NotificationCompat
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import java.util.Vector
 import kotlin.coroutines.cancellation.CancellationException
 import androidx.core.content.edit
 import androidx.work.ForegroundInfo
-import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 class FileSendBackgroundWorker(
@@ -36,6 +33,10 @@ class FileSendBackgroundWorker(
         val prefs = applicationContext.getSharedPreferences("backup_prefs", Context.MODE_PRIVATE)
 
         return try {
+            prefs.edit {
+                putString("last_status", "")
+            }
+
             setProgress(workDataOf(
                 "status" to "discovering"
             ))
@@ -67,7 +68,7 @@ class FileSendBackgroundWorker(
                         val sendStatus = FileSendHelpers.sendFiles(clientConfigStorage, clientSentFilesStorage,discoveryResult, folderPath, root)
                         if (sendStatus != null)
                         {
-                            statuses.add(sendStatus)
+                            statuses.add("\n$folder: $sendStatus")
                         }
                     }
                 }
