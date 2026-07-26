@@ -1,4 +1,6 @@
 name: Ubuntu - check clang-format
+permissions:
+  contents: read
 
 on:
   push:

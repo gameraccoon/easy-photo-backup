@@ -1,4 +1,6 @@
 name: Ubuntu - run cppcheck
+permissions:
+  contents: read
 
 on:
   push:
