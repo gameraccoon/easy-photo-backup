@@ -16,6 +16,8 @@ import java.util.Vector
 import kotlin.coroutines.cancellation.CancellationException
 import androidx.core.content.edit
 import androidx.work.ForegroundInfo
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 class FileSendBackgroundWorker(
     appContext: Context,
@@ -40,9 +42,7 @@ class FileSendBackgroundWorker(
 
             val discoveryClient = ServerDiscoveryClient()
             discoveryClient.startDiscovery()
-            withContext(Dispatchers.IO) {
-                Thread.sleep(3 * 1000)
-            }
+            kotlinx.coroutines.delay(1.seconds)
             val discoveryResults = discoveryClient.getDiscoveryResults()
             discoveryClient.stopDiscovery()
 
