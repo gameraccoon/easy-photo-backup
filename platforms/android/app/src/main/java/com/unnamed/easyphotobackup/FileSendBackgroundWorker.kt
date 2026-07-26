@@ -1,7 +1,12 @@
 package com.unnamed.easyphotobackup
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Context
+import android.content.pm.ServiceInfo
+import android.os.Build
 import android.os.Environment
+import androidx.core.app.NotificationCompat
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
@@ -10,6 +15,7 @@ import kotlinx.coroutines.withContext
 import java.util.Vector
 import kotlin.coroutines.cancellation.CancellationException
 import androidx.core.content.edit
+import androidx.work.ForegroundInfo
 
 class FileSendBackgroundWorker(
     appContext: Context,
@@ -22,9 +28,9 @@ class FileSendBackgroundWorker(
     private val foldersToSync = arrayOf("DCIM", "Download", "Pictures", "Videos")
 
     override suspend fun doWork(): Result {
+        setForeground(createForegroundInfo())
 
         val root = Environment.getExternalStorageDirectory().absolutePath
-
         val prefs = applicationContext.getSharedPreferences("backup_prefs", Context.MODE_PRIVATE)
 
         return try {
@@ -92,6 +98,34 @@ class FileSendBackgroundWorker(
                 putString("last_status", "exception caught $e")
             }
             Result.retry()
+        }
+    }
+
+    private fun createForegroundInfo(): ForegroundInfo {
+        val channelId = "sync_channel"
+        val notificationId = 1001
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                channelId,
+                "File Backup",
+                NotificationManager.IMPORTANCE_LOW
+            )
+            val manager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            manager.createNotificationChannel(channel)
+        }
+
+        val notification = NotificationCompat.Builder(applicationContext, channelId)
+            .setContentTitle("File Backup")
+            .setContentText("Synchronizing files in background...")
+            .setSmallIcon(android.R.drawable.stat_notify_sync)
+            .setOngoing(true)
+            .build()
+
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ForegroundInfo(notificationId, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+        } else {
+            ForegroundInfo(notificationId, notification)
         }
     }
 }

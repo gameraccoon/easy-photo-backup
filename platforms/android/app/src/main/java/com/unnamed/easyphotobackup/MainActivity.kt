@@ -58,7 +58,7 @@ class MainActivity : AppCompatActivity() {
 
         binding.syncButton.setOnClickListener {
             val request = PeriodicWorkRequestBuilder<FileSendBackgroundWorker>(
-                3, TimeUnit.MINUTES
+                15, TimeUnit.MINUTES
             ).build()
 
             WorkManager.getInstance(this)

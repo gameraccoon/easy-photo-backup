@@ -17,15 +17,15 @@ class MainApplication : Application() {
 
 object SyncScheduler {
     fun start(context: Context) {
-//        val request = PeriodicWorkRequestBuilder<FileSendBackgroundWorker>(
-//            3, TimeUnit.MINUTES
-//        ).build()
-//
-//        WorkManager.getInstance(context)
-//            .enqueueUniquePeriodicWork(
-//                "file_backup",
-//                ExistingPeriodicWorkPolicy.KEEP,
-//                request
-//            )
+        val request = PeriodicWorkRequestBuilder<FileSendBackgroundWorker>(
+            20, TimeUnit.MINUTES
+        ).build()
+
+        WorkManager.getInstance(context)
+            .enqueueUniquePeriodicWork(
+                "file_backup",
+                ExistingPeriodicWorkPolicy.KEEP,
+                request
+            )
     }
 }
