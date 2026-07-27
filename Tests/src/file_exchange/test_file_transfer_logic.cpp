@@ -509,7 +509,7 @@ protected:
 		Network::gRecvTestMock = nullptr;
 
 		{
-			auto env = Lmdb::Environment::open("test_storage", 10);
+			auto env = Lmdb::ReadWriteEnvironment::open("test_storage", 10);
 			ASSERT_TRUE(env.isValid());
 
 			auto result = env->checkForStaleReaders();

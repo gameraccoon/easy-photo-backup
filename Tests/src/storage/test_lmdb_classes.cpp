@@ -16,7 +16,7 @@ class LmdbTest : public testing::Test
 protected:
 	void SetUp() override
 	{
-		auto env = Lmdb::Environment::open("test_lmdb_env_path", 10);
+		auto env = Lmdb::ReadWriteEnvironment::open("test_lmdb_env_path", 10);
 		ASSERT_TRUE(env.isValid());
 
 		auto transaction = Lmdb::ReadWriteTransaction::create(*env);
@@ -31,7 +31,7 @@ protected:
 	void TearDown() override
 	{
 		{
-			auto env = Lmdb::Environment::open("test_lmdb_env_path", 10);
+			auto env = Lmdb::ReadWriteEnvironment::open("test_lmdb_env_path", 10);
 			ASSERT_TRUE(env.isValid());
 
 			auto result = env->checkForStaleReaders();
@@ -43,15 +43,32 @@ protected:
 	}
 };
 
-TEST_F(LmdbTest, Environment_Create_NoErrors)
+TEST_F(LmdbTest, ReadOnlyEnvironment_Create_NoErrors)
 {
-	auto env = Lmdb::Environment::open("test_lmdb_env_path", 10);
+	auto env = Lmdb::ReadOnlyEnvironment::open("test_lmdb_env_path", 10);
 	EXPECT_TRUE(env.isValid());
 }
 
-TEST_F(LmdbTest, Environment_CheckForStaleReaders_ReturnsZero)
+TEST_F(LmdbTest, ReadWriteEnvironment_Create_NoErrors)
 {
-	auto env = Lmdb::Environment::open("test_lmdb_env_path", 10);
+	auto env = Lmdb::ReadWriteEnvironment::open("test_lmdb_env_path", 10);
+	EXPECT_TRUE(env.isValid());
+}
+
+TEST_F(LmdbTest, ReadOnlyEnvironment_CheckForStaleReaders_ReturnsZero)
+{
+	auto env = Lmdb::ReadOnlyEnvironment::open("test_lmdb_env_path", 10);
+	ASSERT_TRUE(env.isValid());
+
+	auto result = env->checkForStaleReaders();
+
+	ASSERT_TRUE(result.isValid());
+	EXPECT_EQ(0, *result);
+}
+
+TEST_F(LmdbTest, ReadWriteEnvironment_CheckForStaleReaders_ReturnsZero)
+{
+	auto env = Lmdb::ReadWriteEnvironment::open("test_lmdb_env_path", 10);
 	ASSERT_TRUE(env.isValid());
 
 	auto result = env->checkForStaleReaders();
@@ -62,7 +79,7 @@ TEST_F(LmdbTest, Environment_CheckForStaleReaders_ReturnsZero)
 
 TEST_F(LmdbTest, ReadTransaction_CreateAndAbandon_DoesNotCrashOrAssert)
 {
-	auto env = Lmdb::Environment::open("test_lmdb_env_path", 10);
+	auto env = Lmdb::ReadOnlyEnvironment::open("test_lmdb_env_path", 10);
 	ASSERT_TRUE(env.isValid());
 
 	auto transaction = Lmdb::ReadOnlyTransaction::create(*env);
@@ -71,7 +88,7 @@ TEST_F(LmdbTest, ReadTransaction_CreateAndAbandon_DoesNotCrashOrAssert)
 
 TEST_F(LmdbTest, ReadTransaction_CreateAndAbort_DoesNotCrashOrAssert)
 {
-	auto env = Lmdb::Environment::open("test_lmdb_env_path", 10);
+	auto env = Lmdb::ReadOnlyEnvironment::open("test_lmdb_env_path", 10);
 	ASSERT_TRUE(env.isValid());
 
 	auto transaction = Lmdb::ReadOnlyTransaction::create(*env);
@@ -81,7 +98,7 @@ TEST_F(LmdbTest, ReadTransaction_CreateAndAbort_DoesNotCrashOrAssert)
 
 TEST_F(LmdbTest, ReadWriteTransaction_CommitEmpty_ReturnsSuccess)
 {
-	auto env = Lmdb::Environment::open("test_lmdb_env_path", 10);
+	auto env = Lmdb::ReadWriteEnvironment::open("test_lmdb_env_path", 10);
 	ASSERT_TRUE(env.isValid());
 	auto transaction = Lmdb::ReadWriteTransaction::create(*env);
 	ASSERT_TRUE(transaction.isValid());
@@ -91,7 +108,7 @@ TEST_F(LmdbTest, ReadWriteTransaction_CommitEmpty_ReturnsSuccess)
 
 TEST_F(LmdbTest, ReadWriteTransaction_CreateAndAbort_DoesNotCrashOrAssert)
 {
-	auto env = Lmdb::Environment::open("test_lmdb_env_path", 10);
+	auto env = Lmdb::ReadWriteEnvironment::open("test_lmdb_env_path", 10);
 	ASSERT_TRUE(env.isValid());
 	auto transaction = Lmdb::ReadWriteTransaction::create(*env);
 	ASSERT_TRUE(transaction.isValid());
@@ -101,7 +118,7 @@ TEST_F(LmdbTest, ReadWriteTransaction_CreateAndAbort_DoesNotCrashOrAssert)
 
 TEST_F(LmdbTest, ReadOnlyDatabase_OpenNonExistent_ReturnsNotFoundError)
 {
-	auto env = Lmdb::Environment::open("test_lmdb_env_path", 10);
+	auto env = Lmdb::ReadOnlyEnvironment::open("test_lmdb_env_path", 10);
 	ASSERT_TRUE(env.isValid());
 	auto transaction = Lmdb::ReadOnlyTransaction::create(*env);
 	ASSERT_TRUE(transaction.isValid());
@@ -114,7 +131,7 @@ TEST_F(LmdbTest, ReadOnlyDatabase_OpenNonExistent_ReturnsNotFoundError)
 
 TEST_F(LmdbTest, ReadWriteDatabase_OpenNonExisting_ReturnsSuccess)
 {
-	auto env = Lmdb::Environment::open("test_lmdb_env_path", 10);
+	auto env = Lmdb::ReadWriteEnvironment::open("test_lmdb_env_path", 10);
 	ASSERT_TRUE(env.isValid());
 	auto transaction = Lmdb::ReadWriteTransaction::create(*env);
 	ASSERT_TRUE(transaction.isValid());
@@ -126,7 +143,7 @@ TEST_F(LmdbTest, ReadWriteDatabase_OpenNonExisting_ReturnsSuccess)
 
 TEST_F(LmdbTest, ReadOnlyDatabase_OpenSameDatabaseTwiceSequentially_BothOpenedSuccessfully)
 {
-	auto env = Lmdb::Environment::open("test_lmdb_env_path", 10);
+	auto env = Lmdb::ReadWriteEnvironment::open("test_lmdb_env_path", 10);
 	ASSERT_TRUE(env.isValid());
 	{
 		auto transaction = Lmdb::ReadOnlyTransaction::create(*env);
@@ -144,7 +161,7 @@ TEST_F(LmdbTest, ReadOnlyDatabase_OpenSameDatabaseTwiceSequentially_BothOpenedSu
 
 TEST_F(LmdbTest, ReadWriteDatabase_OpenSameDatabaseTwiceSequentially_BothOpenedSuccessfully)
 {
-	auto env = Lmdb::Environment::open("test_lmdb_env_path", 10);
+	auto env = Lmdb::ReadWriteEnvironment::open("test_lmdb_env_path", 10);
 	ASSERT_TRUE(env.isValid());
 	{
 		auto transaction = Lmdb::ReadWriteTransaction::create(*env);
@@ -162,7 +179,7 @@ TEST_F(LmdbTest, ReadWriteDatabase_OpenSameDatabaseTwiceSequentially_BothOpenedS
 
 TEST_F(LmdbTest, Database_PutThenGet_ReturnsStoredValue)
 {
-	auto env = Lmdb::Environment::open("test_lmdb_env_path", 10);
+	auto env = Lmdb::ReadWriteEnvironment::open("test_lmdb_env_path", 10);
 	ASSERT_TRUE(env.isValid());
 
 	const std::string keyString = "key";
@@ -200,7 +217,7 @@ TEST_F(LmdbTest, Database_PutThenGet_ReturnsStoredValue)
 
 TEST_F(LmdbTest, Database_PutThenGetDynamic_ReturnsStoredValue)
 {
-	auto env = Lmdb::Environment::open("test_lmdb_env_path", 10);
+	auto env = Lmdb::ReadWriteEnvironment::open("test_lmdb_env_path", 10);
 	ASSERT_TRUE(env.isValid());
 
 	const std::string keyString = "key";
@@ -236,7 +253,7 @@ TEST_F(LmdbTest, Database_PutThenGetDynamic_ReturnsStoredValue)
 
 TEST_F(LmdbTest, DatabaseRecord_RewriteWithNewValueAndRead_ReturnsNewValue)
 {
-	auto env = Lmdb::Environment::open("test_lmdb_env_path", 10);
+	auto env = Lmdb::ReadWriteEnvironment::open("test_lmdb_env_path", 10);
 	ASSERT_TRUE(env.isValid());
 
 	const std::string keyString = "key";
@@ -287,7 +304,7 @@ TEST_F(LmdbTest, DatabaseRecord_RewriteWithNewValueAndRead_ReturnsNewValue)
 
 TEST_F(LmdbTest, Database_DeleteValue_RemovesKey)
 {
-	auto env = Lmdb::Environment::open("test_lmdb_env_path", 10);
+	auto env = Lmdb::ReadWriteEnvironment::open("test_lmdb_env_path", 10);
 	ASSERT_TRUE(env.isValid());
 
 	auto transaction = Lmdb::ReadWriteTransaction::create(*env);
@@ -315,7 +332,7 @@ TEST_F(LmdbTest, Database_DeleteValue_RemovesKey)
 
 TEST_F(LmdbTest, Database_EmptyDatabase_RemovesAllValues)
 {
-	auto env = Lmdb::Environment::open("test_lmdb_env_path", 10);
+	auto env = Lmdb::ReadWriteEnvironment::open("test_lmdb_env_path", 10);
 	ASSERT_TRUE(env.isValid());
 
 	auto transaction = Lmdb::ReadWriteTransaction::create(*env);
@@ -351,7 +368,7 @@ TEST_F(LmdbTest, Database_EmptyDatabase_RemovesAllValues)
 
 TEST_F(LmdbTest, Database_DropDatabase_RemovesDatabase)
 {
-	auto env = Lmdb::Environment::open("test_lmdb_env_path", 10);
+	auto env = Lmdb::ReadWriteEnvironment::open("test_lmdb_env_path", 10);
 	ASSERT_TRUE(env.isValid());
 
 	{
@@ -377,7 +394,7 @@ TEST_F(LmdbTest, Database_DropDatabase_RemovesDatabase)
 
 TEST_F(LmdbTest, Transaction_Abort_DiscardsChanges)
 {
-	auto env = Lmdb::Environment::open("test_lmdb_env_path", 10);
+	auto env = Lmdb::ReadWriteEnvironment::open("test_lmdb_env_path", 10);
 	ASSERT_TRUE(env.isValid());
 
 	const std::string keyString = "key";
@@ -418,7 +435,7 @@ TEST_F(LmdbTest, Transaction_Abort_DiscardsChanges)
 
 TEST_F(LmdbTest, Database_ReadValue_CallsCallbackWithStoredValue)
 {
-	auto env = Lmdb::Environment::open("test_lmdb_env_path", 10);
+	auto env = Lmdb::ReadWriteEnvironment::open("test_lmdb_env_path", 10);
 	ASSERT_TRUE(env.isValid());
 
 	const std::string keyString = "key";
@@ -469,7 +486,7 @@ TEST_F(LmdbTest, Database_ReadValue_CallsCallbackWithStoredValue)
 
 TEST_F(LmdbTest, Cursor_IteratesAllValuesInKeyOrder)
 {
-	Lmdb::Result<Lmdb::Environment> env = Lmdb::Environment::open("test_lmdb_env_path", 10);
+	Lmdb::Result<Lmdb::ReadWriteEnvironment> env = Lmdb::ReadWriteEnvironment::open("test_lmdb_env_path", 10);
 	ASSERT_TRUE(env.isValid());
 
 	// Populate the database.

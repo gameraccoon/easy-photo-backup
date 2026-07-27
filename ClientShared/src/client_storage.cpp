@@ -25,7 +25,7 @@ std::optional<ClientConfigStorage> ClientConfigStorage::openStorage(const std::f
 	static constexpr size_t maxNamedDatabases = 5;
 
 	std::filesystem::path dbPath = storageRootPath / ClientStorageInternal::ClientConfigStorageEnviromentName;
-	Lmdb::Result<Lmdb::Environment> envResult = Lmdb::Environment::open(dbPath, maxNamedDatabases);
+	Lmdb::Result<Lmdb::ReadWriteEnvironment> envResult = Lmdb::ReadWriteEnvironment::open(dbPath, maxNamedDatabases);
 
 	if (envResult.isError())
 	{
@@ -37,7 +37,7 @@ std::optional<ClientConfigStorage> ClientConfigStorage::openStorage(const std::f
 		case Lmdb::ReturnCode::Problem:
 			// on fatal problems just recreate the DB
 			std::filesystem::remove_all(dbPath);
-			envResult = Lmdb::Environment::open(dbPath, maxNamedDatabases);
+			envResult = Lmdb::ReadWriteEnvironment::open(dbPath, maxNamedDatabases);
 			break;
 		default:
 			break;
@@ -167,7 +167,7 @@ bool ClientConfigStorage::hasConfirmedServerBinding(const ServerId& serverId) no
 	return isFound;
 }
 
-ClientConfigStorage::ClientConfigStorage(Lmdb::Environment&& environment) noexcept
+ClientConfigStorage::ClientConfigStorage(Lmdb::ReadWriteEnvironment&& environment) noexcept
 	: mEnvironment(std::move(environment))
 {
 }
@@ -177,7 +177,7 @@ std::optional<ClientSentFilesStorage> ClientSentFilesStorage::openStorage(const 
 	static constexpr size_t maxNamedDatabases = 5;
 
 	std::filesystem::path dbPath = storageRootPath / ClientStorageInternal::ClientSentFilesStorageEnviromentName;
-	Lmdb::Result<Lmdb::Environment> envResult = Lmdb::Environment::open(dbPath, maxNamedDatabases);
+	Lmdb::Result<Lmdb::ReadWriteEnvironment> envResult = Lmdb::ReadWriteEnvironment::open(dbPath, maxNamedDatabases);
 
 	if (envResult.isError())
 	{
@@ -189,7 +189,7 @@ std::optional<ClientSentFilesStorage> ClientSentFilesStorage::openStorage(const 
 		case Lmdb::ReturnCode::Problem:
 			// on fatal problems just recreate the DB
 			std::filesystem::remove_all(dbPath);
-			envResult = Lmdb::Environment::open(dbPath, maxNamedDatabases);
+			envResult = Lmdb::ReadWriteEnvironment::open(dbPath, maxNamedDatabases);
 			break;
 		default:
 			break;
@@ -318,7 +318,7 @@ void ClientSentFilesStorage::filterOutSentFiles(const std::filesystem::path& roo
 	}
 }
 
-ClientSentFilesStorage::ClientSentFilesStorage(Lmdb::Environment&& environment) noexcept
+ClientSentFilesStorage::ClientSentFilesStorage(Lmdb::ReadWriteEnvironment&& environment) noexcept
 	: mEnvironment(std::move(environment))
 {
 }

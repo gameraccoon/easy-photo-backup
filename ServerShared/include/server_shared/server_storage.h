@@ -35,8 +35,8 @@ public:
 	[[nodiscard]] std::optional<std::array<std::byte, 16>> getOrGenerateServerId() noexcept;
 
 private:
-	explicit ServerStorage(Lmdb::Environment&& mEnvironment) noexcept;
+	explicit ServerStorage(Lmdb::ReadWriteEnvironment&& mEnvironment) noexcept;
 
 private:
-	Lmdb::Environment mEnvironment;
+	Lmdb::ReadWriteEnvironment mEnvironment;
 };

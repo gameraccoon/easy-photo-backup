@@ -35,10 +35,10 @@ public:
 	[[nodiscard]] bool hasConfirmedServerBinding(const ServerId& serverId) noexcept;
 
 private:
-	explicit ClientConfigStorage(Lmdb::Environment&& mEnvironment) noexcept;
+	explicit ClientConfigStorage(Lmdb::ReadWriteEnvironment&& mEnvironment) noexcept;
 
 private:
-	Lmdb::Environment mEnvironment;
+	Lmdb::ReadWriteEnvironment mEnvironment;
 };
 
 class ClientSentFilesStorage
@@ -53,8 +53,8 @@ public:
 	void filterOutSentFiles(const std::filesystem::path& rootPath, std::vector<std::filesystem::path>& inOutPaths, std::vector<uint64_t>& outPreviouslySentBytes) noexcept;
 
 private:
-	explicit ClientSentFilesStorage(Lmdb::Environment&& mEnvironment) noexcept;
+	explicit ClientSentFilesStorage(Lmdb::ReadWriteEnvironment&& mEnvironment) noexcept;
 
 private:
-	Lmdb::Environment mEnvironment;
+	Lmdb::ReadWriteEnvironment mEnvironment;
 };

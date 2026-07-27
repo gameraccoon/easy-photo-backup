@@ -9,11 +9,10 @@ struct MDB_txn;
 
 namespace Lmdb
 {
-	class Environment;
 	class Transaction
 	{
 	public:
-		~Transaction() noexcept;
+		virtual ~Transaction() noexcept;
 
 		Transaction(const Transaction&) = delete;
 		Transaction& operator=(const Transaction&) = delete;
@@ -27,28 +26,38 @@ namespace Lmdb
 
 	protected:
 		Transaction(MDB_txn* mdbTransaction) noexcept;
+		// hack to ensure Transaction can't be instantiated by itself
+		virtual void makeMeAbstract() const noexcept = 0;
 
 	protected:
 		MDB_txn* mMdbTransaction;
 	};
 
-	class ReadWriteTransaction : public Transaction
-	{
-	public:
-		static Result<ReadWriteTransaction> create(Environment& environment) noexcept;
-
-		[[nodiscard]] ReturnCode commit() noexcept;
-
-	private:
-		ReadWriteTransaction(MDB_txn* mdbTransaction) noexcept;
-	};
-
+	class Environment;
 	class ReadOnlyTransaction : public Transaction
 	{
 	public:
 		static Result<ReadOnlyTransaction> create(Environment& environment) noexcept;
 
+	protected:
+		void makeMeAbstract() const noexcept override {}
+
 	private:
 		ReadOnlyTransaction(MDB_txn* mdbTransaction) noexcept;
+	};
+
+	class ReadWriteEnvironment;
+	class ReadWriteTransaction : public Transaction
+	{
+	public:
+		static Result<ReadWriteTransaction> create(ReadWriteEnvironment& environment) noexcept;
+
+		[[nodiscard]] ReturnCode commit() noexcept;
+
+	protected:
+		void makeMeAbstract() const noexcept override {}
+
+	private:
+		ReadWriteTransaction(MDB_txn* mdbTransaction) noexcept;
 	};
 } // namespace Lmdb

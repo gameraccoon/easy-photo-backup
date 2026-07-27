@@ -185,7 +185,7 @@ namespace Lmdb
 	{
 	}
 
-	Result<ReadOnlyDatabase> ReadOnlyDatabase::open(ReadOnlyTransaction& transaction, std::zstring_view name) noexcept
+	Result<ReadOnlyDatabase> ReadOnlyDatabase::open(Transaction& transaction, std::zstring_view name) noexcept
 	{
 		MDB_dbi dbHandler;
 		int returnCode = mdb_dbi_open(transaction.getRaw(), name.c_str(), 0, &dbHandler);

@@ -23,7 +23,7 @@ std::optional<ServerStorage> ServerStorage::openStorage(const std::filesystem::p
 	static constexpr size_t maxNamedDatabases = 5;
 
 	std::filesystem::path dbPath = storageRootPath / ServerStorageInternal::ServerStorageEnviromentName;
-	Lmdb::Result<Lmdb::Environment> envResult = Lmdb::Environment::open(dbPath, maxNamedDatabases);
+	Lmdb::Result<Lmdb::ReadWriteEnvironment> envResult = Lmdb::ReadWriteEnvironment::open(dbPath, maxNamedDatabases);
 
 	if (envResult.isError())
 	{
@@ -35,7 +35,7 @@ std::optional<ServerStorage> ServerStorage::openStorage(const std::filesystem::p
 		case Lmdb::ReturnCode::Problem:
 			// on fatal problems just recreate the DB
 			std::filesystem::remove_all(dbPath);
-			envResult = Lmdb::Environment::open(dbPath, maxNamedDatabases);
+			envResult = Lmdb::ReadWriteEnvironment::open(dbPath, maxNamedDatabases);
 			break;
 		default:
 			break;
@@ -191,7 +191,7 @@ std::optional<std::array<std::byte, 16>> ServerStorage::getOrGenerateServerId() 
 	return result;
 }
 
-ServerStorage::ServerStorage(Lmdb::Environment&& environment) noexcept
+ServerStorage::ServerStorage(Lmdb::ReadWriteEnvironment&& environment) noexcept
 	: mEnvironment(std::move(environment))
 {
 }

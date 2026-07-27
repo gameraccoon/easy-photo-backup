@@ -24,11 +24,6 @@ namespace Lmdb
 	{
 		if (mMdbEnvironment != nullptr)
 		{
-			const int returnCode = mdb_env_sync(mMdbEnvironment, 1);
-			if (returnCode != 0)
-			{
-				reportDebugError("Could not flush LMDB environment before closing: '{}'", mdb_strerror(returnCode));
-			}
 			mdb_env_close(mMdbEnvironment);
 		}
 	}
@@ -40,9 +35,8 @@ namespace Lmdb
 		return *this;
 	}
 
-	Result<Environment> Environment::open(const std::filesystem::path& path, size_t maxNamedDatabases) noexcept
+	static ReturnCode openEnvironmentGeneric(const std::filesystem::path& path, size_t maxNamedDatabases, bool isReadOnly, MDB_env*& mdbEnvironment)
 	{
-		MDB_env* mdbEnvironment;
 		int returnCode = mdb_env_create(&mdbEnvironment);
 		if (returnCode != 0)
 		{
@@ -79,11 +73,14 @@ namespace Lmdb
 			reportDebugError("Could not create LMDB environment directory '{}'", path.string());
 			return ReturnCode::CanNotCreateDirectory;
 		}
+
+		unsigned int envOpenFlags = isReadOnly ? MDB_RDONLY : 0;
+
 #if defined(_WIN32) || defined(_WIN64)
 		const std::string pathStr = path.string();
-		returnCode = mdb_env_open(mdbEnvironment, pathStr.c_str(), 0, 0644);
+		returnCode = mdb_env_open(mdbEnvironment, pathStr.c_str(), envOpenFlags, 0644);
 #else
-		returnCode = mdb_env_open(mdbEnvironment, path.c_str(), 0, 0644);
+		returnCode = mdb_env_open(mdbEnvironment, path.c_str(), envOpenFlags, 0644);
 #endif
 		if (returnCode != 0)
 		{
@@ -91,7 +88,57 @@ namespace Lmdb
 			return parseReturnCode(returnCode);
 		}
 
-		return Environment(mdbEnvironment);
+		return ReturnCode::Success;
+	}
+
+	Result<ReadOnlyEnvironment> ReadOnlyEnvironment::open(const std::filesystem::path& path, size_t maxNamedDatabases) noexcept
+	{
+		MDB_env* mdbEnvironment;
+		const ReturnCode returnCode = openEnvironmentGeneric(path, maxNamedDatabases, true, mdbEnvironment);
+		if (returnCode == ReturnCode::Success)
+		{
+			return ReadOnlyEnvironment(mdbEnvironment);
+		}
+		else
+		{
+			return returnCode;
+		}
+	}
+
+	ReadOnlyEnvironment::ReadOnlyEnvironment(MDB_env* mdbEnvironment) noexcept
+		: Environment(mdbEnvironment)
+	{
+	}
+
+	Result<ReadWriteEnvironment> ReadWriteEnvironment::open(const std::filesystem::path& path, size_t maxNamedDatabases) noexcept
+	{
+		MDB_env* mdbEnvironment;
+		const ReturnCode returnCode = openEnvironmentGeneric(path, maxNamedDatabases, false, mdbEnvironment);
+		if (returnCode == ReturnCode::Success)
+		{
+			return ReadWriteEnvironment(mdbEnvironment);
+		}
+		else
+		{
+			return returnCode;
+		}
+	}
+
+	ReadWriteEnvironment::~ReadWriteEnvironment() noexcept
+	{
+		if (mMdbEnvironment != nullptr)
+		{
+			const int returnCode = mdb_env_sync(mMdbEnvironment, 1);
+			if (returnCode != 0)
+			{
+				reportDebugError("Could not flush LMDB environment before closing: '{}'", mdb_strerror(returnCode));
+			}
+		}
+	}
+
+	ReadWriteEnvironment::ReadWriteEnvironment(MDB_env* mdbEnvironment) noexcept
+		: Environment(mdbEnvironment)
+	{
 	}
 
 	Result<int> Environment::checkForStaleReaders() noexcept

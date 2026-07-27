@@ -19,7 +19,7 @@ namespace Lmdb
 	class Database
 	{
 	public:
-		~Database() noexcept;
+		virtual ~Database() noexcept;
 
 		Database(const Database&) = delete;
 		Database& operator=(const Database&) = delete;
@@ -48,6 +48,8 @@ namespace Lmdb
 
 	protected:
 		Database(MDB_dbi handler, MDB_txn* mdbTransaction) noexcept;
+		// hack to ensure Database can't be instantiated by itself
+		virtual void makeMeAbstract() const noexcept = 0;
 
 	private:
 		[[nodiscard]] ReturnCode getValueUnsafe(std::span<const std::byte> key, const void*& outTempValueData, size_t& outValueSize) noexcept;
@@ -55,6 +57,19 @@ namespace Lmdb
 	protected:
 		MDB_dbi mDbHandler;
 		MDB_txn* mMdbTransaction;
+	};
+
+	class Transaction;
+	class ReadOnlyDatabase : public Database
+	{
+	public:
+		[[nodiscard]] static Result<ReadOnlyDatabase> open(Transaction& transaction, std::zstring_view name) noexcept;
+
+	protected:
+		void makeMeAbstract() const noexcept override {}
+
+	private:
+		ReadOnlyDatabase(MDB_dbi handler, MDB_txn* mdbTransaction) noexcept;
 	};
 
 	class ReadWriteTransaction;
@@ -71,17 +86,10 @@ namespace Lmdb
 		// removes the database and closes it
 		[[nodiscard]] ReturnCode dropDatabase() noexcept;
 
+	protected:
+		void makeMeAbstract() const noexcept override {}
+
 	private:
 		ReadWriteDatabase(MDB_dbi handler, MDB_txn* mdbTransaction) noexcept;
-	};
-
-	class ReadOnlyTransaction;
-	class ReadOnlyDatabase : public Database
-	{
-	public:
-		[[nodiscard]] static Result<ReadOnlyDatabase> open(ReadOnlyTransaction& transaction, std::zstring_view name) noexcept;
-
-	private:
-		ReadOnlyDatabase(MDB_dbi handler, MDB_txn* mdbTransaction) noexcept;
 	};
 } // namespace Lmdb

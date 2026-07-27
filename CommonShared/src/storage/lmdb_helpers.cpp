@@ -25,7 +25,7 @@ namespace Lmdb
 		};
 	}
 
-	Result<ReadWriteSingleDbWrapper> openReadWriteSingleDbTransaction(Environment& environment, std::zstring_view dbName) noexcept
+	Result<ReadWriteSingleDbWrapper> openReadWriteSingleDbTransaction(ReadWriteEnvironment& environment, std::zstring_view dbName) noexcept
 	{
 		Result<ReadWriteTransaction> transactionResult = ReadWriteTransaction::create(environment);
 		if (transactionResult.isError())

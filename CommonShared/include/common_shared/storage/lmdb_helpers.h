@@ -24,7 +24,7 @@ namespace Lmdb
 	};
 
 	[[nodiscard]] Result<ReadOnlySingleDbWrapper> openReadOnlySingleDbTransaction(Environment& environment, std::zstring_view dbName) noexcept;
-	[[nodiscard]] Result<ReadWriteSingleDbWrapper> openReadWriteSingleDbTransaction(Environment& environment, std::zstring_view dbName) noexcept;
+	[[nodiscard]] Result<ReadWriteSingleDbWrapper> openReadWriteSingleDbTransaction(ReadWriteEnvironment& environment, std::zstring_view dbName) noexcept;
 
 	ReturnCode readAllDbRecords(ReadOnlyTransaction& transaction, ReadOnlyDatabase& database, auto readFn) noexcept
 	{

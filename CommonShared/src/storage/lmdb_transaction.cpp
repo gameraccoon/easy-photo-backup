@@ -54,7 +54,7 @@ namespace Lmdb
 	{
 	}
 
-	Result<ReadWriteTransaction> ReadWriteTransaction::create(Environment& environment) noexcept
+	Result<ReadWriteTransaction> ReadWriteTransaction::create(ReadWriteEnvironment& environment) noexcept
 	{
 		MDB_txn* mdbTransaction;
 		const int returnCode = mdb_txn_begin(
