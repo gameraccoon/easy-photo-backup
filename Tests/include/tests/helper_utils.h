@@ -13,11 +13,15 @@
 #include <gtest/gtest.h>
 
 void hexCharToInt(const char ch, std::byte& res);
-std::vector<std::byte> hexToBytes(const std::string_view inString);
-std::vector<std::byte> strToBytes(const std::string_view inString);
+std::vector<std::byte> hexToBytes(std::string_view inString);
+std::vector<std::byte> strToBytes(std::string_view inString);
+inline std::span<const std::byte> strToSpan(std::string_view inString)
+{
+	return std::as_bytes(std::span(inString.data(), inString.size()));
+}
 void appendHexBytes(const std::string_view inString, std::vector<std::byte>& inOutVec);
 bool isAllZeroes(const std::span<const std::byte> data);
-bool areSpansEqual(std::span<const std::byte> span1, std::span<const std::byte> span2);
+void assertSpansEqual(std::span<const std::byte> span1, std::span<const std::byte> span2);
 
 template<size_t Size>
 void vectorToArray(const std::span<const std::byte> inVector, std::array<std::byte, Size>& outArray)

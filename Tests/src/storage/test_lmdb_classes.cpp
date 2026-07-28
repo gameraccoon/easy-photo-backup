@@ -4,12 +4,29 @@
 #include <array>
 #include <filesystem>
 
+#include "tests/helper_utils.h"
 #include <gtest/gtest.h>
 
 #include "common_shared/storage/lmdb_cursor.h"
 #include "common_shared/storage/lmdb_database.h"
 #include "common_shared/storage/lmdb_environment.h"
 #include "common_shared/storage/lmdb_transaction.h"
+
+static void testPutDbValue(Lmdb::ReadWriteDatabase& db, std::span<const std::byte> key, std::span<const std::byte> value)
+{
+	EXPECT_EQ(
+		Lmdb::ReturnCode::Success,
+		db.put(
+			key,
+			value
+		)
+	);
+}
+
+static void testPutStringDbValue(Lmdb::ReadWriteDatabase& db, std::zstring_view key, std::zstring_view value)
+{
+	testPutDbValue(db, strToSpan(key), strToSpan(value));
+}
 
 class LmdbTest : public testing::Test
 {
@@ -182,10 +199,8 @@ TEST_F(LmdbTest, Database_PutThenGet_ReturnsStoredValue)
 	auto env = Lmdb::ReadWriteEnvironment::open("test_lmdb_env_path", 10);
 	ASSERT_TRUE(env.isValid());
 
-	const std::string keyString = "key";
-	const std::string valueString = "value";
-	const auto key = std::as_bytes(std::span(keyString));
-	const auto value = std::as_bytes(std::span(valueString));
+	constexpr std::string_view key = "key";
+	constexpr std::string_view value = "value";
 
 	{
 		auto transaction = Lmdb::ReadWriteTransaction::create(*env);
@@ -194,7 +209,7 @@ TEST_F(LmdbTest, Database_PutThenGet_ReturnsStoredValue)
 		auto db = Lmdb::ReadWriteDatabase::open(*transaction, "test_db");
 		ASSERT_TRUE(db.isValid());
 
-		EXPECT_EQ(Lmdb::ReturnCode::Success, db->put(key, value));
+		EXPECT_EQ(Lmdb::ReturnCode::Success, db->put(strToSpan(key), strToSpan(value)));
 		EXPECT_EQ(Lmdb::ReturnCode::Success, transaction->commit());
 	}
 
@@ -208,10 +223,10 @@ TEST_F(LmdbTest, Database_PutThenGet_ReturnsStoredValue)
 		std::array<std::byte, 32> buffer{};
 		size_t bytesRead = 0;
 
-		EXPECT_EQ(Lmdb::ReturnCode::Success, db->get(key, buffer, bytesRead));
+		EXPECT_EQ(Lmdb::ReturnCode::Success, db->get(strToSpan(key), buffer, bytesRead));
 
 		EXPECT_EQ(5u, bytesRead);
-		EXPECT_EQ(std::string(reinterpret_cast<char*>(buffer.data()), bytesRead), valueString);
+		assertSpansEqual(std::span(buffer.data(), bytesRead), strToSpan(value));
 	}
 }
 
@@ -220,10 +235,8 @@ TEST_F(LmdbTest, Database_PutThenGetDynamic_ReturnsStoredValue)
 	auto env = Lmdb::ReadWriteEnvironment::open("test_lmdb_env_path", 10);
 	ASSERT_TRUE(env.isValid());
 
-	const std::string keyString = "key";
-	const std::string valueString = "value";
-	const auto key = std::as_bytes(std::span(keyString));
-	const auto value = std::as_bytes(std::span(valueString));
+	constexpr std::string_view key = "key";
+	constexpr std::string_view value = "value";
 
 	{
 		auto transaction = Lmdb::ReadWriteTransaction::create(*env);
@@ -232,7 +245,7 @@ TEST_F(LmdbTest, Database_PutThenGetDynamic_ReturnsStoredValue)
 		auto db = Lmdb::ReadWriteDatabase::open(*transaction, "test_db");
 		ASSERT_TRUE(db.isValid());
 
-		EXPECT_EQ(Lmdb::ReturnCode::Success, db->put(key, value));
+		EXPECT_EQ(Lmdb::ReturnCode::Success, db->put(strToSpan(key), strToSpan(value)));
 		EXPECT_EQ(Lmdb::ReturnCode::Success, transaction->commit());
 	}
 
@@ -244,10 +257,10 @@ TEST_F(LmdbTest, Database_PutThenGetDynamic_ReturnsStoredValue)
 		ASSERT_TRUE(db.isValid());
 
 		std::vector<std::byte> buffer;
-		EXPECT_EQ(Lmdb::ReturnCode::Success, db->getDynamic(key, buffer));
+		EXPECT_EQ(Lmdb::ReturnCode::Success, db->getDynamic(strToSpan(key), buffer));
 
 		EXPECT_EQ(5u, buffer.size());
-		EXPECT_EQ(std::string(reinterpret_cast<char*>(buffer.data()), buffer.size()), valueString);
+		assertSpansEqual(std::span(buffer.data(), buffer.size()), strToSpan(value));
 	}
 }
 
@@ -256,12 +269,9 @@ TEST_F(LmdbTest, DatabaseRecord_RewriteWithNewValueAndRead_ReturnsNewValue)
 	auto env = Lmdb::ReadWriteEnvironment::open("test_lmdb_env_path", 10);
 	ASSERT_TRUE(env.isValid());
 
-	const std::string keyString = "key";
-	const std::string value1String = "some value";
-	const std::string value2String = "another value";
-	const auto key = std::as_bytes(std::span(keyString));
-	const auto value1 = std::as_bytes(std::span(value1String));
-	const auto value2 = std::as_bytes(std::span(value2String));
+	constexpr std::string_view key = "key";
+	constexpr std::string_view value1 = "some value";
+	constexpr std::string_view value2 = "another value";
 
 	{
 		auto transaction = Lmdb::ReadWriteTransaction::create(*env);
@@ -270,7 +280,7 @@ TEST_F(LmdbTest, DatabaseRecord_RewriteWithNewValueAndRead_ReturnsNewValue)
 		auto db = Lmdb::ReadWriteDatabase::open(*transaction, "test_db");
 		ASSERT_TRUE(db.isValid());
 
-		EXPECT_EQ(Lmdb::ReturnCode::Success, db->put(key, value1));
+		EXPECT_EQ(Lmdb::ReturnCode::Success, db->put(strToSpan(key), strToSpan(value1)));
 		EXPECT_EQ(Lmdb::ReturnCode::Success, transaction->commit());
 	}
 
@@ -281,7 +291,7 @@ TEST_F(LmdbTest, DatabaseRecord_RewriteWithNewValueAndRead_ReturnsNewValue)
 		auto db = Lmdb::ReadWriteDatabase::open(*transaction, "test_db");
 		ASSERT_TRUE(db.isValid());
 
-		EXPECT_EQ(Lmdb::ReturnCode::Success, db->put(key, value2));
+		EXPECT_EQ(Lmdb::ReturnCode::Success, db->put(strToSpan(key), strToSpan(value2)));
 		EXPECT_EQ(Lmdb::ReturnCode::Success, transaction->commit());
 	}
 
@@ -295,10 +305,10 @@ TEST_F(LmdbTest, DatabaseRecord_RewriteWithNewValueAndRead_ReturnsNewValue)
 		std::array<std::byte, 32> buffer{};
 		size_t bytesRead = 0;
 
-		EXPECT_EQ(Lmdb::ReturnCode::Success, db->get(key, buffer, bytesRead));
+		EXPECT_EQ(Lmdb::ReturnCode::Success, db->get(strToSpan(key), buffer, bytesRead));
 
 		EXPECT_EQ(13u, bytesRead);
-		EXPECT_EQ(std::string(reinterpret_cast<char*>(buffer.data()), bytesRead), value2String);
+		assertSpansEqual(std::span(buffer.data(), bytesRead), strToSpan(value2));
 	}
 }
 
@@ -313,19 +323,17 @@ TEST_F(LmdbTest, Database_DeleteValue_RemovesKey)
 	auto db = Lmdb::ReadWriteDatabase::open(*transaction, "test_db");
 	ASSERT_TRUE(db.isValid());
 
-	const std::string keyString = "key";
-	const std::string valueString = "value";
-	const auto key = std::as_bytes(std::span(keyString));
-	const auto value = std::as_bytes(std::span(valueString));
+	constexpr std::string_view key = "key";
+	constexpr std::string_view value = "value";
 
-	EXPECT_EQ(Lmdb::ReturnCode::Success, db->put(key, value));
+	EXPECT_EQ(Lmdb::ReturnCode::Success, db->put(strToSpan(key), strToSpan(value)));
 
-	EXPECT_EQ(Lmdb::ReturnCode::Success, db->deleteKey(key));
+	EXPECT_EQ(Lmdb::ReturnCode::Success, db->deleteKey(strToSpan(key)));
 
 	std::array<std::byte, 32> buffer{};
 	size_t bytesRead = 0;
 
-	EXPECT_EQ(Lmdb::ReturnCode::NotFound, db->get(key, std::span(buffer), bytesRead));
+	EXPECT_EQ(Lmdb::ReturnCode::NotFound, db->get(strToSpan(key), std::span(buffer), bytesRead));
 
 	EXPECT_EQ(db->dropDatabase(), Lmdb::ReturnCode::Success);
 }
@@ -341,29 +349,24 @@ TEST_F(LmdbTest, Database_EmptyDatabase_RemovesAllValues)
 	auto db = Lmdb::ReadWriteDatabase::open(*transaction, "test_db");
 	ASSERT_TRUE(db.isValid());
 
-	const std::string key1String = "key1";
-	const std::string value1String = "value1";
-	const std::string key2String = "key2";
-	const std::string value2String = "value2";
+	constexpr std::string_view key1 = "key1";
+	constexpr std::string_view value1 = "value1";
+	constexpr std::string_view key2 = "key2";
+	constexpr std::string_view value2 = "value2";
 
-	const auto key1 = std::as_bytes(std::span(key1String));
-	const auto value1 = std::as_bytes(std::span(value1String));
-	const auto key2 = std::as_bytes(std::span(key2String));
-	const auto value2 = std::as_bytes(std::span(value2String));
-
-	ASSERT_EQ(Lmdb::ReturnCode::Success, db->put(key1, value1));
-	ASSERT_EQ(Lmdb::ReturnCode::Success, db->put(key2, value2));
+	ASSERT_EQ(Lmdb::ReturnCode::Success, db->put(strToSpan(key1), strToSpan(value1)));
+	ASSERT_EQ(Lmdb::ReturnCode::Success, db->put(strToSpan(key2), strToSpan(value2)));
 
 	std::array<std::byte, 32> buffer{};
 	size_t bytesRead = 0;
 
-	ASSERT_EQ(Lmdb::ReturnCode::Success, db->get(key1, std::span(buffer), bytesRead));
-	ASSERT_EQ(Lmdb::ReturnCode::Success, db->get(key2, std::span(buffer), bytesRead));
+	ASSERT_EQ(Lmdb::ReturnCode::Success, db->get(strToSpan(key1), std::span(buffer), bytesRead));
+	ASSERT_EQ(Lmdb::ReturnCode::Success, db->get(strToSpan(key2), std::span(buffer), bytesRead));
 
 	EXPECT_EQ(Lmdb::ReturnCode::Success, db->emptyDatabase());
 
-	EXPECT_EQ(Lmdb::ReturnCode::NotFound, db->get(key1, std::span(buffer), bytesRead));
-	EXPECT_EQ(Lmdb::ReturnCode::NotFound, db->get(key2, std::span(buffer), bytesRead));
+	EXPECT_EQ(Lmdb::ReturnCode::NotFound, db->get(strToSpan(key1), std::span(buffer), bytesRead));
+	EXPECT_EQ(Lmdb::ReturnCode::NotFound, db->get(strToSpan(key2), std::span(buffer), bytesRead));
 }
 
 TEST_F(LmdbTest, Database_DropDatabase_RemovesDatabase)
@@ -397,8 +400,8 @@ TEST_F(LmdbTest, Transaction_Abort_DiscardsChanges)
 	auto env = Lmdb::ReadWriteEnvironment::open("test_lmdb_env_path", 10);
 	ASSERT_TRUE(env.isValid());
 
-	const std::string keyString = "key";
-	const std::string valueString = "value";
+	constexpr std::string_view key = "key";
+	constexpr std::string_view value = "value";
 
 	{
 		auto transaction = Lmdb::ReadWriteTransaction::create(*env);
@@ -407,7 +410,7 @@ TEST_F(LmdbTest, Transaction_Abort_DiscardsChanges)
 		auto db = Lmdb::ReadWriteDatabase::open(*transaction, "test_db");
 		ASSERT_TRUE(db.isValid());
 
-		ASSERT_EQ(Lmdb::ReturnCode::Success, db->put(std::as_bytes(std::span(keyString)), std::as_bytes(std::span(valueString))));
+		ASSERT_EQ(Lmdb::ReturnCode::Success, db->put(strToSpan(key), strToSpan(value)));
 
 		transaction->abort();
 	}
@@ -425,7 +428,7 @@ TEST_F(LmdbTest, Transaction_Abort_DiscardsChanges)
 		EXPECT_EQ(
 			Lmdb::ReturnCode::NotFound,
 			db->get(
-				std::as_bytes(std::span(keyString)),
+				strToSpan(key),
 				buffer,
 				bytesRead
 			)
@@ -438,10 +441,8 @@ TEST_F(LmdbTest, Database_ReadValue_CallsCallbackWithStoredValue)
 	auto env = Lmdb::ReadWriteEnvironment::open("test_lmdb_env_path", 10);
 	ASSERT_TRUE(env.isValid());
 
-	const std::string keyString = "key";
-	const std::string valueString = "value";
-	const auto key = std::as_bytes(std::span(keyString));
-	const auto value = std::as_bytes(std::span(valueString));
+	constexpr std::string_view key = "key";
+	constexpr std::string_view value = "value";
 
 	{
 		auto transaction = Lmdb::ReadWriteTransaction::create(*env);
@@ -450,7 +451,7 @@ TEST_F(LmdbTest, Database_ReadValue_CallsCallbackWithStoredValue)
 		auto db = Lmdb::ReadWriteDatabase::open(*transaction, "db");
 		ASSERT_TRUE(db.isValid());
 
-		ASSERT_EQ(Lmdb::ReturnCode::Success, db->put(key, value));
+		ASSERT_EQ(Lmdb::ReturnCode::Success, db->put(strToSpan(key), strToSpan(value)));
 		ASSERT_EQ(Lmdb::ReturnCode::Success, transaction->commit());
 	}
 
@@ -467,7 +468,7 @@ TEST_F(LmdbTest, Database_ReadValue_CallsCallbackWithStoredValue)
 		EXPECT_EQ(
 			Lmdb::ReturnCode::Success,
 			db->readValue(
-				key,
+				strToSpan(key),
 				[&](std::span<const std::byte> bytes) {
 					callbackCalled = true;
 
@@ -480,45 +481,29 @@ TEST_F(LmdbTest, Database_ReadValue_CallsCallbackWithStoredValue)
 		);
 
 		EXPECT_TRUE(callbackCalled);
-		EXPECT_EQ(valueString, receivedValue);
+		assertSpansEqual(strToSpan(value), strToSpan(receivedValue));
 	}
 }
 
-TEST_F(LmdbTest, Cursor_IteratesAllValuesInKeyOrder)
+TEST_F(LmdbTest, Cursor_IteratesAllValuesInKeyOrder_ValuesAppearInKeyOrder)
 {
 	Lmdb::Result<Lmdb::ReadWriteEnvironment> env = Lmdb::ReadWriteEnvironment::open("test_lmdb_env_path", 10);
 	ASSERT_TRUE(env.isValid());
 
-	// Populate the database.
 	{
-		auto transactionResult = Lmdb::ReadWriteTransaction::create(*env);
-		ASSERT_TRUE(transactionResult.isValid());
+		auto transaction = Lmdb::ReadWriteTransaction::create(*env);
+		ASSERT_TRUE(transaction.isValid());
 
-		Lmdb::ReadWriteTransaction transaction = transactionResult.consumeResult();
+		auto db = Lmdb::ReadWriteDatabase::open(*transaction, "db");
+		ASSERT_TRUE(db.isValid());
 
-		auto databaseResult = Lmdb::ReadWriteDatabase::open(transaction, "db");
-		ASSERT_TRUE(databaseResult.isValid());
+		testPutStringDbValue(*db, "a", "value_a");
+		testPutStringDbValue(*db, "b", "value_b");
+		testPutStringDbValue(*db, "c", "value_c");
 
-		Lmdb::ReadWriteDatabase database = databaseResult.consumeResult();
-
-		auto put = [&](std::string_view key, std::string_view value) {
-			EXPECT_EQ(
-				Lmdb::ReturnCode::Success,
-				database.put(
-					std::as_bytes(std::span(key)),
-					std::as_bytes(std::span(value))
-				)
-			);
-		};
-
-		put("a", "value_a");
-		put("b", "value_b");
-		put("c", "value_c");
-
-		ASSERT_EQ(Lmdb::ReturnCode::Success, transaction.commit());
+		ASSERT_EQ(Lmdb::ReturnCode::Success, transaction->commit());
 	}
 
-	// Iterate with a cursor.
 	{
 		auto transaction = Lmdb::ReadOnlyTransaction::create(*env);
 		ASSERT_TRUE(transaction.isValid());

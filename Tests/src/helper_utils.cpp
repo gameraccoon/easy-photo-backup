@@ -87,12 +87,8 @@ bool isAllZeroes(const std::span<const std::byte> data)
 	});
 }
 
-bool areSpansEqual(std::span<const std::byte> span1, std::span<const std::byte> span2)
+void assertSpansEqual(std::span<const std::byte> span1, std::span<const std::byte> span2)
 {
-	if (span1.size() != span2.size())
-	{
-		return false;
-	}
-
-	return std::memcmp(span1.data(), span2.data(), span1.size()) != 0;
+	ASSERT_EQ(span1.size(), span2.size());
+	ASSERT_EQ(std::memcmp(span1.data(), span2.data(), span1.size()), 0);
 }
