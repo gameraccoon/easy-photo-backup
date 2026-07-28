@@ -46,7 +46,7 @@ namespace Lmdb
 	{
 	}
 
-	ReturnCode Database::get(std::span<const std::byte> key, std::span<std::byte> outBuffer, size_t& readBytes) noexcept
+	ReturnCode Database::get(KeyView key, std::span<std::byte> outBuffer, size_t& readBytes) noexcept
 	{
 		const void* valueData = nullptr;
 		if (ReturnCode returnCode = lmdbGetValueUnsafe(mMdbTransaction, mDbHandler, key, valueData, readBytes); returnCode != ReturnCode::Success)
@@ -71,7 +71,7 @@ namespace Lmdb
 		return ReturnCode::Success;
 	}
 
-	ReturnCode Database::getDynamic(std::span<const std::byte> key, std::vector<std::byte>& outValue) noexcept
+	ReturnCode Database::getDynamic(KeyView key, std::vector<std::byte>& outValue) noexcept
 	{
 		const void* valueData = nullptr;
 		size_t readBytes = 0;
@@ -90,7 +90,7 @@ namespace Lmdb
 		return ReturnCode::Success;
 	}
 
-	ReturnCode Database::getValueUnsafe(std::span<const std::byte> key, const void*& outTempValueData, size_t& outValueSize) noexcept
+	ReturnCode Database::getValueUnsafe(KeyView key, const void*& outTempValueData, size_t& outValueSize) noexcept
 	{
 		return lmdbGetValueUnsafe(mMdbTransaction, mDbHandler, key, outTempValueData, outValueSize);
 	}

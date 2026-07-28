@@ -12,7 +12,7 @@
 #include "common_shared/storage/lmdb_environment.h"
 #include "common_shared/storage/lmdb_transaction.h"
 
-static void testPutDbValue(Lmdb::ReadWriteDatabase& db, std::span<const std::byte> key, std::span<const std::byte> value)
+static void testPutDbValue(Lmdb::ReadWriteDatabase& db, Lmdb::KeyView key, Lmdb::ValueView value)
 {
 	EXPECT_EQ(
 		Lmdb::ReturnCode::Success,
@@ -521,7 +521,7 @@ TEST_F(LmdbTest, Cursor_IteratesAllValuesInKeyOrder_ValuesAppearInKeyOrder)
 		int counter = 0;
 		while (++counter < 1000)
 		{
-			auto current = cursor->get();
+			auto current = cursor->viewCurrent();
 			ASSERT_TRUE(current.isValid());
 
 			values.emplace_back(

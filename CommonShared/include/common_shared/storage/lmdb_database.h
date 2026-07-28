@@ -4,12 +4,11 @@
 #pragma once
 
 #include <cstddef>
-#include <span>
 #include <vector>
 
 #include <zstring_view.hpp>
 
-#include "common_shared/storage/lmdb_return_codes.h"
+#include "common_shared/storage/lmdb_basic_types.h"
 
 struct MDB_txn;
 typedef unsigned int MDB_dbi;
@@ -26,11 +25,11 @@ namespace Lmdb
 		Database(Database&&) noexcept;
 		Database& operator=(Database&&) noexcept;
 
-		[[nodiscard]] ReturnCode get(std::span<const std::byte> key, std::span<std::byte> outBuffer, size_t& readBytes) noexcept;
-		[[nodiscard]] ReturnCode getDynamic(std::span<const std::byte> key, std::vector<std::byte>& outValue) noexcept;
+		[[nodiscard]] ReturnCode get(KeyView key, std::span<std::byte> outBuffer, size_t& readBytes) noexcept;
+		[[nodiscard]] ReturnCode getDynamic(KeyView key, std::vector<std::byte>& outValue) noexcept;
 
 		// doesn't perform extra copy of the buffer, but need to be careful not to store pointers to the value data
-		[[nodiscard]] ReturnCode readValue(std::span<const std::byte> key, auto readFn) noexcept
+		[[nodiscard]] ReturnCode readValue(KeyView key, auto readFn) noexcept
 		{
 			const void* tempValueData = nullptr;
 			size_t valueBytes = 0;
@@ -52,7 +51,7 @@ namespace Lmdb
 		virtual void makeMeAbstract() const noexcept = 0;
 
 	private:
-		[[nodiscard]] ReturnCode getValueUnsafe(std::span<const std::byte> key, const void*& outTempValueData, size_t& outValueSize) noexcept;
+		[[nodiscard]] ReturnCode getValueUnsafe(KeyView key, const void*& outTempValueData, size_t& outValueSize) noexcept;
 
 	protected:
 		MDB_dbi mDbHandler;
@@ -78,8 +77,8 @@ namespace Lmdb
 	public:
 		[[nodiscard]] static Result<ReadWriteDatabase> open(ReadWriteTransaction& transaction, std::zstring_view name) noexcept;
 
-		[[nodiscard]] ReturnCode put(std::span<const std::byte> key, std::span<const std::byte> value) noexcept;
-		[[nodiscard]] ReturnCode deleteKey(std::span<const std::byte> key) noexcept;
+		[[nodiscard]] ReturnCode put(KeyView key, ValueView value) noexcept;
+		[[nodiscard]] ReturnCode deleteKey(KeyView key) noexcept;
 
 		// removes all the data from the database and keeps it open
 		[[nodiscard]] ReturnCode emptyDatabase() noexcept;

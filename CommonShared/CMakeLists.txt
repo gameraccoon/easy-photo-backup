@@ -67,11 +67,11 @@ target_sources(CommonShared
 		${COMMON_SHARED_SRC_DIR}/serialization/raw_data_serialization.cpp
 		${COMMON_SHARED_SRC_DIR}/serialization/serialization_helpers.cpp
 		${COMMON_SHARED_SRC_DIR}/serialization/string_serialization.cpp
+		${COMMON_SHARED_SRC_DIR}/storage/lmdb_basic_types.cpp
 		${COMMON_SHARED_SRC_DIR}/storage/lmdb_cursor.cpp
 		${COMMON_SHARED_SRC_DIR}/storage/lmdb_database.cpp
 		${COMMON_SHARED_SRC_DIR}/storage/lmdb_environment.cpp
 		${COMMON_SHARED_SRC_DIR}/storage/lmdb_helpers.cpp
-		${COMMON_SHARED_SRC_DIR}/storage/lmdb_return_codes.cpp
 		${COMMON_SHARED_SRC_DIR}/storage/lmdb_transaction.cpp
 		${COMMON_SHARED_INCLUDE_DIR}/nsd/utils_internal.h
 		${COMMON_SHARED_SRC_DIR}/hash_utils.cpp
@@ -107,11 +107,11 @@ target_sources(CommonShared
 		${COMMON_SHARED_INCLUDE_DIR}/serialization/raw_data_serialization.h
 		${COMMON_SHARED_INCLUDE_DIR}/serialization/serialization_helpers.h
 		${COMMON_SHARED_INCLUDE_DIR}/serialization/string_serialization.h
+		${COMMON_SHARED_INCLUDE_DIR}/storage/lmdb_basic_types.h
 		${COMMON_SHARED_INCLUDE_DIR}/storage/lmdb_cursor.h
 		${COMMON_SHARED_INCLUDE_DIR}/storage/lmdb_database.h
 		${COMMON_SHARED_INCLUDE_DIR}/storage/lmdb_environment.h
 		${COMMON_SHARED_INCLUDE_DIR}/storage/lmdb_helpers.h
-		${COMMON_SHARED_INCLUDE_DIR}/storage/lmdb_return_codes.h
 		${COMMON_SHARED_INCLUDE_DIR}/storage/lmdb_transaction.h
 		${COMMON_SHARED_INCLUDE_DIR}/hash_utils.h
 		${COMMON_SHARED_INCLUDE_DIR}/template_utils.h

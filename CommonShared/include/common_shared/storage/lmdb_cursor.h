@@ -3,9 +3,7 @@
 
 #pragma once
 
-#include <span>
-
-#include "common_shared/storage/lmdb_return_codes.h"
+#include "common_shared/storage/lmdb_basic_types.h"
 
 struct MDB_cursor;
 
@@ -13,8 +11,8 @@ namespace Lmdb
 {
 	struct CursorDataView
 	{
-		std::span<const std::byte> key;
-		std::span<const std::byte> value;
+		KeyView key;
+		ValueView value;
 	};
 
 	class ReadOnlyTransaction;

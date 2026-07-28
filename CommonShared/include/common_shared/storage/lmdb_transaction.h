@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "common_shared/storage/lmdb_return_codes.h"
+#include "common_shared/storage/lmdb_basic_types.h"
 
 struct MDB_txn;
 

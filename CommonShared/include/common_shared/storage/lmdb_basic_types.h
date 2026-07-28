@@ -4,11 +4,15 @@
 #pragma once
 
 #include <optional>
+#include <span>
 
 #include "common_shared/debug/assert.h"
 
 namespace Lmdb
 {
+	using KeyView = std::span<const std::byte>;
+	using ValueView = std::span<const std::byte>;
+
 	enum class ReturnCode
 	{
 		// Successful result
