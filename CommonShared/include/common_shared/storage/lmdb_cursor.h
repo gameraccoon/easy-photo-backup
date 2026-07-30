@@ -15,29 +15,63 @@ namespace Lmdb
 		ValueView value;
 	};
 
-	class ReadOnlyTransaction;
-	class ReadOnlyDatabase;
-	class ReadOnlyCursor
+	class Cursor
 	{
 	public:
-		~ReadOnlyCursor() noexcept;
+		virtual ~Cursor() noexcept;
 
-		ReadOnlyCursor(const ReadOnlyCursor&) = delete;
-		ReadOnlyCursor& operator=(const ReadOnlyCursor&) = delete;
-		ReadOnlyCursor(ReadOnlyCursor&&) noexcept;
-		ReadOnlyCursor& operator=(ReadOnlyCursor&&) noexcept;
-
-		[[nodiscard]] static Result<ReadOnlyCursor> open(ReadOnlyTransaction& transaction, ReadOnlyDatabase& database) noexcept;
+		Cursor(const Cursor&) = delete;
+		Cursor& operator=(const Cursor&) = delete;
+		Cursor(Cursor&&) noexcept;
+		Cursor& operator=(Cursor&&) noexcept;
 
 		[[nodiscard]] ReturnCode first() noexcept;
+		[[nodiscard]] ReturnCode last() noexcept;
 		[[nodiscard]] ReturnCode next() noexcept;
+		[[nodiscard]] ReturnCode previous() noexcept;
+		[[nodiscard]] ReturnCode jumpToKey(KeyView key) noexcept;
+		[[nodiscard]] ReturnCode jumpToKeyOrNext(KeyView key) noexcept;
 
-		[[nodiscard]] Result<CursorDataView> get() noexcept;
+		[[nodiscard]] Result<CursorDataView> viewCurrent() noexcept;
+		[[nodiscard]] Result<CursorDataView> jumpToKeyAndGet(KeyView key) noexcept;
+
+	protected:
+		Cursor(MDB_cursor* mdbCursor) noexcept;
+		// hack to ensure Database can't be instantiated by itself
+		virtual void makeMeAbstract() const noexcept = 0;
+
+	protected:
+		MDB_cursor* mMdbCursor;
+	};
+
+	class Transaction;
+	class Database;
+	class ReadOnlyCursor : public Cursor
+	{
+	public:
+		[[nodiscard]] static Result<ReadOnlyCursor> open(Transaction& transaction, Database& database) noexcept;
+
+	protected:
+		void makeMeAbstract() const noexcept override {}
 
 	private:
 		ReadOnlyCursor(MDB_cursor* mdbCursor) noexcept;
+	};
+
+	class ReadWriteTransaction;
+	class ReadWriteDatabase;
+	class ReadWriteCursor : public Cursor
+	{
+	public:
+		[[nodiscard]] static Result<ReadWriteCursor> open(ReadWriteTransaction& transaction, ReadWriteDatabase& database) noexcept;
+
+		[[nodiscard]] ReturnCode setValue(KeyView key, ValueView newValue) noexcept;
+		[[nodiscard]] ReturnCode deleteCurrent() noexcept;
+
+	protected:
+		void makeMeAbstract() const noexcept override {}
 
 	private:
-		MDB_cursor* mMdbCursor;
+		ReadWriteCursor(MDB_cursor* mdbCursor) noexcept;
 	};
 } // namespace Lmdb

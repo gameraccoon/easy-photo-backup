@@ -38,7 +38,7 @@ namespace Lmdb
 		ReturnCode returnCode = cursor.first();
 		while (returnCode == ReturnCode::Success)
 		{
-			const Result<CursorDataView> record = cursor.get();
+			const Result<CursorDataView> record = cursor.viewCurrent();
 			if (record.isError())
 			{
 				returnCode = record.getError();

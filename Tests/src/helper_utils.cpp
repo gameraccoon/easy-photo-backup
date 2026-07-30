@@ -5,6 +5,7 @@
 
 #include <algorithm>
 
+#include "common_shared/debug/debug_print_helpers.h"
 #include "common_shared/debug/log.h"
 
 void hexCharToInt(const char ch, std::byte& res)
@@ -90,5 +91,10 @@ bool isAllZeroes(const std::span<const std::byte> data)
 void assertSpansEqual(std::span<const std::byte> span1, std::span<const std::byte> span2)
 {
 	ASSERT_EQ(span1.size(), span2.size());
-	ASSERT_EQ(std::memcmp(span1.data(), span2.data(), span1.size()), 0);
+	if (std::memcmp(span1.data(), span2.data(), span1.size()))
+	{
+		Debug::Print::printSpan("span1", span1);
+		Debug::Print::printSpan("span2", span2);
+		FAIL() << "Two spans expected to be the same but were not, see values above";
+	}
 }

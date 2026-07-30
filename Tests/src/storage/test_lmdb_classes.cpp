@@ -549,3 +549,473 @@ TEST_F(LmdbTest, Cursor_IteratesAllValuesInKeyOrder_ValuesAppearInKeyOrder)
 		EXPECT_EQ(values[2], std::make_pair(std::string("c"), std::string("value_c")));
 	}
 }
+
+TEST_F(LmdbTest, Cursor_IteratesAllValuesInReverseKeyOrder_ValuesAppearInReverseKeyOrder)
+{
+	Lmdb::Result<Lmdb::ReadWriteEnvironment> env = Lmdb::ReadWriteEnvironment::open("test_lmdb_env_path", 10);
+	ASSERT_TRUE(env.isValid());
+
+	{
+		auto transaction = Lmdb::ReadWriteTransaction::create(*env);
+		ASSERT_TRUE(transaction.isValid());
+
+		auto db = Lmdb::ReadWriteDatabase::open(*transaction, "db");
+		ASSERT_TRUE(db.isValid());
+
+		testPutStringDbValue(*db, "a", "value_a");
+		testPutStringDbValue(*db, "b", "value_b");
+		testPutStringDbValue(*db, "c", "value_c");
+
+		ASSERT_EQ(Lmdb::ReturnCode::Success, transaction->commit());
+	}
+
+	{
+		auto transaction = Lmdb::ReadOnlyTransaction::create(*env);
+		ASSERT_TRUE(transaction.isValid());
+
+		auto db = Lmdb::ReadOnlyDatabase::open(*transaction, "db");
+		ASSERT_TRUE(db.isValid());
+
+		auto cursor = Lmdb::ReadOnlyCursor::open(*transaction, *db);
+		ASSERT_TRUE(cursor.isValid());
+
+		ASSERT_EQ(Lmdb::ReturnCode::Success, cursor->last());
+
+		std::vector<std::pair<std::string, std::string>> values;
+
+		int counter = 0;
+		while (++counter < 1000)
+		{
+			auto current = cursor->viewCurrent();
+			ASSERT_TRUE(current.isValid());
+
+			values.emplace_back(
+				std::string(
+					reinterpret_cast<const char*>(current->key.data()),
+					current->key.size()
+				),
+				std::string(
+					reinterpret_cast<const char*>(current->value.data()),
+					current->value.size()
+				)
+			);
+
+			if (cursor->previous() != Lmdb::ReturnCode::Success)
+			{
+				break;
+			}
+		}
+
+		ASSERT_LT(counter, 1000);
+		ASSERT_EQ(values.size(), 3u);
+
+		EXPECT_EQ(values[0], std::make_pair(std::string("c"), std::string("value_c")));
+		EXPECT_EQ(values[1], std::make_pair(std::string("b"), std::string("value_b")));
+		EXPECT_EQ(values[2], std::make_pair(std::string("a"), std::string("value_a")));
+	}
+}
+
+TEST_F(LmdbTest, Cursor_JumpToKey_LandsOnTheCorrectKey)
+{
+	Lmdb::Result<Lmdb::ReadWriteEnvironment> env = Lmdb::ReadWriteEnvironment::open("test_lmdb_env_path", 10);
+	ASSERT_TRUE(env.isValid());
+
+	{
+		auto transaction = Lmdb::ReadWriteTransaction::create(*env);
+		ASSERT_TRUE(transaction.isValid());
+
+		auto db = Lmdb::ReadWriteDatabase::open(*transaction, "db");
+		ASSERT_TRUE(db.isValid());
+
+		testPutStringDbValue(*db, "a", "value_a");
+		testPutStringDbValue(*db, "b", "value_b");
+		testPutStringDbValue(*db, "c", "value_c");
+
+		ASSERT_EQ(Lmdb::ReturnCode::Success, transaction->commit());
+	}
+
+	{
+		auto transaction = Lmdb::ReadOnlyTransaction::create(*env);
+		ASSERT_TRUE(transaction.isValid());
+
+		auto db = Lmdb::ReadOnlyDatabase::open(*transaction, "db");
+		ASSERT_TRUE(db.isValid());
+
+		auto cursor = Lmdb::ReadOnlyCursor::open(*transaction, *db);
+		ASSERT_TRUE(cursor.isValid());
+
+		ASSERT_EQ(Lmdb::ReturnCode::Success, cursor->jumpToKey(strToSpan("b")));
+
+		auto current = cursor->viewCurrent();
+		ASSERT_TRUE(current.isValid());
+		assertSpansEqual(current->key, strToSpan("b"));
+		assertSpansEqual(current->value, strToSpan("value_b"));
+	}
+}
+
+TEST_F(LmdbTest, Cursor_JumpToMissingKey_ReturnsNotFound)
+{
+	Lmdb::Result<Lmdb::ReadWriteEnvironment> env = Lmdb::ReadWriteEnvironment::open("test_lmdb_env_path", 10);
+	ASSERT_TRUE(env.isValid());
+
+	{
+		auto transaction = Lmdb::ReadWriteTransaction::create(*env);
+		ASSERT_TRUE(transaction.isValid());
+
+		auto db = Lmdb::ReadWriteDatabase::open(*transaction, "db");
+		ASSERT_TRUE(db.isValid());
+
+		testPutStringDbValue(*db, "a", "value_a");
+		testPutStringDbValue(*db, "b", "value_b");
+		testPutStringDbValue(*db, "c", "value_c");
+
+		ASSERT_EQ(Lmdb::ReturnCode::Success, transaction->commit());
+	}
+
+	{
+		auto transaction = Lmdb::ReadOnlyTransaction::create(*env);
+		ASSERT_TRUE(transaction.isValid());
+
+		auto db = Lmdb::ReadOnlyDatabase::open(*transaction, "db");
+		ASSERT_TRUE(db.isValid());
+
+		auto cursor = Lmdb::ReadOnlyCursor::open(*transaction, *db);
+		ASSERT_TRUE(cursor.isValid());
+
+		ASSERT_EQ(Lmdb::ReturnCode::NotFound, cursor->jumpToKey(strToSpan("d")));
+	}
+}
+
+TEST_F(LmdbTest, Cursor_JumpToKeyOrNextAndMiss_LandsOnTheNextKey)
+{
+	Lmdb::Result<Lmdb::ReadWriteEnvironment> env = Lmdb::ReadWriteEnvironment::open("test_lmdb_env_path", 10);
+	ASSERT_TRUE(env.isValid());
+
+	{
+		auto transaction = Lmdb::ReadWriteTransaction::create(*env);
+		ASSERT_TRUE(transaction.isValid());
+
+		auto db = Lmdb::ReadWriteDatabase::open(*transaction, "db");
+		ASSERT_TRUE(db.isValid());
+
+		testPutStringDbValue(*db, "a", "value_a");
+		testPutStringDbValue(*db, "c", "value_c");
+		testPutStringDbValue(*db, "d", "value_d");
+
+		ASSERT_EQ(Lmdb::ReturnCode::Success, transaction->commit());
+	}
+
+	{
+		auto transaction = Lmdb::ReadOnlyTransaction::create(*env);
+		ASSERT_TRUE(transaction.isValid());
+
+		auto db = Lmdb::ReadOnlyDatabase::open(*transaction, "db");
+		ASSERT_TRUE(db.isValid());
+
+		auto cursor = Lmdb::ReadOnlyCursor::open(*transaction, *db);
+		ASSERT_TRUE(cursor.isValid());
+
+		ASSERT_EQ(Lmdb::ReturnCode::Success, cursor->jumpToKeyOrNext(strToSpan("b")));
+
+		auto current = cursor->viewCurrent();
+		ASSERT_TRUE(current.isValid());
+		assertSpansEqual(current->key, strToSpan("c"));
+		assertSpansEqual(current->value, strToSpan("value_c"));
+	}
+}
+
+TEST_F(LmdbTest, Cursor_JumpToKeyOrNextAndMissAfterLast_ReturnsNotFound)
+{
+	Lmdb::Result<Lmdb::ReadWriteEnvironment> env = Lmdb::ReadWriteEnvironment::open("test_lmdb_env_path", 10);
+	ASSERT_TRUE(env.isValid());
+
+	{
+		auto transaction = Lmdb::ReadWriteTransaction::create(*env);
+		ASSERT_TRUE(transaction.isValid());
+
+		auto db = Lmdb::ReadWriteDatabase::open(*transaction, "db");
+		ASSERT_TRUE(db.isValid());
+
+		testPutStringDbValue(*db, "a", "value_a");
+		testPutStringDbValue(*db, "b", "value_b");
+		testPutStringDbValue(*db, "c", "value_c");
+
+		ASSERT_EQ(Lmdb::ReturnCode::Success, transaction->commit());
+	}
+
+	{
+		auto transaction = Lmdb::ReadOnlyTransaction::create(*env);
+		ASSERT_TRUE(transaction.isValid());
+
+		auto db = Lmdb::ReadOnlyDatabase::open(*transaction, "db");
+		ASSERT_TRUE(db.isValid());
+
+		auto cursor = Lmdb::ReadOnlyCursor::open(*transaction, *db);
+		ASSERT_TRUE(cursor.isValid());
+
+		ASSERT_EQ(Lmdb::ReturnCode::NotFound, cursor->jumpToKeyOrNext(strToSpan("d")));
+	}
+}
+
+TEST_F(LmdbTest, Cursor_JumpToKeyAndGet_GetsTheCorrectKeyValue)
+{
+	Lmdb::Result<Lmdb::ReadWriteEnvironment> env = Lmdb::ReadWriteEnvironment::open("test_lmdb_env_path", 10);
+	ASSERT_TRUE(env.isValid());
+
+	{
+		auto transaction = Lmdb::ReadWriteTransaction::create(*env);
+		ASSERT_TRUE(transaction.isValid());
+
+		auto db = Lmdb::ReadWriteDatabase::open(*transaction, "db");
+		ASSERT_TRUE(db.isValid());
+
+		testPutStringDbValue(*db, "a", "value_a");
+		testPutStringDbValue(*db, "b", "value_b");
+		testPutStringDbValue(*db, "c", "value_c");
+
+		ASSERT_EQ(Lmdb::ReturnCode::Success, transaction->commit());
+	}
+
+	{
+		auto transaction = Lmdb::ReadOnlyTransaction::create(*env);
+		ASSERT_TRUE(transaction.isValid());
+
+		auto db = Lmdb::ReadOnlyDatabase::open(*transaction, "db");
+		ASSERT_TRUE(db.isValid());
+
+		auto cursor = Lmdb::ReadOnlyCursor::open(*transaction, *db);
+		ASSERT_TRUE(cursor.isValid());
+
+		auto current = cursor->jumpToKeyAndGet(strToSpan("b"));
+
+		ASSERT_TRUE(current.isValid());
+		assertSpansEqual(current->key, strToSpan("b"));
+		assertSpansEqual(current->value, strToSpan("value_b"));
+	}
+}
+
+TEST_F(LmdbTest, Cursor_JumpToMissingKeyAndGet_ReturnsNotFound)
+{
+	Lmdb::Result<Lmdb::ReadWriteEnvironment> env = Lmdb::ReadWriteEnvironment::open("test_lmdb_env_path", 10);
+	ASSERT_TRUE(env.isValid());
+
+	{
+		auto transaction = Lmdb::ReadWriteTransaction::create(*env);
+		ASSERT_TRUE(transaction.isValid());
+
+		auto db = Lmdb::ReadWriteDatabase::open(*transaction, "db");
+		ASSERT_TRUE(db.isValid());
+
+		testPutStringDbValue(*db, "b", "value_b");
+		testPutStringDbValue(*db, "c", "value_c");
+		testPutStringDbValue(*db, "d", "value_d");
+
+		ASSERT_EQ(Lmdb::ReturnCode::Success, transaction->commit());
+	}
+
+	{
+		auto transaction = Lmdb::ReadOnlyTransaction::create(*env);
+		ASSERT_TRUE(transaction.isValid());
+
+		auto db = Lmdb::ReadOnlyDatabase::open(*transaction, "db");
+		ASSERT_TRUE(db.isValid());
+
+		auto cursor = Lmdb::ReadOnlyCursor::open(*transaction, *db);
+		ASSERT_TRUE(cursor.isValid());
+
+		auto current = cursor->jumpToKeyAndGet(strToSpan("a"));
+		EXPECT_FALSE(current.isValid());
+		EXPECT_EQ(Lmdb::ReturnCode::NotFound, current.getError());
+	}
+}
+
+TEST_F(LmdbTest, Cursor_SetSecondValue_SecondValueIsSet)
+{
+	Lmdb::Result<Lmdb::ReadWriteEnvironment> env = Lmdb::ReadWriteEnvironment::open("test_lmdb_env_path", 10);
+	ASSERT_TRUE(env.isValid());
+
+	{
+		auto transaction = Lmdb::ReadWriteTransaction::create(*env);
+		ASSERT_TRUE(transaction.isValid());
+
+		auto db = Lmdb::ReadWriteDatabase::open(*transaction, "db");
+		ASSERT_TRUE(db.isValid());
+
+		testPutStringDbValue(*db, "a", "value_a");
+		testPutStringDbValue(*db, "b", "value_b");
+		testPutStringDbValue(*db, "c", "value_c");
+
+		auto cursor = Lmdb::ReadWriteCursor::open(*transaction, *db);
+		ASSERT_TRUE(cursor.isValid());
+
+		EXPECT_EQ(Lmdb::ReturnCode::Success, cursor->first()); // check that the position doesn't matter
+		EXPECT_EQ(Lmdb::ReturnCode::Success, cursor->setValue(strToSpan("b"), strToSpan("value_d")));
+
+		// check that the cursor is now pointing to the new element
+		Lmdb::Result<Lmdb::CursorDataView> view = cursor->viewCurrent();
+		ASSERT_TRUE(view.isValid());
+		assertSpansEqual(view->key, strToSpan("b"));
+		assertSpansEqual(view->value, strToSpan("value_d"));
+
+		ASSERT_EQ(Lmdb::ReturnCode::Success, transaction->commit());
+	}
+
+	{
+		auto transaction = Lmdb::ReadOnlyTransaction::create(*env);
+		ASSERT_TRUE(transaction.isValid());
+
+		auto db = Lmdb::ReadOnlyDatabase::open(*transaction, "db");
+		ASSERT_TRUE(db.isValid());
+
+		auto cursor = Lmdb::ReadOnlyCursor::open(*transaction, *db);
+		ASSERT_TRUE(cursor.isValid());
+
+		ASSERT_EQ(Lmdb::ReturnCode::Success, cursor->first());
+		Lmdb::Result<Lmdb::CursorDataView> view = cursor->viewCurrent();
+		ASSERT_TRUE(view.isValid());
+		assertSpansEqual(view->key, strToSpan("a"));
+		assertSpansEqual(view->value, strToSpan("value_a"));
+
+		ASSERT_EQ(Lmdb::ReturnCode::Success, cursor->next());
+		view = cursor->viewCurrent();
+		ASSERT_TRUE(view.isValid());
+		assertSpansEqual(view->key, strToSpan("b"));
+		assertSpansEqual(view->value, strToSpan("value_d")); // the change
+
+		ASSERT_EQ(Lmdb::ReturnCode::Success, cursor->next());
+		view = cursor->viewCurrent();
+		ASSERT_TRUE(view.isValid());
+		assertSpansEqual(view->key, strToSpan("c"));
+		assertSpansEqual(view->value, strToSpan("value_c"));
+
+		ASSERT_EQ(Lmdb::ReturnCode::NotFound, cursor->next());
+	}
+}
+
+TEST_F(LmdbTest, Cursor_SetNewValue_NewValueIsCreated)
+{
+	Lmdb::Result<Lmdb::ReadWriteEnvironment> env = Lmdb::ReadWriteEnvironment::open("test_lmdb_env_path", 10);
+	ASSERT_TRUE(env.isValid());
+
+	{
+		auto transaction = Lmdb::ReadWriteTransaction::create(*env);
+		ASSERT_TRUE(transaction.isValid());
+
+		auto db = Lmdb::ReadWriteDatabase::open(*transaction, "db");
+		ASSERT_TRUE(db.isValid());
+
+		testPutStringDbValue(*db, "a", "value_a");
+		testPutStringDbValue(*db, "b", "value_b");
+		testPutStringDbValue(*db, "c", "value_c");
+
+		auto cursor = Lmdb::ReadWriteCursor::open(*transaction, *db);
+		ASSERT_TRUE(cursor.isValid());
+
+		EXPECT_EQ(Lmdb::ReturnCode::Success, cursor->first()); // check that the position doesn't matter
+		EXPECT_EQ(Lmdb::ReturnCode::Success, cursor->setValue(strToSpan("d"), strToSpan("value_d")));
+
+		// check that the cursor is now pointing to the new element
+		Lmdb::Result<Lmdb::CursorDataView> view = cursor->viewCurrent();
+		ASSERT_TRUE(view.isValid());
+		assertSpansEqual(view->key, strToSpan("d"));
+		assertSpansEqual(view->value, strToSpan("value_d"));
+
+		ASSERT_EQ(Lmdb::ReturnCode::Success, transaction->commit());
+	}
+
+	{
+		auto transaction = Lmdb::ReadOnlyTransaction::create(*env);
+		ASSERT_TRUE(transaction.isValid());
+
+		auto db = Lmdb::ReadOnlyDatabase::open(*transaction, "db");
+		ASSERT_TRUE(db.isValid());
+
+		auto cursor = Lmdb::ReadOnlyCursor::open(*transaction, *db);
+		ASSERT_TRUE(cursor.isValid());
+
+		ASSERT_EQ(Lmdb::ReturnCode::Success, cursor->first());
+		Lmdb::Result<Lmdb::CursorDataView> view = cursor->viewCurrent();
+		ASSERT_TRUE(view.isValid());
+		assertSpansEqual(view->key, strToSpan("a"));
+		assertSpansEqual(view->value, strToSpan("value_a"));
+
+		ASSERT_EQ(Lmdb::ReturnCode::Success, cursor->next());
+		view = cursor->viewCurrent();
+		ASSERT_TRUE(view.isValid());
+		assertSpansEqual(view->key, strToSpan("b"));
+		assertSpansEqual(view->value, strToSpan("value_b"));
+
+		ASSERT_EQ(Lmdb::ReturnCode::Success, cursor->next());
+		view = cursor->viewCurrent();
+		ASSERT_TRUE(view.isValid());
+		assertSpansEqual(view->key, strToSpan("c"));
+		assertSpansEqual(view->value, strToSpan("value_c"));
+
+		ASSERT_EQ(Lmdb::ReturnCode::Success, cursor->next());
+		view = cursor->viewCurrent();
+		ASSERT_TRUE(view.isValid());
+		assertSpansEqual(view->key, strToSpan("d"));
+		assertSpansEqual(view->value, strToSpan("value_d"));
+
+		ASSERT_EQ(Lmdb::ReturnCode::NotFound, cursor->next());
+	}
+}
+
+TEST_F(LmdbTest, Cursor_DeleteSecondValue_SecondValueDeleted)
+{
+	Lmdb::Result<Lmdb::ReadWriteEnvironment> env = Lmdb::ReadWriteEnvironment::open("test_lmdb_env_path", 10);
+	ASSERT_TRUE(env.isValid());
+
+	{
+		auto transaction = Lmdb::ReadWriteTransaction::create(*env);
+		ASSERT_TRUE(transaction.isValid());
+
+		auto db = Lmdb::ReadWriteDatabase::open(*transaction, "db");
+		ASSERT_TRUE(db.isValid());
+
+		testPutStringDbValue(*db, "a", "value_a");
+		testPutStringDbValue(*db, "b", "value_b");
+		testPutStringDbValue(*db, "c", "value_c");
+
+		auto cursor = Lmdb::ReadWriteCursor::open(*transaction, *db);
+		ASSERT_TRUE(cursor.isValid());
+
+		EXPECT_EQ(Lmdb::ReturnCode::Success, cursor->first());
+		EXPECT_EQ(Lmdb::ReturnCode::Success, cursor->next());
+		EXPECT_EQ(Lmdb::ReturnCode::Success, cursor->deleteCurrent());
+		EXPECT_EQ(Lmdb::ReturnCode::Success, cursor->next());
+
+		// check that the cursor is now pointing to the element that was previously next
+		Lmdb::Result<Lmdb::CursorDataView> view = cursor->viewCurrent();
+		ASSERT_TRUE(view.isValid());
+		assertSpansEqual(view->key, strToSpan("c"));
+		assertSpansEqual(view->value, strToSpan("value_c"));
+
+		ASSERT_EQ(Lmdb::ReturnCode::Success, transaction->commit());
+	}
+
+	{
+		auto transaction = Lmdb::ReadOnlyTransaction::create(*env);
+		ASSERT_TRUE(transaction.isValid());
+
+		auto db = Lmdb::ReadOnlyDatabase::open(*transaction, "db");
+		ASSERT_TRUE(db.isValid());
+
+		auto cursor = Lmdb::ReadOnlyCursor::open(*transaction, *db);
+		ASSERT_TRUE(cursor.isValid());
+
+		ASSERT_EQ(Lmdb::ReturnCode::Success, cursor->first());
+		Lmdb::Result<Lmdb::CursorDataView> view = cursor->viewCurrent();
+		ASSERT_TRUE(view.isValid());
+		assertSpansEqual(view->key, strToSpan("a"));
+		assertSpansEqual(view->value, strToSpan("value_a"));
+
+		ASSERT_EQ(Lmdb::ReturnCode::Success, cursor->next());
+		view = cursor->viewCurrent();
+		ASSERT_TRUE(view.isValid());
+		assertSpansEqual(view->key, strToSpan("c"));
+		assertSpansEqual(view->value, strToSpan("value_c"));
+
+		ASSERT_EQ(Lmdb::ReturnCode::NotFound, cursor->next());
+	}
+}
