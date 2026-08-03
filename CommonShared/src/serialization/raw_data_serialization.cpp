@@ -93,10 +93,10 @@ namespace Serialization
 		if (buffer.size() < outData.size()) [[unlikely]]
 		{
 			reportDebugError("Tried to read data that is bigger than the buffer: data size {}, buffer size {}", outData.size(), buffer.size());
-			return std::format("The data size is greater than the amount of data to read if from, data size: {}, stream size", outData.size(), buffer.size());
+			return std::format("The data size is greater than the amount of data to read from, data size: {}, stream size {}", outData.size(), buffer.size());
 		}
 
-		std::copy(buffer.data(), buffer.data() + outData.size(), outData.data());
+		std::copy(buffer.begin(), buffer.begin() + outData.size(), outData.begin());
 
 		return std::nullopt;
 	}

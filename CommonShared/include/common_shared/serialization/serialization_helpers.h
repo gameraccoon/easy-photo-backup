@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <span>
 #include <string>
 #include <string_view>
@@ -18,6 +19,9 @@ namespace Serialization
 			: mBuffer(buffer)
 		{}
 
+		bool writeByte(std::byte data, std::string_view logName) noexcept;
+		bool writeUint32(uint32_t data, std::string_view logName) noexcept;
+		bool writeUint64(uint64_t data, std::string_view logName) noexcept;
 		bool writeFixedData(std::span<const std::byte> data, std::string_view logName) noexcept;
 		bool writeShortString(std::string_view data, std::string_view logName) noexcept;
 
@@ -37,6 +41,9 @@ namespace Serialization
 			: mBuffer(buffer)
 		{}
 
+		bool readByte(std::byte& outData, std::string_view logName) noexcept;
+		bool readUint32(uint32_t& outData, std::string_view logName) noexcept;
+		bool readUint64(uint64_t& outData, std::string_view logName) noexcept;
 		bool readFixedData(std::span<std::byte> outData, std::string_view logName) noexcept;
 		bool readShortString(std::string& outData, std::string_view logName, size_t lengthLimit = 255) noexcept;
 
