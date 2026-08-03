@@ -1,9 +1,9 @@
 // Copyright (C) Pavel Grebnev 2026
 // Distributed under the MIT License (license terms are at http://opensource.org/licenses/MIT).
 
-#include <liblmdb/lmdb.h>
-
 #include "common_shared/storage/lmdb_basic_types.h"
+
+#include <liblmdb/lmdb.h>
 
 namespace Lmdb
 {
