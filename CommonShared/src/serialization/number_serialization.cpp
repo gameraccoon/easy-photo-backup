@@ -34,6 +34,37 @@ namespace Serialization
 		return (static_cast<uint16_t>(byte1) << 8) | static_cast<uint16_t>(byte2);
 	}
 
+	void writeUint32(std::span<std::byte> outSerializedData, uint32_t value) noexcept
+	{
+		if (outSerializedData.size() != 4)
+		{
+			reportDebugError("Unexpected buffer size to write uint32_t to: {}", outSerializedData.size());
+			return;
+		}
+
+		for (int i = 0; i < 4; ++i)
+		{
+			outSerializedData[i] = static_cast<std::byte>((value >> (0x18 - 0x8 * i)) & 0xFF);
+		}
+	}
+
+	uint32_t readUint32(std::span<const std::byte> serializedData) noexcept
+	{
+		if (serializedData.size() != 4)
+		{
+			reportDebugError("Unexpected buffer size to read uint32_t from: {}", serializedData.size());
+			return 0;
+		}
+
+		uint32_t v = 0;
+		for (size_t i = 0; i < 4; ++i)
+		{
+			v |= (static_cast<uint32_t>(serializedData[i]) << (0x18 - 0x8 * i));
+		}
+
+		return v;
+	}
+
 	void writeUint64(std::span<std::byte> outSerializedData, uint64_t value) noexcept
 	{
 		if (outSerializedData.size() != 8)

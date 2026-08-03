@@ -55,6 +55,29 @@ TEST(NumberSerialization, SerializeDeserializeU16Rountrip)
 	EXPECT_EQ(std::numeric_limits<uint16_t>::max(), Serialization::readUint16(buffer[0], buffer[1]));
 }
 
+TEST(NumberSerialization, SerializeDeserializeU32Rountrip)
+{
+	std::array<std::byte, 4> buffer;
+
+	Serialization::writeUint32(buffer, 0);
+	EXPECT_EQ(static_cast<uint32_t>(0), Serialization::readUint32(buffer));
+
+	Serialization::writeUint32(buffer, 2);
+	EXPECT_EQ(static_cast<uint32_t>(2), Serialization::readUint32(buffer));
+
+	Serialization::writeUint32(buffer, 257);
+	EXPECT_EQ(static_cast<uint32_t>(257), Serialization::readUint32(buffer));
+
+	Serialization::writeUint32(buffer, 2000000042);
+	EXPECT_EQ(static_cast<uint32_t>(2000000042), Serialization::readUint32(buffer));
+
+	Serialization::writeUint32(buffer, 777777777);
+	EXPECT_EQ(static_cast<uint32_t>(777777777), Serialization::readUint32(buffer));
+
+	Serialization::writeUint32(buffer, std::numeric_limits<uint32_t>::max());
+	EXPECT_EQ(std::numeric_limits<uint32_t>::max(), Serialization::readUint32(buffer));
+}
+
 TEST(NumberSerialization, SerializeDeserializeU64Rountrip)
 {
 	std::array<std::byte, 8> buffer;
