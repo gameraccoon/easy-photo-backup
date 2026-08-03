@@ -12,9 +12,11 @@
 class LmdbHelpersTest : public testing::Test
 {
 protected:
+	static constexpr std::string_view TEST_DATA_PATH = "tests/test_lmdb_helpers";
+
 	void SetUp() override
 	{
-		auto env = Lmdb::ReadWriteEnvironment::open("test_lmdb_env_path", 10);
+		auto env = Lmdb::ReadWriteEnvironment::open(TEST_DATA_PATH, 10);
 		ASSERT_TRUE(env.isValid());
 
 		auto transaction = Lmdb::ReadWriteTransaction::create(*env);
@@ -29,7 +31,7 @@ protected:
 	void TearDown() override
 	{
 		{
-			auto env = Lmdb::ReadWriteEnvironment::open("test_lmdb_env_path", 10);
+			auto env = Lmdb::ReadWriteEnvironment::open(TEST_DATA_PATH, 10);
 			ASSERT_TRUE(env.isValid());
 
 			auto result = env->checkForStaleReaders();
@@ -37,13 +39,13 @@ protected:
 			EXPECT_EQ(0, *result);
 		}
 
-		std::filesystem::remove_all("test_lmdb_env_path");
+		std::filesystem::remove_all(TEST_DATA_PATH);
 	}
 };
 
 TEST_F(LmdbHelpersTest, ReadOnlyDatabase_OpenNonExistent_ReturnsNotFoundError)
 {
-	auto env = Lmdb::ReadWriteEnvironment::open("test_lmdb_env_path", 10);
+	auto env = Lmdb::ReadWriteEnvironment::open(TEST_DATA_PATH, 10);
 	ASSERT_TRUE(env.isValid());
 	auto helper = Lmdb::openReadOnlySingleDbTransaction(*env, "non_existent_db");
 	ASSERT_TRUE(helper.isError());
@@ -52,7 +54,7 @@ TEST_F(LmdbHelpersTest, ReadOnlyDatabase_OpenNonExistent_ReturnsNotFoundError)
 
 TEST_F(LmdbHelpersTest, ReadWriteDatabase_OpenNonExisting_ReturnsSuccess)
 {
-	auto env = Lmdb::ReadWriteEnvironment::open("test_lmdb_env_path", 10);
+	auto env = Lmdb::ReadWriteEnvironment::open(TEST_DATA_PATH, 10);
 	ASSERT_TRUE(env.isValid());
 	auto helper = Lmdb::openReadWriteSingleDbTransaction(*env, "non_existent_db");
 	ASSERT_TRUE(helper.isValid());
@@ -60,7 +62,7 @@ TEST_F(LmdbHelpersTest, ReadWriteDatabase_OpenNonExisting_ReturnsSuccess)
 
 TEST_F(LmdbHelpersTest, ReadOnlyDatabase_OpenSameDatabaseTwiceSequentially_BothOpenedSuccessfully)
 {
-	auto env = Lmdb::ReadWriteEnvironment::open("test_lmdb_env_path", 10);
+	auto env = Lmdb::ReadWriteEnvironment::open(TEST_DATA_PATH, 10);
 	ASSERT_TRUE(env.isValid());
 	{
 		auto helper = Lmdb::openReadOnlySingleDbTransaction(*env, "test_db");
@@ -74,7 +76,7 @@ TEST_F(LmdbHelpersTest, ReadOnlyDatabase_OpenSameDatabaseTwiceSequentially_BothO
 
 TEST_F(LmdbHelpersTest, ReadWriteDatabase_OpenSameDatabaseTwiceSequentially_BothOpenedSuccessfully)
 {
-	auto env = Lmdb::ReadWriteEnvironment::open("test_lmdb_env_path", 10);
+	auto env = Lmdb::ReadWriteEnvironment::open(TEST_DATA_PATH, 10);
 	ASSERT_TRUE(env.isValid());
 	{
 		auto helper = Lmdb::openReadWriteSingleDbTransaction(*env, "test_db");
@@ -88,7 +90,7 @@ TEST_F(LmdbHelpersTest, ReadWriteDatabase_OpenSameDatabaseTwiceSequentially_Both
 
 TEST_F(LmdbHelpersTest, Database_PutThenGet_ReturnsStoredValue)
 {
-	auto env = Lmdb::ReadWriteEnvironment::open("test_lmdb_env_path", 10);
+	auto env = Lmdb::ReadWriteEnvironment::open(TEST_DATA_PATH, 10);
 	ASSERT_TRUE(env.isValid());
 
 	const std::string keyString = "key";
@@ -121,7 +123,7 @@ TEST_F(LmdbHelpersTest, Database_PutThenGet_ReturnsStoredValue)
 
 TEST_F(LmdbHelpersTest, Cursor_IteratesAllValuesInKeyOrder)
 {
-	Lmdb::Result<Lmdb::ReadWriteEnvironment> env = Lmdb::ReadWriteEnvironment::open("test_lmdb_env_path", 10);
+	Lmdb::Result<Lmdb::ReadWriteEnvironment> env = Lmdb::ReadWriteEnvironment::open(TEST_DATA_PATH, 10);
 	ASSERT_TRUE(env.isValid());
 
 	// Populate the database.

@@ -66,10 +66,12 @@ private:
 class RequestsTest : public testing::Test
 {
 protected:
+	static constexpr std::string_view TEST_DATA_PATH = "tests/test_requests";
+
 	void SetUp() override
 	{
-		std::filesystem::remove_all("tests/requests_test");
-		std::filesystem::create_directories("tests/requests_test");
+		std::filesystem::remove_all(TEST_DATA_PATH);
+		std::filesystem::create_directories(TEST_DATA_PATH);
 	}
 
 	void TearDown() override
@@ -77,7 +79,7 @@ protected:
 		Network::gSendTestMock = nullptr;
 		Network::gRecvTestMock = nullptr;
 		Network::gTestDisableRealSockets = false;
-		std::filesystem::remove_all("tests/requests_test");
+		std::filesystem::remove_all(TEST_DATA_PATH);
 	}
 
 	static void createFile(const std::filesystem::path& path, std::span<const std::byte> content)
@@ -111,7 +113,7 @@ TEST_F(RequestsTest, PairConfirmAndExchangeFiles_FilesExchanged)
 
 	const std::vector<std::byte> fileContent = hexToBytes("abcdef777777");
 	constexpr std::string_view fileName = "test_file_to_send";
-	const std::filesystem::path folderToSend = "./tests/requests_tests/files_to_send";
+	const std::filesystem::path folderToSend = "./tests/requests_test/files_to_send";
 
 	std::filesystem::create_directories(folderToSend);
 	createFile(folderToSend / fileName, fileContent);
@@ -159,7 +161,7 @@ TEST_F(RequestsTest, PairConfirmAndExchangeFiles_FilesExchanged)
 		RequestAnswers::Pair pairingInformation = std::get<RequestAnswers::Pair>(std::move(pairingAnswer));
 
 		// client approve
-		auto storageConfig = ClientConfigStorage::openStorage("tests/requests_test");
+		auto storageConfig = ClientConfigStorage::openStorage(TEST_DATA_PATH);
 		ASSERT_TRUE(storageConfig.has_value());
 		storageConfig->addConfirmedServerBinding(
 			serverId,
@@ -172,7 +174,7 @@ TEST_F(RequestsTest, PairConfirmAndExchangeFiles_FilesExchanged)
 		);
 
 		// client send
-		auto storageSentFiles = ClientSentFilesStorage::openStorage("tests/requests_test");
+		auto storageSentFiles = ClientSentFilesStorage::openStorage(TEST_DATA_PATH);
 		std::vector<std::filesystem::path> files = FileSendHelpers::collectFilesFromDirectory(folderToSend);
 		std::vector<uint64_t> previouslySentBytes;
 		storageSentFiles->filterOutSentFiles(folderToSend, files, previouslySentBytes);
@@ -182,7 +184,7 @@ TEST_F(RequestsTest, PairConfirmAndExchangeFiles_FilesExchanged)
 		clientThread.join();
 	});
 
-	std::optional<ServerStorage> storage = ServerStorage::openStorage("tests/requests_test");
+	std::optional<ServerStorage> storage = ServerStorage::openStorage(TEST_DATA_PATH);
 	ASSERT_TRUE(storage.has_value());
 
 	// server pair
@@ -220,7 +222,7 @@ TEST_F(RequestsTest, PairConfirmAndExchangeFiles_FilesExchanged)
 	auto sendFilesRequest = Requests::parseRequest(buffer[2], std::span(buffer.data() + MessagePreludeSize, buffer.data() + readBytes));
 	ASSERT_TRUE(std::holds_alternative<Requests::SendFiles>(sendFilesRequest));
 	Requests::SendFiles sendFiles = std::get<Requests::SendFiles>(std::move(sendFilesRequest));
-	Requests::processSendFilesInteractiveRequest(sendFiles.connectionId, sendFiles.firstMessage, serverSocket, *storage, "./tests/requests_tests");
+	Requests::processSendFilesInteractiveRequest(sendFiles.connectionId, sendFiles.firstMessage, serverSocket, *storage, TEST_DATA_PATH);
 
 	checkFile(folderToSend / fileName, fileContent);
 }
