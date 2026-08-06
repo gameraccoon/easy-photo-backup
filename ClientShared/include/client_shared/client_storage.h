@@ -44,6 +44,23 @@ private:
 class ClientSentFilesStorage
 {
 public:
+	struct ActivityJournalRecord
+	{
+		enum class Type : uint8_t
+		{
+			Unknown,
+			Start,
+			Continuation,
+			End
+		};
+
+		uint64_t timestampMs = 0;
+		uint32_t filesSent = 0;
+		uint32_t bytesTransferred = 0;
+		Type type = Type::Unknown;
+	};
+
+public:
 	ClientSentFilesStorage(ClientSentFilesStorage&&) noexcept = default;
 	ClientSentFilesStorage& operator=(ClientSentFilesStorage&&) noexcept = default;
 
@@ -51,6 +68,13 @@ public:
 
 	bool addSentFiles(const std::vector<std::filesystem::path>& newSentFiles, const std::string& partiallySentPath, uint64_t partiallySentData, const std::vector<std::filesystem::path>& rejectedPartialFiles) noexcept;
 	void filterOutSentFiles(const std::filesystem::path& rootPath, std::vector<std::filesystem::path>& inOutPaths, std::vector<uint64_t>& outPreviouslySentBytes) noexcept;
+
+	void truncateLastActivityJournalRecords(uint64_t oldestTimestampToLeaveMs) noexcept;
+	bool addActivityJournalRecord(ActivityJournalRecord&& newRecord) noexcept;
+	// outEndIdx points to the element after the last
+	std::vector<ActivityJournalRecord> getLastActivityJournalRecords(uint32_t recordsCount, uint32_t& outEndIdx) noexcept;
+	// endIdx is non-inclusive
+	std::vector<ActivityJournalRecord> getActivityJournalRecords(uint32_t beginIdx, uint32_t endIdx) noexcept;
 
 private:
 	explicit ClientSentFilesStorage(Lmdb::ReadWriteEnvironment&& mEnvironment) noexcept;

@@ -5,8 +5,6 @@
 
 #include <gtest/gtest.h>
 
-#include "common_shared/cryptography/utils/random.h"
-
 #include "client_shared/client_storage.h"
 
 class ClientSentFilesStorageTest : public testing::Test
@@ -202,5 +200,258 @@ TEST_F(ClientSentFilesStorageTest, StorageWithPartiallySentFile_RejectPartiallyS
 		storage->filterOutSentFiles("root/path", pathsToFilterOut, previouslySentBytes);
 		EXPECT_EQ(expectedPathsToRemain, pathsToFilterOut);
 		ASSERT_EQ(previouslySentBytes.size(), size_t(0));
+	}
+}
+
+TEST_F(ClientSentFilesStorageTest, EmptyStorage_GetLastActivityJournalRecords_ReturnsEmpty)
+{
+	std::optional<ClientSentFilesStorage> storage = ClientSentFilesStorage::openStorage(TEST_DATA_PATH);
+	ASSERT_TRUE(storage.has_value());
+
+	uint32_t endIdx = 0;
+	std::vector<ClientSentFilesStorage::ActivityJournalRecord> records = storage->getLastActivityJournalRecords(10, endIdx);
+	EXPECT_EQ(records.size(), size_t(0));
+}
+
+TEST_F(ClientSentFilesStorageTest, EmptyStorage_TruncateOldJournalRecordsAndGetLast_ReturnsEmpty)
+{
+	std::optional<ClientSentFilesStorage> storage = ClientSentFilesStorage::openStorage(TEST_DATA_PATH);
+	ASSERT_TRUE(storage.has_value());
+
+	storage->truncateLastActivityJournalRecords(0);
+
+	uint32_t endIdx = 0;
+	std::vector<ClientSentFilesStorage::ActivityJournalRecord> records = storage->getLastActivityJournalRecords(10, endIdx);
+	EXPECT_EQ(records.size(), size_t(0));
+}
+
+TEST_F(ClientSentFilesStorageTest, EmptyStorage_AddNewJournalRecordsAndGetLast_ReturnsAddedRecords)
+{
+	std::optional<ClientSentFilesStorage> storage = ClientSentFilesStorage::openStorage(TEST_DATA_PATH);
+	ASSERT_TRUE(storage.has_value());
+
+	EXPECT_TRUE(storage->addActivityJournalRecord(ClientSentFilesStorage::ActivityJournalRecord{
+		.timestampMs = uint64_t(100500),
+		.filesSent = uint32_t(100),
+		.bytesTransferred = uint32_t(10000),
+		.type = ClientSentFilesStorage::ActivityJournalRecord::Type::Start,
+	}));
+	EXPECT_TRUE(storage->addActivityJournalRecord(ClientSentFilesStorage::ActivityJournalRecord{
+		.timestampMs = uint64_t(100501),
+		.filesSent = uint32_t(1000),
+		.bytesTransferred = uint32_t(100000),
+		.type = ClientSentFilesStorage::ActivityJournalRecord::Type::End,
+	}));
+
+	uint32_t endIdx = 0;
+	std::vector<ClientSentFilesStorage::ActivityJournalRecord> records = storage->getLastActivityJournalRecords(10, endIdx);
+	ASSERT_EQ(records.size(), size_t(2));
+	EXPECT_EQ(endIdx, uint32_t(2));
+	EXPECT_EQ(records[0].timestampMs, uint64_t(100500));
+	EXPECT_EQ(records[0].filesSent, uint32_t(100));
+	EXPECT_EQ(records[0].bytesTransferred, uint32_t(10000));
+	EXPECT_EQ(records[0].type, ClientSentFilesStorage::ActivityJournalRecord::Type::Start);
+	EXPECT_EQ(records[1].timestampMs, uint64_t(100501));
+	EXPECT_EQ(records[1].filesSent, uint32_t(1000));
+	EXPECT_EQ(records[1].bytesTransferred, uint32_t(100000));
+	EXPECT_EQ(records[1].type, ClientSentFilesStorage::ActivityJournalRecord::Type::End);
+}
+
+TEST_F(ClientSentFilesStorageTest, StorageWithRecords_GetLastWithSmallerPageSize_ReturnPageSizeOfRecords)
+{
+	std::optional<ClientSentFilesStorage> storage = ClientSentFilesStorage::openStorage(TEST_DATA_PATH);
+	ASSERT_TRUE(storage.has_value());
+
+	for (int i = 0; i < 20; ++i)
+	{
+		EXPECT_TRUE(storage->addActivityJournalRecord(ClientSentFilesStorage::ActivityJournalRecord{
+			.timestampMs = uint64_t(1000 + i),
+			.filesSent = uint32_t(20 + i),
+			.bytesTransferred = uint32_t(30 * i),
+			.type = ClientSentFilesStorage::ActivityJournalRecord::Type::Start,
+		}));
+	}
+
+	uint32_t endIdx = 0;
+	std::vector<ClientSentFilesStorage::ActivityJournalRecord> records = storage->getLastActivityJournalRecords(5, endIdx);
+	ASSERT_EQ(records.size(), size_t(5));
+	EXPECT_EQ(endIdx, uint32_t(20));
+
+	constexpr int firstIdx = 15;
+	for (int i = firstIdx; i < 20; ++i)
+	{
+		EXPECT_EQ(records[i - firstIdx].timestampMs, uint64_t(1000 + i));
+		EXPECT_EQ(records[i - firstIdx].filesSent, uint32_t(20 + i));
+		EXPECT_EQ(records[i - firstIdx].bytesTransferred, uint32_t(30 * i));
+		EXPECT_EQ(records[i - firstIdx].type, ClientSentFilesStorage::ActivityJournalRecord::Type::Start);
+	}
+}
+
+TEST_F(ClientSentFilesStorageTest, StorageWithRecords_GetLastWithBiggerPageSize_ReturnAllRecords)
+{
+	std::optional<ClientSentFilesStorage> storage = ClientSentFilesStorage::openStorage(TEST_DATA_PATH);
+	ASSERT_TRUE(storage.has_value());
+
+	for (int i = 0; i < 20; ++i)
+	{
+		EXPECT_TRUE(storage->addActivityJournalRecord(ClientSentFilesStorage::ActivityJournalRecord{
+			.timestampMs = uint64_t(1000 + i),
+			.filesSent = uint32_t(20 + i),
+			.bytesTransferred = uint32_t(30 * i),
+			.type = ClientSentFilesStorage::ActivityJournalRecord::Type::Start,
+		}));
+	}
+
+	uint32_t endIdx = 0;
+	std::vector<ClientSentFilesStorage::ActivityJournalRecord> records = storage->getLastActivityJournalRecords(30, endIdx);
+	ASSERT_EQ(records.size(), size_t(20));
+	EXPECT_EQ(endIdx, uint32_t(20));
+
+	for (int i = 0; i < 20; ++i)
+	{
+		EXPECT_EQ(records[i].timestampMs, uint64_t(1000 + i));
+		EXPECT_EQ(records[i].filesSent, uint32_t(20 + i));
+		EXPECT_EQ(records[i].bytesTransferred, uint32_t(30 * i));
+		EXPECT_EQ(records[i].type, ClientSentFilesStorage::ActivityJournalRecord::Type::Start);
+	}
+}
+
+TEST_F(ClientSentFilesStorageTest, StorageWithRecords_TruncateAndGetLast_ReturnsRemainingRecords)
+{
+	std::optional<ClientSentFilesStorage> storage = ClientSentFilesStorage::openStorage(TEST_DATA_PATH);
+	ASSERT_TRUE(storage.has_value());
+
+	for (int i = 0; i < 20; ++i)
+	{
+		EXPECT_TRUE(storage->addActivityJournalRecord(ClientSentFilesStorage::ActivityJournalRecord{
+			.timestampMs = uint64_t(1000 + i),
+			.filesSent = uint32_t(20 + i),
+			.bytesTransferred = uint32_t(30 * i),
+			.type = ClientSentFilesStorage::ActivityJournalRecord::Type::Start,
+		}));
+	}
+
+	storage->truncateLastActivityJournalRecords(1009);
+
+	uint32_t endIdx = 0;
+	std::vector<ClientSentFilesStorage::ActivityJournalRecord> records = storage->getLastActivityJournalRecords(20, endIdx);
+	ASSERT_EQ(records.size(), size_t(11));
+	EXPECT_EQ(endIdx, uint32_t(20));
+
+	constexpr int firstIdx = 9;
+	for (int i = firstIdx; i < 20; ++i)
+	{
+		EXPECT_EQ(records[i - firstIdx].timestampMs, uint64_t(1000 + i));
+		EXPECT_EQ(records[i - firstIdx].filesSent, uint32_t(20 + i));
+		EXPECT_EQ(records[i - firstIdx].bytesTransferred, uint32_t(30 * i));
+		EXPECT_EQ(records[i - firstIdx].type, ClientSentFilesStorage::ActivityJournalRecord::Type::Start);
+	}
+}
+
+TEST_F(ClientSentFilesStorageTest, StorageWithRecords_GetRecordsWithPagesForward_ReturnsUniqueRecordsPerPage)
+{
+	std::optional<ClientSentFilesStorage> storage = ClientSentFilesStorage::openStorage(TEST_DATA_PATH);
+	ASSERT_TRUE(storage.has_value());
+
+	constexpr int recordsCount = 20;
+	for (int i = 0; i < recordsCount; ++i)
+	{
+		EXPECT_TRUE(storage->addActivityJournalRecord(ClientSentFilesStorage::ActivityJournalRecord{
+			.timestampMs = uint64_t(1000 + i),
+			.filesSent = uint32_t(20 + i),
+			.bytesTransferred = uint32_t(30 * i),
+			.type = ClientSentFilesStorage::ActivityJournalRecord::Type::Start,
+		}));
+	}
+
+	constexpr int pageSize = 6;
+	for (int i = 0; i < recordsCount; i += pageSize)
+	{
+		std::vector<ClientSentFilesStorage::ActivityJournalRecord> records = storage->getActivityJournalRecords(i, i + pageSize);
+		const int expectedSize = std::min(pageSize, recordsCount - i);
+		ASSERT_EQ(records.size(), size_t(expectedSize));
+		for (int j = 0; j < expectedSize; ++j)
+		{
+			const int k = i + j;
+			EXPECT_EQ(records[j].timestampMs, uint64_t(1000 + k));
+			EXPECT_EQ(records[j].filesSent, uint32_t(20 + k));
+			EXPECT_EQ(records[j].bytesTransferred, uint32_t(30 * k));
+			EXPECT_EQ(records[j].type, ClientSentFilesStorage::ActivityJournalRecord::Type::Start);
+		}
+	}
+}
+
+TEST_F(ClientSentFilesStorageTest, StorageWithRecords_GetRecordsWithPagesForwardWhileTruncating_ReturnsUniqueRecordsPerPage)
+{
+	std::optional<ClientSentFilesStorage> storage = ClientSentFilesStorage::openStorage(TEST_DATA_PATH);
+	ASSERT_TRUE(storage.has_value());
+
+	constexpr int recordsCount = 20;
+	for (int i = 0; i < recordsCount; ++i)
+	{
+		EXPECT_TRUE(storage->addActivityJournalRecord(ClientSentFilesStorage::ActivityJournalRecord{
+			.timestampMs = uint64_t(1000 + i),
+			.filesSent = uint32_t(20 + i),
+			.bytesTransferred = uint32_t(30 * i),
+			.type = ClientSentFilesStorage::ActivityJournalRecord::Type::Start,
+		}));
+	}
+
+	constexpr int pageSize = 6;
+	for (int i = 0; i < recordsCount; i += pageSize)
+	{
+		std::vector<ClientSentFilesStorage::ActivityJournalRecord> records = storage->getActivityJournalRecords(i, i + pageSize);
+		const int expectedSize = std::min(pageSize, recordsCount - i);
+		ASSERT_EQ(records.size(), size_t(expectedSize));
+		for (int j = 0; j < expectedSize; ++j)
+		{
+			const int k = i + j;
+			EXPECT_EQ(records[j].timestampMs, uint64_t(1000 + k));
+			EXPECT_EQ(records[j].filesSent, uint32_t(20 + k));
+			EXPECT_EQ(records[j].bytesTransferred, uint32_t(30 * k));
+			EXPECT_EQ(records[j].type, ClientSentFilesStorage::ActivityJournalRecord::Type::Start);
+		}
+
+		storage->truncateLastActivityJournalRecords(1000 + i);
+	}
+}
+
+TEST_F(ClientSentFilesStorageTest, StorageWithRecords_GetRecordsWithPagesBackwardsWhileAdding_ReturnsUniqueRecordsPerPage)
+{
+	std::optional<ClientSentFilesStorage> storage = ClientSentFilesStorage::openStorage(TEST_DATA_PATH);
+	ASSERT_TRUE(storage.has_value());
+
+	constexpr int recordsCount = 20;
+	for (int i = 0; i < recordsCount; ++i)
+	{
+		EXPECT_TRUE(storage->addActivityJournalRecord(ClientSentFilesStorage::ActivityJournalRecord{
+			.timestampMs = uint64_t(1000 + i),
+			.filesSent = uint32_t(20 + i),
+			.bytesTransferred = uint32_t(30 * i),
+			.type = ClientSentFilesStorage::ActivityJournalRecord::Type::Start,
+		}));
+	}
+
+	constexpr int pageSize = 6;
+	for (int i = recordsCount - pageSize; i >= 0; i -= pageSize)
+	{
+		std::vector<ClientSentFilesStorage::ActivityJournalRecord> records = storage->getActivityJournalRecords(i, i + pageSize);
+		const int expectedSize = std::min(pageSize, recordsCount - i);
+		ASSERT_EQ(records.size(), size_t(expectedSize));
+		for (int j = 0; j < expectedSize; ++j)
+		{
+			const int k = i + j;
+			EXPECT_EQ(records[j].timestampMs, uint64_t(1000 + k));
+			EXPECT_EQ(records[j].filesSent, uint32_t(20 + k));
+			EXPECT_EQ(records[j].bytesTransferred, uint32_t(30 * k));
+			EXPECT_EQ(records[j].type, ClientSentFilesStorage::ActivityJournalRecord::Type::Start);
+		}
+
+		EXPECT_TRUE(storage->addActivityJournalRecord(ClientSentFilesStorage::ActivityJournalRecord{
+			.timestampMs = uint64_t(2000 + i),
+			.filesSent = uint32_t(50 + i),
+			.bytesTransferred = uint32_t(300 * i),
+			.type = ClientSentFilesStorage::ActivityJournalRecord::Type::Start,
+		}));
 	}
 }

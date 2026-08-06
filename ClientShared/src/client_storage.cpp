@@ -18,7 +18,97 @@ namespace ClientStorageInternal
 	static constexpr std::zstring_view ConfirmedDatabaseName = "confirmed";
 	static constexpr std::zstring_view SentFilesDatabaseName = "sent_files";
 	static constexpr std::zstring_view PartiallySentDatabaseName = "part_sent";
-}
+	static constexpr std::zstring_view ActivityJournalDatabaseName = "activity";
+
+	static constexpr size_t ActivityRecordValueSize = 17;
+
+	static std::vector<ClientSentFilesStorage::ActivityJournalRecord> readActivityJournalRecords(Lmdb::ReadOnlyCursor& cursor, uint32_t beginIdx, uint32_t endIdx) noexcept
+	{
+		std::vector<ClientSentFilesStorage::ActivityJournalRecord> result;
+		if (beginIdx > endIdx)
+		{
+			reportReleaseError("Min and max indexes are in the wrong order. beginIdx={} endIdx={}", beginIdx, endIdx);
+			return result;
+		}
+
+		if (beginIdx == endIdx)
+		{
+			return result;
+		}
+
+		std::array<std::byte, 4> key;
+		Serialization::writeUint32(key, static_cast<size_t>(beginIdx));
+		Lmdb::ReturnCode returnCode = cursor.jumpToKeyOrNext(key);
+		if (returnCode != Lmdb::ReturnCode::Success)
+		{
+			return result;
+		}
+
+		Lmdb::Result<Lmdb::CursorDataView> view = cursor.viewCurrent();
+		if (view.isError())
+		{
+			return result;
+		}
+		if (view->key.size() != 4)
+		{
+			reportReleaseError("The key size in activity journal table was not 4 byte long. size: {}", view->key.size());
+			return result;
+		}
+
+		size_t index = Serialization::readUint32(view->key);
+
+		if (index >= endIdx)
+		{
+			return result;
+		}
+		result.reserve(endIdx - index);
+
+		while (true)
+		{
+			if (view->value.size() != ClientStorageInternal::ActivityRecordValueSize)
+			{
+				reportReleaseError("The value size in activity journal table was unexpected size. size: {}, expected: {}", view->key.size(), ClientStorageInternal::ActivityRecordValueSize);
+				break;
+			}
+
+			ClientSentFilesStorage::ActivityJournalRecord record{};
+			Serialization::GenericDeserializationWrapper deserializer{ view->value };
+
+			if (!deserializer.readUint64(record.timestampMs, "timestampMs")) { break; }
+			if (!deserializer.readUint32(record.filesSent, "filesSent")) { break; }
+			if (!deserializer.readUint32(record.bytesTransferred, "bytesTransferred")) { break; }
+			if (!deserializer.readByte(*reinterpret_cast<std::byte*>(&record.type), "type")) { break; }
+
+			if (deserializer.getBytesRead() != view->value.size())
+			{
+				reportReleaseError("Deserialization of server binding read incorrect number of bytes: got {}, read {}", view->value.size(), deserializer.getBytesRead());
+				break;
+			}
+
+			result.push_back(std::move(record));
+
+			++index;
+			if (index >= endIdx) // normal exit condition, assumes idexes don't have gaps
+			{
+				break;
+			}
+
+			returnCode = cursor.next();
+			if (returnCode != Lmdb::ReturnCode::Success)
+			{
+				break;
+			}
+
+			view = cursor.viewCurrent();
+			if (view.isError())
+			{
+				break;
+			}
+		}
+
+		return result;
+	}
+} // namespace ClientStorageInternal
 
 std::optional<ClientConfigStorage> ClientConfigStorage::openStorage(const std::filesystem::path& storageRootPath) noexcept
 {
@@ -316,6 +406,174 @@ void ClientSentFilesStorage::filterOutSentFiles(const std::filesystem::path& roo
 			outPreviouslySentBytes.emplace(outPreviouslySentBytes.begin(), file.sentData);
 		}
 	}
+}
+
+void ClientSentFilesStorage::truncateLastActivityJournalRecords(uint64_t oldestTimestampToLeaveMs) noexcept
+{
+	Lmdb::Result<Lmdb::ReadWriteSingleDbWrapper> wrapper = Lmdb::openReadWriteSingleDbTransaction(mEnvironment, ClientStorageInternal::ActivityJournalDatabaseName);
+	if (wrapper.isError())
+	{
+		return;
+	}
+
+	Lmdb::Result<Lmdb::ReadWriteCursor> cursor = Lmdb::ReadWriteCursor::open(wrapper->transaction, wrapper->database);
+	if (cursor.isError())
+	{
+		return;
+	}
+
+	if (cursor->first() != Lmdb::ReturnCode::Success)
+	{
+		return;
+	}
+
+	Lmdb::Result<Lmdb::CursorDataView> view = cursor->viewCurrent();
+	while (
+		view.isValid()
+		&& view->value.size() >= 8
+		&& Serialization::readUint64(view->value.subspan(0, 8)) < oldestTimestampToLeaveMs
+	)
+	{
+		if (cursor->deleteCurrent() != Lmdb::ReturnCode::Success)
+		{
+			break;
+		}
+		if (cursor->next() != Lmdb::ReturnCode::Success)
+		{
+			break;
+		}
+		view = cursor->viewCurrent();
+	}
+
+	Lmdb::ReturnCode returnCode = wrapper->transaction.commit();
+	if (returnCode != Lmdb::ReturnCode::Success)
+	{
+		return;
+	}
+}
+
+bool ClientSentFilesStorage::addActivityJournalRecord(ActivityJournalRecord&& newRecord) noexcept
+{
+	Lmdb::Result<Lmdb::ReadWriteSingleDbWrapper> wrapper = Lmdb::openReadWriteSingleDbTransaction(mEnvironment, ClientStorageInternal::ActivityJournalDatabaseName);
+	if (wrapper.isError())
+	{
+		return false;
+	}
+
+	std::array<std::byte, ClientStorageInternal::ActivityRecordValueSize> value;
+	Serialization::GenericSerializationWrapper serializer{ value };
+
+	if (!serializer.writeUint64(newRecord.timestampMs, "timestampMs")) { return false; }
+	if (!serializer.writeUint32(newRecord.filesSent, "connectionId")) { return false; }
+	if (!serializer.writeUint32(newRecord.bytesTransferred, "bytesTransferred")) { return false; }
+	if (!serializer.writeByte(static_cast<std::byte>(newRecord.type), "type")) { return false; }
+	assertFatalRelease(serializer.getBytesWritten() == value.size(), "Logical error, serialization of confirmed binding leaves not filled bytes, buffer size: {} written: {}", value.size(), serializer.getBytesWritten());
+
+	Lmdb::Result<Lmdb::ReadWriteCursor> cursor = Lmdb::ReadWriteCursor::open(wrapper->transaction, wrapper->database);
+	if (cursor.isError())
+	{
+		return false;
+	}
+
+	uint32_t newKey = 0;
+	Lmdb::ReturnCode returnCode = cursor->last();
+	if (returnCode != Lmdb::ReturnCode::Success && returnCode != Lmdb::ReturnCode::NotFound)
+	{
+		return false;
+	}
+
+	if (returnCode != Lmdb::ReturnCode::NotFound)
+	{
+		Lmdb::Result<Lmdb::CursorDataView> view = cursor->viewCurrent();
+		if (view.isError())
+		{
+			return false;
+		}
+		if (view->key.size() != 4)
+		{
+			reportReleaseError("The key size in activity journal table was not 4 byte long");
+			return false;
+		}
+
+		newKey = Serialization::readUint32(view->key) + 1;
+	}
+
+	std::array<std::byte, 4> key;
+	Serialization::writeUint32(key, newKey);
+
+	returnCode = wrapper->database.put(key, value);
+	if (returnCode != Lmdb::ReturnCode::Success)
+	{
+		return false;
+	}
+
+	returnCode = wrapper->transaction.commit();
+	if (returnCode != Lmdb::ReturnCode::Success)
+	{
+		return false;
+	}
+
+	return true;
+}
+
+std::vector<ClientSentFilesStorage::ActivityJournalRecord> ClientSentFilesStorage::getLastActivityJournalRecords(uint32_t recordsCount, uint32_t& outEndIdx) noexcept
+{
+	Lmdb::Result<Lmdb::ReadOnlySingleDbWrapper> wrapper = Lmdb::openReadOnlySingleDbTransaction(mEnvironment, ClientStorageInternal::ActivityJournalDatabaseName);
+	if (wrapper.isError())
+	{
+		outEndIdx = 0;
+		return {};
+	}
+
+	Lmdb::Result<Lmdb::ReadOnlyCursor> cursor = Lmdb::ReadOnlyCursor::open(wrapper->transaction, wrapper->database);
+	if (cursor.isError())
+	{
+		outEndIdx = 0;
+		return {};
+	}
+
+	Lmdb::ReturnCode returnCode = cursor->last();
+	if (returnCode != Lmdb::ReturnCode::Success)
+	{
+		outEndIdx = 0;
+		return {};
+	}
+
+	Lmdb::Result<Lmdb::CursorDataView> view = cursor->viewCurrent();
+	if (view.isError())
+	{
+		outEndIdx = 0;
+		return {};
+	}
+	if (view->key.size() != 4)
+	{
+		reportReleaseError("The key size in activity journal table was not 4 byte long. size: {}", view->key.size());
+		outEndIdx = 0;
+		return {};
+	}
+
+	const size_t endIdx = Serialization::readUint32(view->key) + 1;
+	const size_t beginIdx = endIdx >= recordsCount ? endIdx - recordsCount : 0;
+
+	outEndIdx = endIdx;
+	return ClientStorageInternal::readActivityJournalRecords(*cursor, beginIdx, endIdx);
+}
+
+std::vector<ClientSentFilesStorage::ActivityJournalRecord> ClientSentFilesStorage::getActivityJournalRecords(uint32_t beginIdx, uint32_t endIdx) noexcept
+{
+	Lmdb::Result<Lmdb::ReadOnlySingleDbWrapper> wrapper = Lmdb::openReadOnlySingleDbTransaction(mEnvironment, ClientStorageInternal::ActivityJournalDatabaseName);
+	if (wrapper.isError())
+	{
+		return {};
+	}
+
+	Lmdb::Result<Lmdb::ReadOnlyCursor> cursor = Lmdb::ReadOnlyCursor::open(wrapper->transaction, wrapper->database);
+	if (cursor.isError())
+	{
+		return {};
+	}
+
+	return ClientStorageInternal::readActivityJournalRecords(*cursor, beginIdx, endIdx);
 }
 
 ClientSentFilesStorage::ClientSentFilesStorage(Lmdb::ReadWriteEnvironment&& environment) noexcept
