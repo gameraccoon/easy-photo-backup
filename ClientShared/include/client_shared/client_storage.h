@@ -51,7 +51,8 @@ public:
 			Unknown,
 			Start,
 			Continuation,
-			End
+			EndError,
+			EndSuccessfully,
 		};
 
 		uint64_t timestampMs = 0;

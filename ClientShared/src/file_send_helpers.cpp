@@ -17,6 +17,12 @@ namespace FileSendHelpers
 
 		try
 		{
+			if (!std::filesystem::exists(folderPath))
+			{
+				reportDebugError("Path {} does not exist", folderPath.string());
+				return {};
+			}
+
 			for (const std::filesystem::directory_entry& dirEntry : std::filesystem::recursive_directory_iterator(folderPath))
 			{
 				if (!std::filesystem::is_directory(dirEntry))
@@ -37,7 +43,7 @@ namespace FileSendHelpers
 		return result;
 	}
 
-	std::optional<std::string> sendDirectory(ClientConfigStorage& clientConfigStorage, ClientSentFilesStorage& clientSentFilesStorage, const ServerConnectionInfo& serverInfo, const std::string& folderPath, const std::string& commonRoot) noexcept
+	std::optional<std::string> sendDirectory(ClientConfigStorage& clientConfigStorage, ClientSentFilesStorage& clientSentFilesStorage, const ServerConnectionInfo& serverInfo, const std::filesystem::path& folderPath, const std::filesystem::path& commonRoot) noexcept
 	{
 		std::vector<std::filesystem::path> files = collectFilesFromDirectory(folderPath);
 

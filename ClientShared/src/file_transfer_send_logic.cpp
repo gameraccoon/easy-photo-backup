@@ -29,8 +29,8 @@ namespace FileTransferSendLogic
 
 		// it doesn't make sense to hash very small files as it doesn't save us any bandwidth
 		constexpr static uint64_t MaxSizeWithoutHash = 64;
-		constexpr static uint64_t MbBetweenSavingState = 10;
-		constexpr static uint64_t ChunksBetweenSavingState = (MbBetweenSavingState * 1024 * 1024) / ChunkSize;
+		constexpr static uint32_t MbBetweenSavingState = 10;
+		constexpr static uint32_t ChunksBetweenSavingState = (MbBetweenSavingState * 1024 * 1024) / ChunkSize;
 
 #ifdef DEBUG_CHECKS
 		constexpr static bool debugPrint = false;
@@ -54,6 +54,15 @@ namespace FileTransferSendLogic
 			AnswerExtraChunk,
 		};
 
+		struct Stats
+		{
+			uint32_t filesSent = 0;
+			uint32_t chunksSent = 0;
+
+			std::chrono::system_clock::time_point lastStatsRecordingTime{};
+			constexpr static std::chrono::system_clock::duration timeBetweenActivitySend = std::chrono::seconds(10);
+		};
+
 		void debugPrintState([[maybe_unused]] DebugState state)
 		{
 #ifdef DEBUG_CHECKS
@@ -62,7 +71,7 @@ namespace FileTransferSendLogic
 				switch (state)
 				{
 				case DebugState::StartChunk:
-					Debug::Log::printDebug("Send:  /---------------\\\nSend: / #{:03}            \\", chunksSent);
+					Debug::Log::printDebug("Send:  /---------------\\\nSend: / #{:03}            \\", stats.chunksSent);
 					break;
 				case DebugState::FileSize:
 					Debug::Log::printDebug("Send: |    file size     |");
@@ -116,7 +125,6 @@ namespace FileTransferSendLogic
 		Cryptography::ByteSequence<Cryptography::ByteSequenceTag::TempInternalBuffer, ChunkSize + Cryptography::CipherAuthDataSize> buffer;
 		std::string filePath;
 		size_t bytesFilledInChunk = 0;
-		size_t chunksSent = 0;
 		size_t fileMetadataBytes = 0; // 8 bytes of size + 2 bytes of path + name
 		size_t fileMetadataWritten = 0;
 		uint64_t fileSizeBytes = 0;
@@ -130,6 +138,7 @@ namespace FileTransferSendLogic
 		uint64_t firstAwaitingFileBytesConfirmed = 0;
 		std::vector<std::filesystem::path> confirmedFilesCache;
 		std::vector<std::filesystem::path> rejectedPartialFiles;
+		Stats stats;
 
 		[[nodiscard]] bool isBufferEmpty() const noexcept
 		{
@@ -345,7 +354,7 @@ namespace FileTransferSendLogic
 
 			Noise::Utils::rekey(sendingCipherstate);
 
-			++chunksSent;
+			++stats.chunksSent;
 			bytesFilledInChunk = 0;
 			std::fill(buffer.raw.begin(), buffer.raw.end(), std::byte(0x00));
 
@@ -354,12 +363,12 @@ namespace FileTransferSendLogic
 
 		[[nodiscard]] bool shouldReadAnswer() const noexcept
 		{
-			return chunksSent != 0 && chunksSent % ChunksBetweenAnswers == 0;
+			return stats.chunksSent != 0 && stats.chunksSent % ChunksBetweenAnswers == 0;
 		}
 
 		[[nodiscard]] bool shouldSaveState() const noexcept
 		{
-			return chunksSent != 0 && chunksSent % ChunksBetweenSavingState == 0;
+			return stats.chunksSent != 0 && stats.chunksSent % ChunksBetweenSavingState == 0;
 		}
 
 		void fillRemainderWithZeroes() noexcept
@@ -391,6 +400,7 @@ namespace FileTransferSendLogic
 				}
 
 				confirmedFilesCache.push_back(filesAwaitingConfirmation[i]);
+				++stats.filesSent;
 			}
 
 			if (shouldRecordLast)
@@ -574,27 +584,80 @@ namespace FileTransferSendLogic
 		}
 	};
 
-	static void recordSentFiles(FileSendingState& sendingState, ClientSentFilesStorage& storage)
+	enum class ActivityType
 	{
-		const bool isSuccess = storage.addSentFiles(sendingState.confirmedFilesCache, sendingState.filePath, sendingState.firstAwaitingFileBytesConfirmed, sendingState.rejectedPartialFiles);
-		if (isSuccess)
+		Start,
+		Continue,
+		EndError,
+		EndSuccess,
+	};
+
+	static void recordActivity(FileSendingState& sendingState, ClientSentFilesStorage& storage, ActivityType type)
+	{
+		const auto now = std::chrono::system_clock::now();
+
+		if (type == ActivityType::Continue && now + sendingState.stats.timeBetweenActivitySend < sendingState.stats.lastStatsRecordingTime)
 		{
-			sendingState.confirmedFilesCache.clear();
-			sendingState.rejectedPartialFiles.clear();
+			return;
 		}
+
+		const auto duration = now.time_since_epoch();
+		const auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+
+		ClientSentFilesStorage::ActivityJournalRecord::Type recordType = ClientSentFilesStorage::ActivityJournalRecord::Type::Unknown;
+		switch (type)
+		{
+		case ActivityType::Start:
+			recordType = ClientSentFilesStorage::ActivityJournalRecord::Type::Start;
+			break;
+		case ActivityType::Continue:
+			recordType = ClientSentFilesStorage::ActivityJournalRecord::Type::Continuation;
+			break;
+		case ActivityType::EndError:
+			recordType = ClientSentFilesStorage::ActivityJournalRecord::Type::EndError;
+			break;
+		case ActivityType::EndSuccess:
+			recordType = ClientSentFilesStorage::ActivityJournalRecord::Type::EndSuccessfully;
+			break;
+		}
+
+		storage.addActivityJournalRecord(ClientSentFilesStorage::ActivityJournalRecord{
+			.timestampMs = static_cast<uint64_t>(milliseconds),
+			.filesSent = sendingState.stats.filesSent,
+			.bytesTransferred = static_cast<uint32_t>(sendingState.stats.chunksSent),
+			.type = recordType,
+		});
+	}
+
+	static void recordSentFiles(FileSendingState& sendingState, ClientSentFilesStorage& storage, ActivityType activityType) noexcept
+	{
+		if (activityType != ActivityType::Continue || sendingState.shouldSaveState())
+		{
+			const bool isSuccess = storage.addSentFiles(sendingState.confirmedFilesCache, sendingState.filePath, sendingState.firstAwaitingFileBytesConfirmed, sendingState.rejectedPartialFiles);
+			if (isSuccess)
+			{
+				sendingState.confirmedFilesCache.clear();
+				sendingState.rejectedPartialFiles.clear();
+			}
+		}
+
+		recordActivity(sendingState, storage, activityType);
 	}
 
 	void sendFiles(const std::vector<std::filesystem::path>& files, const std::vector<uint64_t>& previouslySentBytes, const std::filesystem::path& commonRoot, Network::RawSocket socket, ClientSentFilesStorage& storage, Noise::CipherStateSending& sendingCipherstate, Noise::CipherStateReceiving& receivingCipherState, [[maybe_unused]] Mocks mocks) noexcept
 	{
 		FileSendingState sendingState;
 
+		recordActivity(sendingState, storage, ActivityType::Start);
+
 #ifdef WITH_TESTS
 		sendingState.mocks = std::move(mocks);
 #endif
+
+		sendingState.debugPrintState(FileSendingState::DebugState::StartChunk);
+
 		try
 		{
-			sendingState.debugPrintState(FileSendingState::DebugState::StartChunk);
-
 			for (size_t fileIdx = 0; fileIdx < files.size(); ++fileIdx)
 			{
 				const std::filesystem::path& dirEntry = files[fileIdx];
@@ -606,7 +669,7 @@ namespace FileTransferSendLogic
 				if (!sendingState.isFileOpen(file)) [[unlikely]]
 				{
 					reportDebugError("Could not open file for reading: {}", dirEntry.string());
-					return recordSentFiles(sendingState, storage);
+					return recordSentFiles(sendingState, storage, ActivityType::EndError);
 				}
 				const uint64_t fileLength = sendingState.getFileLength(file);
 				// ToDo: should also save and check hash here, since the file may have changed since we started sending it
@@ -622,7 +685,7 @@ namespace FileTransferSendLogic
 					const size_t fileSizeToHash = partialSendStartByte > 0 ? std::min(fileLength, partialSendStartByte) : fileLength;
 					if (sendingState.calculateFileHash(file, fileSizeToHash, sendingState.fileHash) != 0)
 					{
-						return recordSentFiles(sendingState, storage);
+						return recordSentFiles(sendingState, storage, ActivityType::EndError);
 					}
 				}
 
@@ -641,21 +704,18 @@ namespace FileTransferSendLogic
 
 						if (!sendingState.sendChunk(socket, sendingCipherstate))
 						{
-							return recordSentFiles(sendingState, storage);
+							return recordSentFiles(sendingState, storage, ActivityType::EndError);
 						}
 
 						if (sendingState.shouldReadAnswer())
 						{
 							if (!sendingState.readAnswer(socket, receivingCipherState))
 							{
-								return recordSentFiles(sendingState, storage);
+								return recordSentFiles(sendingState, storage, ActivityType::EndError);
 							}
 						}
 
-						if (sendingState.shouldSaveState())
-						{
-							recordSentFiles(sendingState, storage);
-						}
+						recordSentFiles(sendingState, storage, ActivityType::Continue);
 
 						sendingState.debugPrintState(FileSendingState::DebugState::StartChunk);
 					}
@@ -682,14 +742,14 @@ namespace FileTransferSendLogic
 					{
 						if (!sendingState.sendChunk(socket, sendingCipherstate))
 						{
-							return recordSentFiles(sendingState, storage);
+							return recordSentFiles(sendingState, storage, ActivityType::EndError);
 						}
 
 						if (sendingState.shouldReadAnswer())
 						{
 							if (!sendingState.readAnswer(socket, receivingCipherState, endingBytesWritten < endingBytes.size()))
 							{
-								return recordSentFiles(sendingState, storage);
+								return recordSentFiles(sendingState, storage, ActivityType::EndError);
 							}
 						}
 					}
@@ -706,7 +766,7 @@ namespace FileTransferSendLogic
 
 				if (!sendingState.sendChunk(socket, sendingCipherstate))
 				{
-					return recordSentFiles(sendingState, storage);
+					return recordSentFiles(sendingState, storage, ActivityType::EndError);
 				}
 
 				sendingState.debugPrintState(FileSendingState::DebugState::EndChunk);
@@ -716,7 +776,7 @@ namespace FileTransferSendLogic
 			{
 				if (!sendingState.readAnswer(socket, receivingCipherState))
 				{
-					return recordSentFiles(sendingState, storage);
+					return recordSentFiles(sendingState, storage, ActivityType::EndError);
 				}
 			}
 
@@ -725,14 +785,14 @@ namespace FileTransferSendLogic
 		catch (std::exception& e)
 		{
 			reportDebugError("An exception caught when sending files: {}", e.what());
-			return recordSentFiles(sendingState, storage);
+			return recordSentFiles(sendingState, storage, ActivityType::EndError);
 		}
 		catch (...)
 		{
 			reportDebugError("An exception caught when sending files");
-			return recordSentFiles(sendingState, storage);
+			return recordSentFiles(sendingState, storage, ActivityType::EndError);
 		}
 
-		return recordSentFiles(sendingState, storage);
+		return recordSentFiles(sendingState, storage, ActivityType::EndSuccess);
 	}
 } // namespace FileTransferSendLogic

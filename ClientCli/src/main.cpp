@@ -16,6 +16,8 @@ int main()
 {
 	Network::initSocketLib();
 
+	const std::filesystem::path filesDirectory = "client_files_to_send";
+
 	ServerDiscoveryClient nsdClient;
 	nsdClient.startDiscovery();
 	std::vector<ServerConnectionInfo> discoveryResults;
@@ -55,6 +57,8 @@ int main()
 					.staticKeys = std::move(pairingExchange.staticKeys),
 				}
 			);
+
+			Debug::Log::printDebug("Server got automatically approved for testing purposes");
 		}
 
 		std::optional<ClientSentFilesStorage> clientSentFilesStorage = ClientSentFilesStorage::openStorage(".");
@@ -63,7 +67,7 @@ int main()
 			Debug::Log::printDebug("Could not open client sent files storage");
 			return 0;
 		}
-		if (auto error = FileSendHelpers::sendDirectory(*clientConfigStorage, *clientSentFilesStorage, discoveryResults.front(), "./client_files_to_send", "./client_files_to_send"); error.has_value())
+		if (auto error = FileSendHelpers::sendDirectory(*clientConfigStorage, *clientSentFilesStorage, discoveryResults.front(), filesDirectory, filesDirectory); error.has_value())
 		{
 			Debug::Log::printDebug("Error when exchanging files: {}", std::move(*error));
 			return 0;

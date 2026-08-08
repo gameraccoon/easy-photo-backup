@@ -240,7 +240,7 @@ TEST_F(ClientSentFilesStorageTest, EmptyStorage_AddNewJournalRecordsAndGetLast_R
 		.timestampMs = uint64_t(100501),
 		.filesSent = uint32_t(1000),
 		.bytesTransferred = uint32_t(100000),
-		.type = ClientSentFilesStorage::ActivityJournalRecord::Type::End,
+		.type = ClientSentFilesStorage::ActivityJournalRecord::Type::EndSuccessfully,
 	}));
 
 	uint32_t endIdx = 0;
@@ -254,7 +254,7 @@ TEST_F(ClientSentFilesStorageTest, EmptyStorage_AddNewJournalRecordsAndGetLast_R
 	EXPECT_EQ(records[1].timestampMs, uint64_t(100501));
 	EXPECT_EQ(records[1].filesSent, uint32_t(1000));
 	EXPECT_EQ(records[1].bytesTransferred, uint32_t(100000));
-	EXPECT_EQ(records[1].type, ClientSentFilesStorage::ActivityJournalRecord::Type::End);
+	EXPECT_EQ(records[1].type, ClientSentFilesStorage::ActivityJournalRecord::Type::EndSuccessfully);
 }
 
 TEST_F(ClientSentFilesStorageTest, StorageWithRecords_GetLastWithSmallerPageSize_ReturnPageSizeOfRecords)
