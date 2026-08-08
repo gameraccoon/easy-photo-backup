@@ -6,6 +6,7 @@
 
 #include <gtest/gtest.h>
 
+#include "common_shared/storage/lmdb_cleanup.h"
 #include "common_shared/storage/lmdb_environment.h"
 #include "common_shared/storage/lmdb_helpers.h"
 
@@ -25,7 +26,7 @@ protected:
 		auto db = Lmdb::ReadWriteDatabase::open(*transaction, "test_db");
 		ASSERT_TRUE(db.isValid());
 
-		ASSERT_EQ(transaction->commit(), Lmdb::ReturnCode::Success);
+		EXPECT_EQ(Lmdb::ReturnCode::Success, Lmdb::commitTransactionNoCursors(std::move(*transaction)));
 	}
 
 	void TearDown() override
@@ -103,7 +104,7 @@ TEST_F(LmdbHelpersTest, Database_PutThenGet_ReturnsStoredValue)
 		ASSERT_TRUE(helper.isValid());
 
 		EXPECT_EQ(Lmdb::ReturnCode::Success, helper->database.put(key, value));
-		EXPECT_EQ(Lmdb::ReturnCode::Success, helper->transaction.commit());
+		EXPECT_EQ(Lmdb::ReturnCode::Success, helper->commitTransaction());
 	}
 
 	{
@@ -145,7 +146,7 @@ TEST_F(LmdbHelpersTest, Cursor_IteratesAllValuesInKeyOrder)
 		put("b", "value_b");
 		put("c", "value_c");
 
-		ASSERT_EQ(Lmdb::ReturnCode::Success, helper->transaction.commit());
+		EXPECT_EQ(Lmdb::ReturnCode::Success, helper->commitTransaction());
 	}
 
 	// Iterate with a cursor.

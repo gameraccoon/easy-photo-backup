@@ -1,10 +1,21 @@
 // Copyright (C) Pavel Grebnev 2026
 // Distributed under the MIT License (license terms are at http://opensource.org/licenses/MIT).
 
+#include "common_shared/storage/lmdb_cleanup.h"
 #include "common_shared/storage/lmdb_helpers.h"
 
 namespace Lmdb
 {
+	ReturnCode ReadWriteSingleDbWrapper::commitTransaction(ReadWriteCursor&& cursor) noexcept
+	{
+		return ::Lmdb::commitTransaction(std::move(transaction), std::move(cursor));
+	}
+
+	ReturnCode ReadWriteSingleDbWrapper::commitTransaction() noexcept
+	{
+		return ::Lmdb::commitTransactionNoCursors(std::move(transaction));
+	}
+
 	Result<ReadOnlySingleDbWrapper> openReadOnlySingleDbTransaction(Environment& environment, std::zstring_view dbName) noexcept
 	{
 		Result<ReadOnlyTransaction> transactionResult = ReadOnlyTransaction::create(environment);

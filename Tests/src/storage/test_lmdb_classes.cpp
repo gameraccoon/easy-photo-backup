@@ -7,6 +7,7 @@
 #include "tests/helper_utils.h"
 #include <gtest/gtest.h>
 
+#include "common_shared/storage/lmdb_cleanup.h"
 #include "common_shared/storage/lmdb_cursor.h"
 #include "common_shared/storage/lmdb_database.h"
 #include "common_shared/storage/lmdb_environment.h"
@@ -44,7 +45,7 @@ protected:
 		auto db = Lmdb::ReadWriteDatabase::open(*transaction, "test_db");
 		ASSERT_TRUE(db.isValid());
 
-		ASSERT_EQ(transaction->commit(), Lmdb::ReturnCode::Success);
+		EXPECT_EQ(Lmdb::ReturnCode::Success, Lmdb::commitTransactionNoCursors(std::move(*transaction)));
 	}
 
 	void TearDown() override
@@ -112,7 +113,8 @@ TEST_F(LmdbTest, ReadTransaction_CreateAndAbort_DoesNotCrashOrAssert)
 
 	auto transaction = Lmdb::ReadOnlyTransaction::create(*env);
 	ASSERT_TRUE(transaction.isValid());
-	transaction->abort();
+
+	Lmdb::abortTransactionNoCursors(std::move(*transaction));
 }
 
 TEST_F(LmdbTest, ReadWriteTransaction_CommitEmpty_ReturnsSuccess)
@@ -122,7 +124,7 @@ TEST_F(LmdbTest, ReadWriteTransaction_CommitEmpty_ReturnsSuccess)
 	auto transaction = Lmdb::ReadWriteTransaction::create(*env);
 	ASSERT_TRUE(transaction.isValid());
 
-	EXPECT_EQ(Lmdb::ReturnCode::Success, transaction->commit());
+	EXPECT_EQ(Lmdb::ReturnCode::Success, Lmdb::commitTransactionNoCursors(std::move(*transaction)));
 }
 
 TEST_F(LmdbTest, ReadWriteTransaction_CreateAndAbort_DoesNotCrashOrAssert)
@@ -132,7 +134,7 @@ TEST_F(LmdbTest, ReadWriteTransaction_CreateAndAbort_DoesNotCrashOrAssert)
 	auto transaction = Lmdb::ReadWriteTransaction::create(*env);
 	ASSERT_TRUE(transaction.isValid());
 
-	transaction->abort();
+	Lmdb::abortTransactionNoCursors(std::move(*transaction));
 }
 
 TEST_F(LmdbTest, ReadOnlyDatabase_OpenNonExistent_ReturnsNotFoundError)
@@ -212,7 +214,7 @@ TEST_F(LmdbTest, Database_PutThenGet_ReturnsStoredValue)
 		ASSERT_TRUE(db.isValid());
 
 		EXPECT_EQ(Lmdb::ReturnCode::Success, db->put(strToSpan(key), strToSpan(value)));
-		EXPECT_EQ(Lmdb::ReturnCode::Success, transaction->commit());
+		EXPECT_EQ(Lmdb::ReturnCode::Success, Lmdb::commitTransactionNoCursors(std::move(*transaction)));
 	}
 
 	{
@@ -248,7 +250,7 @@ TEST_F(LmdbTest, Database_PutThenGetDynamic_ReturnsStoredValue)
 		ASSERT_TRUE(db.isValid());
 
 		EXPECT_EQ(Lmdb::ReturnCode::Success, db->put(strToSpan(key), strToSpan(value)));
-		EXPECT_EQ(Lmdb::ReturnCode::Success, transaction->commit());
+		EXPECT_EQ(Lmdb::ReturnCode::Success, Lmdb::commitTransactionNoCursors(std::move(*transaction)));
 	}
 
 	{
@@ -283,7 +285,7 @@ TEST_F(LmdbTest, DatabaseRecord_RewriteWithNewValueAndRead_ReturnsNewValue)
 		ASSERT_TRUE(db.isValid());
 
 		EXPECT_EQ(Lmdb::ReturnCode::Success, db->put(strToSpan(key), strToSpan(value1)));
-		EXPECT_EQ(Lmdb::ReturnCode::Success, transaction->commit());
+		EXPECT_EQ(Lmdb::ReturnCode::Success, Lmdb::commitTransactionNoCursors(std::move(*transaction)));
 	}
 
 	{
@@ -294,7 +296,7 @@ TEST_F(LmdbTest, DatabaseRecord_RewriteWithNewValueAndRead_ReturnsNewValue)
 		ASSERT_TRUE(db.isValid());
 
 		EXPECT_EQ(Lmdb::ReturnCode::Success, db->put(strToSpan(key), strToSpan(value2)));
-		EXPECT_EQ(Lmdb::ReturnCode::Success, transaction->commit());
+		EXPECT_EQ(Lmdb::ReturnCode::Success, Lmdb::commitTransactionNoCursors(std::move(*transaction)));
 	}
 
 	{
@@ -384,7 +386,7 @@ TEST_F(LmdbTest, Database_DropDatabase_RemovesDatabase)
 		ASSERT_TRUE(db.isValid());
 
 		EXPECT_EQ(Lmdb::ReturnCode::Success, db->dropDatabase());
-		EXPECT_EQ(Lmdb::ReturnCode::Success, transaction->commit());
+		EXPECT_EQ(Lmdb::ReturnCode::Success, Lmdb::commitTransactionNoCursors(std::move(*transaction)));
 	}
 
 	{
@@ -414,7 +416,7 @@ TEST_F(LmdbTest, Transaction_Abort_DiscardsChanges)
 
 		ASSERT_EQ(Lmdb::ReturnCode::Success, db->put(strToSpan(key), strToSpan(value)));
 
-		transaction->abort();
+		Lmdb::abortTransactionNoCursors(std::move(*transaction));
 	}
 
 	{
@@ -454,7 +456,7 @@ TEST_F(LmdbTest, Database_ReadValue_CallsCallbackWithStoredValue)
 		ASSERT_TRUE(db.isValid());
 
 		ASSERT_EQ(Lmdb::ReturnCode::Success, db->put(strToSpan(key), strToSpan(value)));
-		ASSERT_EQ(Lmdb::ReturnCode::Success, transaction->commit());
+		EXPECT_EQ(Lmdb::ReturnCode::Success, Lmdb::commitTransactionNoCursors(std::move(*transaction)));
 	}
 
 	{
@@ -487,6 +489,54 @@ TEST_F(LmdbTest, Database_ReadValue_CallsCallbackWithStoredValue)
 	}
 }
 
+TEST_F(LmdbTest, ReadOnlyTransactionWithCursor_CreateAndAbort_DoesNotCrashOrAssert)
+{
+	auto env = Lmdb::ReadWriteEnvironment::open(TEST_DATA_PATH, 10);
+	ASSERT_TRUE(env.isValid());
+	auto transaction = Lmdb::ReadOnlyTransaction::create(*env);
+	ASSERT_TRUE(transaction.isValid());
+
+	auto db = Lmdb::ReadOnlyDatabase::open(*transaction, "test_db");
+	ASSERT_TRUE(db.isValid());
+
+	auto cursor = Lmdb::ReadOnlyCursor::open(*transaction, *db);
+	ASSERT_TRUE(cursor.isValid());
+
+	Lmdb::abortTransaction(std::move(*transaction), std::move(*cursor));
+}
+
+TEST_F(LmdbTest, ReadWriteTransactionWithCursor_CreateAndAbort_DoesNotCrashOrAssert)
+{
+	auto env = Lmdb::ReadWriteEnvironment::open(TEST_DATA_PATH, 10);
+	ASSERT_TRUE(env.isValid());
+	auto transaction = Lmdb::ReadWriteTransaction::create(*env);
+	ASSERT_TRUE(transaction.isValid());
+
+	auto db = Lmdb::ReadWriteDatabase::open(*transaction, "test_db");
+	ASSERT_TRUE(db.isValid());
+
+	auto cursor = Lmdb::ReadWriteCursor::open(*transaction, *db);
+	ASSERT_TRUE(cursor.isValid());
+
+	Lmdb::abortTransaction(std::move(*transaction), std::move(*cursor));
+}
+
+TEST_F(LmdbTest, ReadWriteTransactionWithCursor_CreateAndCommit_DoesNotCrashOrAssert)
+{
+	auto env = Lmdb::ReadWriteEnvironment::open(TEST_DATA_PATH, 10);
+	ASSERT_TRUE(env.isValid());
+	auto transaction = Lmdb::ReadWriteTransaction::create(*env);
+	ASSERT_TRUE(transaction.isValid());
+
+	auto db = Lmdb::ReadWriteDatabase::open(*transaction, "test_db");
+	ASSERT_TRUE(db.isValid());
+
+	auto cursor = Lmdb::ReadWriteCursor::open(*transaction, *db);
+	ASSERT_TRUE(cursor.isValid());
+
+	EXPECT_EQ(Lmdb::ReturnCode::Success, Lmdb::commitTransaction(std::move(*transaction), std::move(*cursor)));
+}
+
 TEST_F(LmdbTest, Cursor_IteratesAllValuesInKeyOrder_ValuesAppearInKeyOrder)
 {
 	Lmdb::Result<Lmdb::ReadWriteEnvironment> env = Lmdb::ReadWriteEnvironment::open(TEST_DATA_PATH, 10);
@@ -503,7 +553,7 @@ TEST_F(LmdbTest, Cursor_IteratesAllValuesInKeyOrder_ValuesAppearInKeyOrder)
 		testPutStringDbValue(*db, "b", "value_b");
 		testPutStringDbValue(*db, "c", "value_c");
 
-		ASSERT_EQ(Lmdb::ReturnCode::Success, transaction->commit());
+		EXPECT_EQ(Lmdb::ReturnCode::Success, Lmdb::commitTransactionNoCursors(std::move(*transaction)));
 	}
 
 	{
@@ -568,7 +618,7 @@ TEST_F(LmdbTest, Cursor_IteratesAllValuesInReverseKeyOrder_ValuesAppearInReverse
 		testPutStringDbValue(*db, "b", "value_b");
 		testPutStringDbValue(*db, "c", "value_c");
 
-		ASSERT_EQ(Lmdb::ReturnCode::Success, transaction->commit());
+		EXPECT_EQ(Lmdb::ReturnCode::Success, Lmdb::commitTransactionNoCursors(std::move(*transaction)));
 	}
 
 	{
@@ -633,7 +683,7 @@ TEST_F(LmdbTest, Cursor_JumpToKey_LandsOnTheCorrectKey)
 		testPutStringDbValue(*db, "b", "value_b");
 		testPutStringDbValue(*db, "c", "value_c");
 
-		ASSERT_EQ(Lmdb::ReturnCode::Success, transaction->commit());
+		EXPECT_EQ(Lmdb::ReturnCode::Success, Lmdb::commitTransactionNoCursors(std::move(*transaction)));
 	}
 
 	{
@@ -671,7 +721,7 @@ TEST_F(LmdbTest, Cursor_JumpToMissingKey_ReturnsNotFound)
 		testPutStringDbValue(*db, "b", "value_b");
 		testPutStringDbValue(*db, "c", "value_c");
 
-		ASSERT_EQ(Lmdb::ReturnCode::Success, transaction->commit());
+		EXPECT_EQ(Lmdb::ReturnCode::Success, Lmdb::commitTransactionNoCursors(std::move(*transaction)));
 	}
 
 	{
@@ -704,7 +754,7 @@ TEST_F(LmdbTest, Cursor_JumpToKeyOrNextAndMiss_LandsOnTheNextKey)
 		testPutStringDbValue(*db, "c", "value_c");
 		testPutStringDbValue(*db, "d", "value_d");
 
-		ASSERT_EQ(Lmdb::ReturnCode::Success, transaction->commit());
+		EXPECT_EQ(Lmdb::ReturnCode::Success, Lmdb::commitTransactionNoCursors(std::move(*transaction)));
 	}
 
 	{
@@ -742,7 +792,7 @@ TEST_F(LmdbTest, Cursor_JumpToKeyOrNextAndMissAfterLast_ReturnsNotFound)
 		testPutStringDbValue(*db, "b", "value_b");
 		testPutStringDbValue(*db, "c", "value_c");
 
-		ASSERT_EQ(Lmdb::ReturnCode::Success, transaction->commit());
+		EXPECT_EQ(Lmdb::ReturnCode::Success, Lmdb::commitTransactionNoCursors(std::move(*transaction)));
 	}
 
 	{
@@ -775,7 +825,7 @@ TEST_F(LmdbTest, Cursor_JumpToKeyAndGet_GetsTheCorrectKeyValue)
 		testPutStringDbValue(*db, "b", "value_b");
 		testPutStringDbValue(*db, "c", "value_c");
 
-		ASSERT_EQ(Lmdb::ReturnCode::Success, transaction->commit());
+		EXPECT_EQ(Lmdb::ReturnCode::Success, Lmdb::commitTransactionNoCursors(std::move(*transaction)));
 	}
 
 	{
@@ -812,7 +862,7 @@ TEST_F(LmdbTest, Cursor_JumpToMissingKeyAndGet_ReturnsNotFound)
 		testPutStringDbValue(*db, "c", "value_c");
 		testPutStringDbValue(*db, "d", "value_d");
 
-		ASSERT_EQ(Lmdb::ReturnCode::Success, transaction->commit());
+		EXPECT_EQ(Lmdb::ReturnCode::Success, Lmdb::commitTransactionNoCursors(std::move(*transaction)));
 	}
 
 	{
@@ -859,7 +909,7 @@ TEST_F(LmdbTest, Cursor_SetSecondValue_SecondValueIsSet)
 		assertSpansEqual(view->key, strToSpan("b"));
 		assertSpansEqual(view->value, strToSpan("value_d"));
 
-		ASSERT_EQ(Lmdb::ReturnCode::Success, transaction->commit());
+		EXPECT_EQ(Lmdb::ReturnCode::Success, Lmdb::commitTransaction(std::move(*transaction), std::move(*cursor)));
 	}
 
 	{
@@ -922,7 +972,7 @@ TEST_F(LmdbTest, Cursor_SetNewValue_NewValueIsCreated)
 		assertSpansEqual(view->key, strToSpan("d"));
 		assertSpansEqual(view->value, strToSpan("value_d"));
 
-		ASSERT_EQ(Lmdb::ReturnCode::Success, transaction->commit());
+		EXPECT_EQ(Lmdb::ReturnCode::Success, Lmdb::commitTransaction(std::move(*transaction), std::move(*cursor)));
 	}
 
 	{
@@ -993,7 +1043,7 @@ TEST_F(LmdbTest, Cursor_DeleteSecondValue_SecondValueDeleted)
 		assertSpansEqual(view->key, strToSpan("c"));
 		assertSpansEqual(view->value, strToSpan("value_c"));
 
-		ASSERT_EQ(Lmdb::ReturnCode::Success, transaction->commit());
+		EXPECT_EQ(Lmdb::ReturnCode::Success, Lmdb::commitTransaction(std::move(*transaction), std::move(*cursor)));
 	}
 
 	{

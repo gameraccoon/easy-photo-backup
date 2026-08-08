@@ -68,6 +68,7 @@ target_sources(CommonShared
 		${COMMON_SHARED_SRC_DIR}/serialization/serialization_helpers.cpp
 		${COMMON_SHARED_SRC_DIR}/serialization/string_serialization.cpp
 		${COMMON_SHARED_SRC_DIR}/storage/lmdb_basic_types.cpp
+		${COMMON_SHARED_SRC_DIR}/storage/lmdb_cleanup.cpp
 		${COMMON_SHARED_SRC_DIR}/storage/lmdb_cursor.cpp
 		${COMMON_SHARED_SRC_DIR}/storage/lmdb_database.cpp
 		${COMMON_SHARED_SRC_DIR}/storage/lmdb_environment.cpp
@@ -108,6 +109,7 @@ target_sources(CommonShared
 		${COMMON_SHARED_INCLUDE_DIR}/serialization/serialization_helpers.h
 		${COMMON_SHARED_INCLUDE_DIR}/serialization/string_serialization.h
 		${COMMON_SHARED_INCLUDE_DIR}/storage/lmdb_basic_types.h
+		${COMMON_SHARED_INCLUDE_DIR}/storage/lmdb_cleanup.h
 		${COMMON_SHARED_INCLUDE_DIR}/storage/lmdb_cursor.h
 		${COMMON_SHARED_INCLUDE_DIR}/storage/lmdb_database.h
 		${COMMON_SHARED_INCLUDE_DIR}/storage/lmdb_environment.h

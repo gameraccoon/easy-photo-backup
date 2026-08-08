@@ -19,10 +19,9 @@ namespace Lmdb
 		Transaction(Transaction&&) noexcept;
 		Transaction& operator=(Transaction&&) noexcept;
 
-		void abort() noexcept;
-
 		[[nodiscard]] bool isValid() const noexcept { return mMdbTransaction != nullptr; }
 		[[nodiscard]] MDB_txn* getRaw() noexcept { return mMdbTransaction; }
+		[[nodiscard]] MDB_txn* consumeRaw() noexcept;
 
 	protected:
 		Transaction(MDB_txn* mdbTransaction) noexcept;
@@ -51,8 +50,6 @@ namespace Lmdb
 	{
 	public:
 		static Result<ReadWriteTransaction> create(ReadWriteEnvironment& environment) noexcept;
-
-		[[nodiscard]] ReturnCode commit() noexcept;
 
 	protected:
 		void makeMeAbstract() const noexcept override {}

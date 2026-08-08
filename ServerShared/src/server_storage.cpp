@@ -8,6 +8,7 @@
 #include "common_shared/cryptography/utils/random.h"
 #include "common_shared/debug/assert.h"
 #include "common_shared/serialization/serialization_helpers.h"
+#include "common_shared/storage/lmdb_cleanup.h"
 #include "common_shared/storage/lmdb_helpers.h"
 
 namespace ServerStorageInternal
@@ -76,7 +77,7 @@ void ServerStorage::addConfirmedClientBinding(const ConnectionId& connectionId, 
 		return;
 	}
 
-	returnCode = wrapper->transaction.commit();
+	returnCode = wrapper->commitTransaction();
 	if (returnCode != Lmdb::ReturnCode::Success)
 	{
 		return;
@@ -97,7 +98,7 @@ bool ServerStorage::removeConfirmedClientBinding(const ConnectionId& connectionI
 		return false;
 	}
 
-	returnCode = wrapper->transaction.commit();
+	returnCode = wrapper->commitTransaction();
 	if (returnCode != Lmdb::ReturnCode::Success)
 	{
 		return false;
@@ -178,7 +179,7 @@ std::optional<std::array<std::byte, 16>> ServerStorage::getOrGenerateServerId() 
 			return std::nullopt;
 		}
 
-		returnCode = wrapper->transaction.commit();
+		returnCode = wrapper->commitTransaction();
 		if (returnCode != Lmdb::ReturnCode::Success)
 		{
 			return std::nullopt;

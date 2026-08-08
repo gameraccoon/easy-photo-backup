@@ -36,17 +36,11 @@ namespace Lmdb
 		return *this;
 	}
 
-	void Transaction::abort() noexcept
+	MDB_txn* Transaction::consumeRaw() noexcept
 	{
-		if (mMdbTransaction)
-		{
-			mdb_txn_abort(mMdbTransaction);
-			mMdbTransaction = nullptr;
-		}
-		else
-		{
-			reportDebugError("Tried to abort already closed (or never opened) LMDB transaction");
-		}
+		MDB_txn* result = mMdbTransaction;
+		mMdbTransaction = nullptr;
+		return result;
 	}
 
 	ReadWriteTransaction::ReadWriteTransaction(MDB_txn* mdbTransaction) noexcept
@@ -70,27 +64,6 @@ namespace Lmdb
 		}
 
 		return ReadWriteTransaction(mdbTransaction);
-	}
-
-	ReturnCode ReadWriteTransaction::commit() noexcept
-	{
-		if (mMdbTransaction)
-		{
-			const int returnCode = mdb_txn_commit(mMdbTransaction);
-			if (returnCode != 0)
-			{
-				reportDebugError("Could not commit LMDB transaction: '{}'", mdb_strerror(returnCode));
-				mMdbTransaction = nullptr;
-				return parseReturnCode(returnCode);
-			}
-			mMdbTransaction = nullptr;
-			return ReturnCode::Success;
-		}
-		else
-		{
-			reportDebugError("Tried to commit already closed (or never opened) LMDB transaction");
-			return ReturnCode::LogicalError;
-		}
 	}
 
 	ReadOnlyTransaction::ReadOnlyTransaction(MDB_txn* mdbTransaction) noexcept

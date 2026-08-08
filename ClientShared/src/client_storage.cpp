@@ -9,6 +9,7 @@
 #include "common_shared/debug/assert.h"
 #include "common_shared/serialization/number_serialization.h"
 #include "common_shared/serialization/serialization_helpers.h"
+#include "common_shared/storage/lmdb_cleanup.h"
 #include "common_shared/storage/lmdb_helpers.h"
 
 namespace ClientStorageInternal
@@ -175,7 +176,7 @@ void ClientConfigStorage::addConfirmedServerBinding(const ServerId& serverId, co
 		return;
 	}
 
-	returnCode = wrapper->transaction.commit();
+	returnCode = wrapper->commitTransaction();
 	if (returnCode != Lmdb::ReturnCode::Success)
 	{
 		return;
@@ -196,7 +197,7 @@ bool ClientConfigStorage::removeConfirmedServerBinding(const ServerId& serverId)
 		return false;
 	}
 
-	returnCode = wrapper->transaction.commit();
+	returnCode = wrapper->commitTransaction();
 	if (returnCode != Lmdb::ReturnCode::Success)
 	{
 		return false;
@@ -312,7 +313,7 @@ bool ClientSentFilesStorage::addSentFiles(const std::vector<std::filesystem::pat
 
 	for (const std::filesystem::path& path : newSentFiles)
 	{
-		const Lmdb::ReturnCode returnCode = sentFilesDb->put(std::as_bytes(std::span<const char>(path.string())), std::array<std::byte, 1>{ std::byte(0x00) });
+		const Lmdb::ReturnCode returnCode = sentFilesDb->put(std::as_bytes(std::span(path.native())), std::array<std::byte, 1>{ std::byte(0x00) });
 		if (returnCode != Lmdb::ReturnCode::Success)
 		{
 			return false;
@@ -338,15 +339,14 @@ bool ClientSentFilesStorage::addSentFiles(const std::vector<std::filesystem::pat
 
 	for (const std::filesystem::path& rejectedFilePath : rejectedPartialFiles)
 	{
-		std::string pathString = rejectedFilePath.string();
-		Lmdb::ReturnCode returnCode = partiallySentDb->deleteKey(std::as_bytes(std::span(pathString)));
+		Lmdb::ReturnCode returnCode = partiallySentDb->deleteKey(std::as_bytes(std::span(rejectedFilePath.native())));
 		if (returnCode != Lmdb::ReturnCode::Success)
 		{
 			return false;
 		}
 	}
 
-	const Lmdb::ReturnCode returnCode = transaction->commit();
+	const Lmdb::ReturnCode returnCode = Lmdb::commitTransactionNoCursors(std::move(*transaction));
 	return (returnCode == Lmdb::ReturnCode::Success);
 }
 
@@ -368,7 +368,7 @@ void ClientSentFilesStorage::filterOutSentFiles(const std::filesystem::path& roo
 	inOutPaths.erase(
 		std::remove_if(inOutPaths.begin(), inOutPaths.end(), [&sentFilesDb, &rootPath](const std::filesystem::path& path) -> bool {
 			bool hasMatched = false;
-			auto result = sentFilesDb->readValue(std::as_bytes(std::span<const char>(path.lexically_relative(rootPath).string())), [&hasMatched](std::span<const std::byte>) {
+			auto result = sentFilesDb->readValue(std::as_bytes(std::span(path.lexically_relative(rootPath).native())), [&hasMatched](std::span<const std::byte>) {
 				hasMatched = true;
 			});
 			return hasMatched && result == Lmdb::ReturnCode::Success;
@@ -445,7 +445,7 @@ void ClientSentFilesStorage::truncateLastActivityJournalRecords(uint64_t oldestT
 		view = cursor->viewCurrent();
 	}
 
-	Lmdb::ReturnCode returnCode = wrapper->transaction.commit();
+	Lmdb::ReturnCode returnCode = wrapper->commitTransaction(std::move(*cursor));
 	if (returnCode != Lmdb::ReturnCode::Success)
 	{
 		return;
@@ -507,7 +507,7 @@ bool ClientSentFilesStorage::addActivityJournalRecord(ActivityJournalRecord&& ne
 		return false;
 	}
 
-	returnCode = wrapper->transaction.commit();
+	returnCode = wrapper->commitTransaction(std::move(*cursor));
 	if (returnCode != Lmdb::ReturnCode::Success)
 	{
 		return false;

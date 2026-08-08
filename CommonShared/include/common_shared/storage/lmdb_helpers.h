@@ -21,6 +21,9 @@ namespace Lmdb
 	{
 		ReadWriteTransaction transaction;
 		ReadWriteDatabase database;
+
+		ReturnCode commitTransaction(ReadWriteCursor&& cursor) noexcept;
+		ReturnCode commitTransaction() noexcept;
 	};
 
 	[[nodiscard]] Result<ReadOnlySingleDbWrapper> openReadOnlySingleDbTransaction(Environment& environment, std::zstring_view dbName) noexcept;
