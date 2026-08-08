@@ -95,16 +95,6 @@ namespace Lmdb
 		return lmdbGetValueUnsafe(mMdbTransaction, mDbHandler, key, outTempValueData, outValueSize);
 	}
 
-	Database::~Database() noexcept
-	{
-		if (mMdbTransaction != nullptr)
-		{
-			// this isn't necessary, but I think it is nicer to reuse the handles
-			// instead of leaving them hanging
-			mdb_dbi_close(mdb_txn_env(mMdbTransaction), mDbHandler);
-		}
-	}
-
 	Database::Database(Database&& other) noexcept
 		: Database(other.mDbHandler, other.mMdbTransaction)
 	{

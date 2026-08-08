@@ -18,7 +18,7 @@ namespace Lmdb
 	class Database
 	{
 	public:
-		virtual ~Database() noexcept;
+		virtual ~Database() noexcept = default;
 
 		Database(const Database&) = delete;
 		Database& operator=(const Database&) = delete;
