@@ -552,8 +552,8 @@ std::vector<ClientSentFilesStorage::ActivityJournalRecord> ClientSentFilesStorag
 		return {};
 	}
 
-	const size_t endIdx = Serialization::readUint32(view->key) + 1;
-	const size_t beginIdx = endIdx >= recordsCount ? endIdx - recordsCount : 0;
+	const uint32_t endIdx = Serialization::readUint32(view->key) + 1;
+	const uint32_t beginIdx = endIdx >= recordsCount ? endIdx - recordsCount : 0;
 
 	outEndIdx = endIdx;
 	return ClientStorageInternal::readActivityJournalRecords(*cursor, beginIdx, endIdx);
