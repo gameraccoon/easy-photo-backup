@@ -25,7 +25,7 @@ include(${MAIN_ROOT}/ClientShared/CMakeLists.txt)
 set(CMAKE_BUILD_TYPE Debug)
 
 add_library(${CMAKE_PROJECT_NAME} SHARED
-	test_full_file_backup_ffi_bindings.cpp
+	cpp_ffi_bindings.cpp
 )
 
 target_link_options(${CMAKE_PROJECT_NAME} PRIVATE
@@ -40,7 +40,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 )
 
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
-	test_full_file_backup_ffi_bindings.cpp
+	cpp_ffi_bindings.cpp
 )
 
 target_link_libraries(${CMAKE_PROJECT_NAME}

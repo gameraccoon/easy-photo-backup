@@ -7,10 +7,8 @@ class ClientSentFilesStorage(localStorageDirectory: String) : AutoCloseable {
 
     private external fun open(localStorageDirectory: String): Long
     private external fun destroy(handle: Long)
-
-    fun isValid(): Boolean {
-        return nativeHandle != 0L
-    }
+    private external fun getLastActivityJournalRecords(handle: Long, numberOfRecords: Int): LongArray
+    private external fun getActivityJournalRecords(handle: Long, beginIdx: Int, endIdx: Int): LongArray
 
     internal fun getNativeHandle(): Long {
         check(nativeHandle != 0L)
@@ -23,6 +21,24 @@ class ClientSentFilesStorage(localStorageDirectory: String) : AutoCloseable {
             nativeHandle = 0
         }
     }
+
+    fun getLastActivityJournalRecords(numberOfRecords: Int): Pair<Array<ActivityJournalRecord>, Int> {
+        check(nativeHandle != 0L)
+
+        val records = getLastActivityJournalRecords(nativeHandle, numberOfRecords)
+        check(!records.isEmpty())
+
+        return Pair(records.slice(0..records.size-2).map(::ActivityJournalRecord).toTypedArray(), (records[records.size - 1]).toInt())
+    }
+
+    fun getActivityJournalRecords(beginIdx: Int, endIdx: Int): Array<ActivityJournalRecord> {
+        check(nativeHandle != 0L)
+
+        return getActivityJournalRecords(nativeHandle, beginIdx, endIdx)
+            .map(::ActivityJournalRecord)
+            .toTypedArray()
+    }
+
     companion object {
         init {
             System.loadLibrary("EasyPhotoBackupFfi")

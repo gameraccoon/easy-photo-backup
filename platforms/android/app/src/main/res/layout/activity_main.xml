@@ -35,6 +35,11 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Discover Servers" />
+        <Button
+            android:id="@+id/activityJournalButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="See journal" />
 
     <LinearLayout
         android:id="@+id/serverContainer"

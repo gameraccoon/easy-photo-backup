@@ -74,6 +74,11 @@ class MainActivity : AppCompatActivity() {
                 discoverServers()
             }
         }
+
+        binding.activityJournalButton.setOnClickListener {
+            val intent = Intent(this, JournalActivity::class.java)
+            startActivity(intent)
+        }
     }
 
     @RequiresApi(Build.VERSION_CODES.R)

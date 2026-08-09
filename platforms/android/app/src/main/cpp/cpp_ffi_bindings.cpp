@@ -78,6 +78,33 @@ public:
 	ClientSentFilesStorage storage;
 };
 
+class ActivityJournalRecordNative
+{
+public:
+	ActivityJournalRecordNative(ClientSentFilesStorage::ActivityJournalRecord&& inRecord) noexcept
+		: record(std::move(inRecord))
+	{}
+
+	ClientSentFilesStorage::ActivityJournalRecord record;
+
+	[[nodiscard]] const char* getTypeName() const
+	{
+		switch (record.type)
+		{
+		case ClientSentFilesStorage::ActivityJournalRecord::Type::Start:
+			return "start";
+		case ClientSentFilesStorage::ActivityJournalRecord::Type::Continuation:
+			return "continuation";
+		case ClientSentFilesStorage::ActivityJournalRecord::Type::EndSuccessfully:
+			return "end successfully";
+		case ClientSentFilesStorage::ActivityJournalRecord::Type::EndError:
+			return "end with error";
+		case ClientSentFilesStorage::ActivityJournalRecord::Type::Unknown:
+			return "unknown";
+		}
+	}
+};
+
 extern "C" JNIEXPORT jlong JNICALL
 Java_com_unnamed_easyphotobackup_ServerDiscoveryClient_create(
 	JNIEnv* env,
@@ -249,6 +276,17 @@ Java_com_unnamed_easyphotobackup_ClientSentFilesStorage_destroy(
 	delete obj;
 }
 
+extern "C" JNIEXPORT void JNICALL
+Java_com_unnamed_easyphotobackup_ActivityJournalRecord_destroy(
+	JNIEnv* env,
+	jobject /*this*/,
+	jlong handle
+)
+{
+	ActivityJournalRecordNative* obj = reinterpret_cast<ActivityJournalRecordNative*>(handle);
+	delete obj;
+}
+
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_unnamed_easyphotobackup_PairingHelpers_requestServerNameNative(
 	JNIEnv* env,
@@ -372,4 +410,89 @@ Java_com_unnamed_easyphotobackup_FileSendHelpers_sendFilesNative(
 	}
 
 	return nullptr;
+}
+
+extern "C" JNIEXPORT jlongArray JNICALL
+Java_com_unnamed_easyphotobackup_ClientSentFilesStorage_getLastActivityJournalRecords(
+	JNIEnv* env,
+	jobject /*this*/,
+	jlong clientSentFilesStorageHandle,
+	jint numberOfRecords
+)
+{
+	ClientSentFilesStorageNative* clientSentFilesStorage = reinterpret_cast<ClientSentFilesStorageNative*>(clientSentFilesStorageHandle);
+
+	uint32_t endRecord = 0;
+	std::vector<ClientSentFilesStorage::ActivityJournalRecord> records = clientSentFilesStorage->storage.getLastActivityJournalRecords(numberOfRecords, endRecord);
+
+	std::vector<jlong> handlesWithEndIdx;
+	handlesWithEndIdx.reserve(records.size() + 1);
+	for (ClientSentFilesStorage::ActivityJournalRecord& record : records)
+	{
+		handlesWithEndIdx.push_back(reinterpret_cast<jlong>(new ActivityJournalRecordNative(std::move(record))));
+	}
+
+	handlesWithEndIdx.push_back(static_cast<jlong>(endRecord));
+
+	jlongArray result = env->NewLongArray(static_cast<jsize>(handlesWithEndIdx.size()));
+	env->SetLongArrayRegion(
+		result,
+		0,
+		static_cast<jsize>(handlesWithEndIdx.size()),
+		handlesWithEndIdx.data()
+	);
+
+	return result;
+}
+
+extern "C" JNIEXPORT jlongArray JNICALL
+Java_com_unnamed_easyphotobackup_ClientSentFilesStorage_getActivityJournalRecords(
+	JNIEnv* env,
+	jobject /*this*/,
+	jlong clientSentFilesStorageHandle,
+	jint beginIdx,
+	jint endIdx
+)
+{
+	ClientSentFilesStorageNative* clientSentFilesStorage = reinterpret_cast<ClientSentFilesStorageNative*>(clientSentFilesStorageHandle);
+
+	std::vector<ClientSentFilesStorage::ActivityJournalRecord> records = clientSentFilesStorage->storage.getActivityJournalRecords(beginIdx, endIdx);
+
+	jlongArray result = env->NewLongArray(static_cast<jsize>(records.size()));
+
+	std::vector<jlong> handles;
+	handles.reserve(records.size());
+	for (ClientSentFilesStorage::ActivityJournalRecord& record : records)
+	{
+		handles.push_back(reinterpret_cast<jlong>(new ActivityJournalRecordNative(std::move(record))));
+	}
+
+	env->SetLongArrayRegion(
+		result,
+		0,
+		static_cast<jsize>(handles.size()),
+		handles.data()
+	);
+
+	return result;
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_unnamed_easyphotobackup_ActivityJournalRecord_asString(
+	JNIEnv* env,
+	jobject /*this*/,
+	jlong activityJournalRecordHandle
+)
+{
+	ActivityJournalRecordNative* clientSentFilesStorage = reinterpret_cast<ActivityJournalRecordNative*>(activityJournalRecordHandle);
+
+	std::string result = std::format(
+		"{}, filesSent: {}, bytesSent: {}, time: {}",
+		clientSentFilesStorage->getTypeName(),
+		clientSentFilesStorage->record.filesSent,
+		clientSentFilesStorage->record.bytesTransferred,
+		clientSentFilesStorage->record.timestampMs
+	);
+
+	return env->NewStringUTF(result.c_str());
 }
