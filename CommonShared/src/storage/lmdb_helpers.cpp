@@ -1,8 +1,9 @@
 // Copyright (C) Pavel Grebnev 2026
 // Distributed under the MIT License (license terms are at http://opensource.org/licenses/MIT).
 
-#include "common_shared/storage/lmdb_cleanup.h"
 #include "common_shared/storage/lmdb_helpers.h"
+
+#include "common_shared/storage/lmdb_cleanup.h"
 
 namespace Lmdb
 {

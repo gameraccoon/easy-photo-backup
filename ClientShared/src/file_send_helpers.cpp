@@ -50,7 +50,9 @@ namespace FileSendHelpers
 		clientSentFilesStorage.truncateLastActivityJournalRecords(
 			static_cast<uint64_t>(
 				std::chrono::duration_cast<std::chrono::milliseconds>(
-				  (timeNow - activityJournalRecordRetainingTime).time_since_epoch()).count()
+					(timeNow - activityJournalRecordRetainingTime).time_since_epoch()
+				)
+					.count()
 			)
 		);
 
@@ -59,7 +61,7 @@ namespace FileSendHelpers
 			.filesSent = 0,
 			.bytesTransferred = 0,
 			.type = ClientSentFilesStorage::ActivityJournalRecord::Type::CheckForNewFiles,
-			.error = {}
+			.error = {},
 		});
 
 		std::vector<std::filesystem::path> files = collectFilesFromDirectory(folderPath);

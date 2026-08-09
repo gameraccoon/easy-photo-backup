@@ -6,14 +6,14 @@
 #include <liblmdb/lmdb.h>
 
 #include "common_shared/debug/assert.h"
-#include "common_shared/storage/lmdb_environment.h"
-#include "common_shared/storage/lmdb_transaction.h"
 #include "common_shared/storage/lmdb_cursor.h"
 #include "common_shared/storage/lmdb_database.h"
+#include "common_shared/storage/lmdb_environment.h"
+#include "common_shared/storage/lmdb_transaction.h"
 
 namespace Lmdb
 {
-	void abortTransactionNoCursors(ReadOnlyTransaction && transaction) noexcept
+	void abortTransactionNoCursors(ReadOnlyTransaction&& transaction) noexcept
 	{
 		ReadOnlyTransaction autoexpiringTransaction = std::move(transaction);
 	}

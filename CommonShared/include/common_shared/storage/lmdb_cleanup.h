@@ -22,7 +22,7 @@ namespace Lmdb
 	template<typename T>
 	concept CursorConcept = std::derived_from<std::remove_cvref_t<T>, Cursor>;
 
-	void abortTransactionNoCursors(ReadOnlyTransaction && transaction) noexcept;
+	void abortTransactionNoCursors(ReadOnlyTransaction&& transaction) noexcept;
 	void abortTransactionNoCursors(ReadWriteTransaction&& transaction) noexcept;
 
 	[[nodiscard]] ReturnCode commitTransactionNoCursors(ReadWriteTransaction&& transaction) noexcept;
