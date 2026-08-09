@@ -14,14 +14,14 @@
 
 namespace ClientStorageInternal
 {
-	static constexpr std::string_view ClientConfigStorageEnviromentName = "client_config";
-	static constexpr std::string_view ClientSentFilesStorageEnviromentName = "client_sent_files";
+	static constexpr std::string_view ClientConfigStorageEnvironmentName = "client_config";
+	static constexpr std::string_view ClientSentFilesStorageEnvironmentName = "client_sent_files";
 	static constexpr std::zstring_view ConfirmedDatabaseName = "confirmed";
 	static constexpr std::zstring_view SentFilesDatabaseName = "sent_files";
 	static constexpr std::zstring_view PartiallySentDatabaseName = "part_sent";
 	static constexpr std::zstring_view ActivityJournalDatabaseName = "activity";
 
-	static constexpr size_t ActivityRecordValueSize = 17;
+	static constexpr size_t ActivityRecordValueStaticDataSize = 18;
 
 	static std::vector<ClientSentFilesStorage::ActivityJournalRecord> readActivityJournalRecords(Lmdb::ReadOnlyCursor& cursor, uint32_t beginIdx, uint32_t endIdx) noexcept
 	{
@@ -66,9 +66,9 @@ namespace ClientStorageInternal
 
 		while (true)
 		{
-			if (view->value.size() != ClientStorageInternal::ActivityRecordValueSize)
+			if (view->value.size() < ClientStorageInternal::ActivityRecordValueStaticDataSize)
 			{
-				reportReleaseError("The value size in activity journal table was unexpected size. size: {}, expected: {}", view->key.size(), ClientStorageInternal::ActivityRecordValueSize);
+				reportReleaseError("The value size in activity journal table was unexpected size. size: {}, expected at least: {}", view->key.size(), ClientStorageInternal::ActivityRecordValueStaticDataSize);
 				break;
 			}
 
@@ -79,6 +79,7 @@ namespace ClientStorageInternal
 			if (!deserializer.readUint32(record.filesSent, "filesSent")) { break; }
 			if (!deserializer.readUint32(record.bytesTransferred, "bytesTransferred")) { break; }
 			if (!deserializer.readByte(*reinterpret_cast<std::byte*>(&record.type), "type")) { break; }
+			if (!deserializer.readShortString(record.error, "error")) { break; }
 
 			if (deserializer.getBytesRead() != view->value.size())
 			{
@@ -89,7 +90,7 @@ namespace ClientStorageInternal
 			result.push_back(std::move(record));
 
 			++index;
-			if (index >= endIdx) // normal exit condition, assumes idexes don't have gaps
+			if (index >= endIdx) // normal exit condition, assumes indexes don't have gaps
 			{
 				break;
 			}
@@ -115,7 +116,7 @@ std::optional<ClientConfigStorage> ClientConfigStorage::openStorage(const std::f
 {
 	static constexpr size_t maxNamedDatabases = 5;
 
-	std::filesystem::path dbPath = storageRootPath / ClientStorageInternal::ClientConfigStorageEnviromentName;
+	std::filesystem::path dbPath = storageRootPath / ClientStorageInternal::ClientConfigStorageEnvironmentName;
 	Lmdb::Result<Lmdb::ReadWriteEnvironment> envResult = Lmdb::ReadWriteEnvironment::open(dbPath, maxNamedDatabases);
 
 	if (envResult.isError())
@@ -300,8 +301,9 @@ std::string ClientSentFilesStorage::ActivityJournalRecord::asString() const noex
 	std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &local_tm);
 
 	return std::format(
-		"{}\nfilesSent: {}\nbytesSent: {}{}{}{}\ntime: {}",
+		"{}{}\nfilesSent: {}\nbytesSent: {}{}{}{}\ntime: {}",
 		getActivityRecordTypeName(type),
+		error.empty() ? "" : std::format("\nerror: '{}'", error),
 		filesSent,
 		(gigabytes > 0 ? std::format("{}Gb ", gigabytes) : ""),
 		(megabytes > 0 ? std::format("{}Mb ", megabytes) : ""),
@@ -315,7 +317,7 @@ std::optional<ClientSentFilesStorage> ClientSentFilesStorage::openStorage(const 
 {
 	static constexpr size_t maxNamedDatabases = 5;
 
-	std::filesystem::path dbPath = storageRootPath / ClientStorageInternal::ClientSentFilesStorageEnviromentName;
+	std::filesystem::path dbPath = storageRootPath / ClientStorageInternal::ClientSentFilesStorageEnvironmentName;
 	Lmdb::Result<Lmdb::ReadWriteEnvironment> envResult = Lmdb::ReadWriteEnvironment::open(dbPath, maxNamedDatabases);
 
 	if (envResult.isError())
@@ -508,13 +510,20 @@ bool ClientSentFilesStorage::addActivityJournalRecord(ActivityJournalRecord&& ne
 		return false;
 	}
 
-	std::array<std::byte, ClientStorageInternal::ActivityRecordValueSize> value;
+	std::vector<std::byte> value;
+	value.resize(ClientStorageInternal::ActivityRecordValueStaticDataSize + newRecord.error.size());
 	Serialization::GenericSerializationWrapper serializer{ value };
+
+	if (newRecord.error.size() > 255)
+	{
+		newRecord.error.resize(255);
+	}
 
 	if (!serializer.writeUint64(newRecord.timestampMs, "timestampMs")) { return false; }
 	if (!serializer.writeUint32(newRecord.filesSent, "connectionId")) { return false; }
 	if (!serializer.writeUint32(newRecord.bytesTransferred, "bytesTransferred")) { return false; }
 	if (!serializer.writeByte(static_cast<std::byte>(newRecord.type), "type")) { return false; }
+	if (!serializer.writeShortString(newRecord.error, "error")) { return false; }
 	assertFatalRelease(serializer.getBytesWritten() == value.size(), "Logical error, serialization of confirmed binding leaves not filled bytes, buffer size: {} written: {}", value.size(), serializer.getBytesWritten());
 
 	Lmdb::Result<Lmdb::ReadWriteCursor> cursor = Lmdb::ReadWriteCursor::open(wrapper->transaction, wrapper->database);
