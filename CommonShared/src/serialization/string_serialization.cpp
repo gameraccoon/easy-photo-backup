@@ -9,7 +9,7 @@ namespace Serialization
 {
 	std::optional<std::string> writeShortString(std::span<std::byte> buffer, std::string_view string, size_t& outBytesWritten) noexcept
 	{
-		if (buffer.size() == 0) [[unlikely]]
+		if (buffer.empty()) [[unlikely]]
 		{
 			reportDebugError("Buffer size was zero, can't write anything");
 			return "Buffer size was zero, can't write anything";
@@ -46,7 +46,7 @@ namespace Serialization
 
 	std::optional<std::string> readShortString(const std::span<const std::byte> buffer, std::string& outString, size_t maxStringLength) noexcept
 	{
-		if (buffer.size() < 1) [[unlikely]]
+		if (buffer.empty()) [[unlikely]]
 		{
 			reportDebugError("Trying to read a string but the buffer is too small to fit the size byte");
 			return "Trying to read a string but the buffer is too small to fit the size byte";

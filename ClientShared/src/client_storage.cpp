@@ -37,7 +37,7 @@ namespace ClientStorageInternal
 			return result;
 		}
 
-		std::array<std::byte, 4> key;
+		std::array<std::byte, 4> key{};
 		Serialization::writeUint32(key, static_cast<size_t>(beginIdx));
 		Lmdb::ReturnCode returnCode = cursor.jumpToKeyOrNext(key);
 		if (returnCode != Lmdb::ReturnCode::Success)
@@ -374,7 +374,7 @@ bool ClientSentFilesStorage::addSentFiles(const std::vector<std::filesystem::pat
 
 	if (partiallySentData > 0 && !partiallySentPath.empty())
 	{
-		std::array<std::byte, 8> sentDataBytes;
+		std::array<std::byte, 8> sentDataBytes{};
 		Serialization::writeUint64(sentDataBytes, partiallySentData);
 		Lmdb::ReturnCode returnCode = partiallySentDb->put(std::as_bytes(std::span(partiallySentPath)), sentDataBytes);
 		if (returnCode != Lmdb::ReturnCode::Success)
@@ -544,7 +544,7 @@ bool ClientSentFilesStorage::addActivityJournalRecord(ActivityJournalRecord&& ne
 		newKey = Serialization::readUint32(view->key) + 1;
 	}
 
-	std::array<std::byte, 4> key;
+	std::array<std::byte, 4> key{};
 	Serialization::writeUint32(key, newKey);
 
 	returnCode = wrapper->database.put(key, value);
