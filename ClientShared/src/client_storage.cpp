@@ -281,6 +281,8 @@ ClientConfigStorage::ClientConfigStorage(Lmdb::ReadWriteEnvironment&& environmen
 	case ClientSentFilesStorage::ActivityJournalRecord::Type::Unknown:
 		return "unknown";
 	}
+
+	return "unhandled path";
 }
 
 std::string ClientSentFilesStorage::ActivityJournalRecord::asString() const noexcept
