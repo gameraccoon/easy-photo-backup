@@ -49,7 +49,8 @@ public:
 	{
 		enum class Type : uint8_t
 		{
-			Unknown,
+			Unknown = 0,
+			CheckForNewFiles,
 			Start,
 			Continuation,
 			EndError,

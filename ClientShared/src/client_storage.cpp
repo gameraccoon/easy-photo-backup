@@ -267,6 +267,8 @@ ClientConfigStorage::ClientConfigStorage(Lmdb::ReadWriteEnvironment&& environmen
 {
 	switch (type)
 	{
+	case ClientSentFilesStorage::ActivityJournalRecord::Type::CheckForNewFiles:
+		return "check for new files";
 	case ClientSentFilesStorage::ActivityJournalRecord::Type::Start:
 		return "start";
 	case ClientSentFilesStorage::ActivityJournalRecord::Type::Continuation:

@@ -45,6 +45,15 @@ namespace FileSendHelpers
 
 	std::optional<std::string> sendDirectory(ClientConfigStorage& clientConfigStorage, ClientSentFilesStorage& clientSentFilesStorage, const ServerConnectionInfo& serverInfo, const std::filesystem::path& folderPath, const std::filesystem::path& commonRoot) noexcept
 	{
+		const auto timeNow = std::chrono::system_clock::now();
+
+		clientSentFilesStorage.addActivityJournalRecord(ClientSentFilesStorage::ActivityJournalRecord{
+			.timestampMs = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(timeNow.time_since_epoch()).count()),
+			.filesSent = 0,
+			.bytesTransferred = 0,
+			.type = ClientSentFilesStorage::ActivityJournalRecord::Type::CheckForNewFiles,
+			.error = {}
+		});
 		std::vector<std::filesystem::path> files = collectFilesFromDirectory(folderPath);
 
 		std::vector<uint64_t> previouslySentBytes;
