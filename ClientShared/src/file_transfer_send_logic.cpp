@@ -596,7 +596,7 @@ namespace FileTransferSendLogic
 	{
 		const auto now = std::chrono::system_clock::now();
 
-		if (type == ActivityType::Continue && now + sendingState.stats.timeBetweenActivitySend < sendingState.stats.lastStatsRecordingTime)
+		if (type == ActivityType::Continue && now < sendingState.stats.lastStatsRecordingTime + sendingState.stats.timeBetweenActivitySend)
 		{
 			return;
 		}
@@ -624,9 +624,11 @@ namespace FileTransferSendLogic
 		storage.addActivityJournalRecord(ClientSentFilesStorage::ActivityJournalRecord{
 			.timestampMs = static_cast<uint64_t>(milliseconds),
 			.filesSent = sendingState.stats.filesSent,
-			.bytesTransferred = static_cast<uint32_t>(sendingState.stats.chunksSent),
+			.bytesTransferred = static_cast<uint32_t>(sendingState.stats.chunksSent * FileSendingState::ChunkSize),
 			.type = recordType,
 		});
+
+		sendingState.stats.lastStatsRecordingTime = now;
 	}
 
 	static void recordSentFiles(FileSendingState& sendingState, ClientSentFilesStorage& storage, ActivityType activityType) noexcept

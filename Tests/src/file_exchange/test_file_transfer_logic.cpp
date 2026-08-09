@@ -1137,3 +1137,26 @@ TEST_F(FileSendReceiveTest, Roundtrip_InvalidResumeOffset_FileIsResentFromBeginn
 		{ fileToSend }
 	);
 }
+
+TEST_F(FileSendReceiveTest, Roundtrip_SendAndReceiveOneTinyFile_LoggedBeginAndEndActivityJournalRecords)
+{
+	ClientSentFilesStorage clientStorage = *ClientSentFilesStorage::openStorage(TEST_DATA_PATH);
+	std::vector<TestFileExchangeFile> filesToSend;
+	filesToSend.push_back(TestFileExchangeFile{
+		.path = "tiny.txt",
+		.data = generateTestFileData(4, getRandomSeed()),
+	});
+
+	runFileExchangeTest(clientStorage, filesToSend, filesToSend, filesToSend);
+
+	uint32_t endRecordIdx = 0;
+	auto records = clientStorage.getLastActivityJournalRecords(10, endRecordIdx);
+	ASSERT_EQ(records.size(), size_t(2));
+	EXPECT_GE(endRecordIdx, uint32_t(2));
+	EXPECT_EQ(records[0].bytesTransferred, uint64_t(0));
+	EXPECT_EQ(records[0].filesSent, uint32_t(0));
+	EXPECT_EQ(records[0].type, ClientSentFilesStorage::ActivityJournalRecord::Type::Start);
+	EXPECT_EQ(records[1].bytesTransferred, uint64_t(1 * Protocol::FileExchange::ChunkSize));
+	EXPECT_EQ(records[1].filesSent, uint32_t(1));
+	EXPECT_EQ(records[1].type, ClientSentFilesStorage::ActivityJournalRecord::Type::EndSuccessfully);
+}
