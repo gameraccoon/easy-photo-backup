@@ -1,12 +1,10 @@
 package com.unnamed.easyphotobackup
 
 import android.os.Bundle
-import android.widget.Button
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-import androidx.recyclerview.widget.RecyclerView
 import com.unnamed.easyphotobackup.databinding.ActivityJournalBinding
 
 class JournalActivity : AppCompatActivity() {
@@ -15,7 +13,11 @@ class JournalActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityJournalBinding
 
-    private var lastRecord: Int = 0
+    private var lastFetchedRecord: Int = 0
+    private var lastScreenRecord: Int = 0
+    private var thisScreenRecordsCount = 0
+
+    private val recordsPerPage = 8
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -36,24 +38,57 @@ class JournalActivity : AppCompatActivity() {
         adapter = JournalAdapter(emptyList())
         binding.rvJournal.adapter = adapter
 
-        val pair = sentFilesStorage.getLastActivityJournalRecords(10)
-        lastRecord = pair.second
-
-        val stringRecords = pair.first.map { it.asString() }
-        adapter.updateData(stringRecords)
+        getLastRecords()
 
         binding.btnPrev.setOnClickListener {
-            lastRecord += 10
-            adapter.updateData(sentFilesStorage.getActivityJournalRecords(lastRecord - 10, lastRecord).map { it.asString() })
+            if (lastScreenRecord >= lastFetchedRecord)
+            {
+                getLastRecords()
+                return@setOnClickListener
+            }
+
+            lastScreenRecord += recordsPerPage
+            getRecords(lastScreenRecord - recordsPerPage, lastScreenRecord)
         }
 
         binding.btnNext.setOnClickListener {
-            lastRecord -= 10
-            if (lastRecord < 10)
-            {
-                lastRecord = 10
+            if (lastScreenRecord >= recordsPerPage * 2) {
+                lastScreenRecord -= recordsPerPage
+                getRecords(lastScreenRecord - recordsPerPage, lastScreenRecord)
             }
-            adapter.updateData(sentFilesStorage.getActivityJournalRecords(lastRecord - 10, lastRecord).map { it.asString() })
+        }
+    }
+
+    fun getLastRecords()
+    {
+        val pair = sentFilesStorage.getLastActivityJournalRecords(recordsPerPage)
+        lastScreenRecord = pair.second
+        lastFetchedRecord = pair.second
+        val stringRecords = pair.first.map { it.asString() }.reversed()
+        thisScreenRecordsCount = stringRecords.size
+        adapter.updateData(stringRecords)
+
+        updateBtnNames()
+    }
+
+    fun getRecords(beginIdx: Int, endIdx: Int)
+    {
+        val newRecords = sentFilesStorage.getActivityJournalRecords(beginIdx, endIdx).map { it.asString() }.reversed()
+        thisScreenRecordsCount = newRecords.size
+        adapter.updateData(newRecords)
+
+        updateBtnNames()
+    }
+
+    fun updateBtnNames()
+    {
+        if (lastScreenRecord >= lastFetchedRecord)
+        {
+            binding.btnPrev.setText("Update")
+        }
+        else
+        {
+            binding.btnPrev.setText("Prev")
         }
     }
 }
