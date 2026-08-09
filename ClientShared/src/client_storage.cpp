@@ -282,12 +282,30 @@ ClientConfigStorage::ClientConfigStorage(Lmdb::ReadWriteEnvironment&& environmen
 
 std::string ClientSentFilesStorage::ActivityJournalRecord::asString() const noexcept
 {
+	uint32_t bytes = bytesTransferred;
+	const uint32_t gigabytes = bytes / (1024 * 1024 * 1024);
+	bytes -= gigabytes * 1024 * 1024 * 1024;
+	const uint32_t megabytes = bytes / (1024 * 1024);
+	bytes -= megabytes * 1024 * 1024;
+	const uint32_t kilobytes = bytes / 1024;
+	bytes -= kilobytes * 1024;
+
+	std::chrono::milliseconds duration(timestampMs);
+	std::chrono::system_clock::time_point timePoint(duration);
+	std::time_t time = std::chrono::system_clock::to_time_t(timePoint);
+	std::tm local_tm = *std::localtime(&time);
+	char buffer[64];
+	std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &local_tm);
+
 	return std::format(
-		"{}\nfilesSent: {}\nbytesSent: {}\ntime: {}",
+		"{}\nfilesSent: {}\nbytesSent: {}{}{}{}\ntime: {}",
 		getActivityRecordTypeName(type),
 		filesSent,
-		bytesTransferred,
-		timestampMs
+		(gigabytes > 0 ? std::format("{}Gb ", gigabytes) : ""),
+		(megabytes > 0 ? std::format("{}Mb ", megabytes) : ""),
+		(kilobytes > 0 ? std::format("{}Kb ", kilobytes) : ""),
+		(bytes > 0 || bytesTransferred == 0 ? std::format("{} bytes ", bytes) : ""),
+		buffer
 	);
 }
 
