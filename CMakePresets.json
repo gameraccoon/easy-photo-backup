@@ -1,30 +1,74 @@
 {
-  "version": 6,
-  "cmakeMinimumRequired": {
-    "major": 3,
-    "minor": 22,
-    "patch": 1
-  },
-  "configurePresets": [
-    {
-      "name": "linux-ninja",
-      "displayName": "Linux",
-      "description": "Default linux build using Ninja generator",
-      "generator": "Ninja",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug"
-      }
-    },
-    {
-      "name": "linux-ninja-clang",
-      "displayName": "Linux",
-      "description": "Clang linux build using Ninja generator",
-      "generator": "Ninja",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_C_COMPILER": "clang",
-        "CMAKE_CXX_COMPILER": "clang++"
-      }
-    }
-  ]
+	"version": 6,
+	"cmakeMinimumRequired": {
+		"major": 3,
+		"minor": 22,
+		"patch": 1
+	},
+	"configurePresets": [
+		{
+			"name": "linux-ninja",
+			"displayName": "Linux",
+			"description": "Default linux build using Ninja generator",
+			"generator": "Ninja",
+			"binaryDir": "${sourceDir}/build",
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": "Debug"
+			}
+		},
+		{
+			"name": "linux-ninja-clang",
+			"displayName": "Linux Clang",
+			"description": "Clang linux build using Ninja generator",
+			"generator": "Ninja",
+			"binaryDir": "${sourceDir}/build",
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": "Debug",
+				"CMAKE_C_COMPILER": "clang",
+				"CMAKE_CXX_COMPILER": "clang++"
+			}
+		},
+		{
+			"name": "linux-ninja-asan",
+			"displayName": "Linux Clang ASan",
+			"description": "Clang Linux build with asan",
+			"inherits": "linux-ninja-clang",
+			"cacheVariables": {
+				"CMAKE_C_FLAGS": "-fsanitize=address -fno-omit-frame-pointer",
+				"CMAKE_CXX_FLAGS": "-fsanitize=address -fno-omit-frame-pointer",
+				"CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address",
+				"CMAKE_SHARED_LINKER_FLAGS": "-fsanitize=address"
+			}
+		}
+	],
+
+	"buildPresets": [
+		{
+			"name": "linux-ninja",
+			"configurePreset": "linux-ninja"
+		},
+		{
+			"name": "linux-ninja-clang",
+			"configurePreset": "linux-ninja-clang"
+		},
+		{
+			"name": "linux-ninja-asan",
+			"configurePreset": "linux-ninja-asan"
+		}
+	],
+
+	"testPresets": [
+		{
+			"name": "linux-ninja",
+			"configurePreset": "linux-ninja"
+		},
+		{
+			"name": "linux-ninja-clang",
+			"configurePreset": "linux-ninja-clang"
+		},
+		{
+			"name": "linux-ninja-asan",
+			"configurePreset": "linux-ninja-asan"
+		}
+	]
 }

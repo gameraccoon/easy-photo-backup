@@ -27,13 +27,11 @@ jobs:
       - name: Create build directory
         run: mkdir build
 
-      - name: Run CMake
-        run: cmake ..
-        working-directory: build
+      - name: Configure CMake project
+        run: cmake --preset linux-ninja-asan
 
-      - name: Run Make
-        run: make
-        working-directory: build
+      - name: Build the project
+        run: cmake --build --preset linux-ninja-asan
 
       - name: Run tests
         run: ./Tests
