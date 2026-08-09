@@ -86,23 +86,6 @@ public:
 	{}
 
 	ClientSentFilesStorage::ActivityJournalRecord record;
-
-	[[nodiscard]] const char* getTypeName() const
-	{
-		switch (record.type)
-		{
-		case ClientSentFilesStorage::ActivityJournalRecord::Type::Start:
-			return "start";
-		case ClientSentFilesStorage::ActivityJournalRecord::Type::Continuation:
-			return "continuation";
-		case ClientSentFilesStorage::ActivityJournalRecord::Type::EndSuccessfully:
-			return "end successfully";
-		case ClientSentFilesStorage::ActivityJournalRecord::Type::EndError:
-			return "end with error";
-		case ClientSentFilesStorage::ActivityJournalRecord::Type::Unknown:
-			return "unknown";
-		}
-	}
 };
 
 extern "C" JNIEXPORT jlong JNICALL
@@ -486,13 +469,7 @@ Java_com_unnamed_easyphotobackup_ActivityJournalRecord_asString(
 {
 	ActivityJournalRecordNative* clientSentFilesStorage = reinterpret_cast<ActivityJournalRecordNative*>(activityJournalRecordHandle);
 
-	std::string result = std::format(
-		"{}, filesSent: {}, bytesSent: {}, time: {}",
-		clientSentFilesStorage->getTypeName(),
-		clientSentFilesStorage->record.filesSent,
-		clientSentFilesStorage->record.bytesTransferred,
-		clientSentFilesStorage->record.timestampMs
-	);
+	std::string result = clientSentFilesStorage->record.asString();
 
 	return env->NewStringUTF(result.c_str());
 }

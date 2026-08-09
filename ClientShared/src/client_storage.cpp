@@ -263,6 +263,34 @@ ClientConfigStorage::ClientConfigStorage(Lmdb::ReadWriteEnvironment&& environmen
 {
 }
 
+[[nodiscard]] static const char* getActivityRecordTypeName(const ClientSentFilesStorage::ActivityJournalRecord::Type type)
+{
+	switch (type)
+	{
+	case ClientSentFilesStorage::ActivityJournalRecord::Type::Start:
+		return "start";
+	case ClientSentFilesStorage::ActivityJournalRecord::Type::Continuation:
+		return "continuation";
+	case ClientSentFilesStorage::ActivityJournalRecord::Type::EndSuccessfully:
+		return "end successfully";
+	case ClientSentFilesStorage::ActivityJournalRecord::Type::EndError:
+		return "end with error";
+	case ClientSentFilesStorage::ActivityJournalRecord::Type::Unknown:
+		return "unknown";
+	}
+}
+
+std::string ClientSentFilesStorage::ActivityJournalRecord::asString() const noexcept
+{
+	return std::format(
+		"{}\nfilesSent: {}\nbytesSent: {}\ntime: {}",
+		getActivityRecordTypeName(type),
+		filesSent,
+		bytesTransferred,
+		timestampMs
+	);
+}
+
 std::optional<ClientSentFilesStorage> ClientSentFilesStorage::openStorage(const std::filesystem::path& storageRootPath) noexcept
 {
 	static constexpr size_t maxNamedDatabases = 5;

@@ -4,6 +4,7 @@
 #pragma once
 
 #include <filesystem>
+#include <string>
 #include <vector>
 
 #include "common_shared/cryptography/types/dh_types.h"
@@ -59,6 +60,8 @@ public:
 		uint32_t filesSent = 0;
 		uint32_t bytesTransferred = 0;
 		Type type = Type::Unknown;
+
+		[[nodiscard]] std::string asString() const noexcept;
 	};
 
 public:
