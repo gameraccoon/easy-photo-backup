@@ -466,3 +466,34 @@ TEST_F(ClientSentFilesStorageTest, StorageWithRecords_GetRecordsWithPagesBackwar
 		}));
 	}
 }
+
+TEST(ClientSentFilesStorage, ActivityJournalRecord_Format_ReturnsExpectedString)
+{
+	{
+		ClientSentFilesStorage::ActivityJournalRecord v{
+			.timestampMs = 1786369187509,
+			.filesSent = 10,
+			.bytesTransferred = 2003005000,
+			.type = ClientSentFilesStorage::ActivityJournalRecord::Type::EndError,
+			.error = "test error",
+		};
+		EXPECT_EQ(
+			v.asString(),
+			std::string("end with error\nerror: 'test error'\nfilesSent: 10\nbytesSent: 1Gb 886Mb 219Kb 584 bytes \ntime: 2026-08-10 15:39:47")
+		);
+	}
+
+	{
+		ClientSentFilesStorage::ActivityJournalRecord v{
+			.timestampMs = 1786369187509,
+			.filesSent = 0,
+			.bytesTransferred = 0,
+			.type = ClientSentFilesStorage::ActivityJournalRecord::Type::Start,
+			.error = "",
+		};
+		EXPECT_EQ(
+			v.asString(),
+			std::string("start\nfilesSent: 0\nbytesSent: 0 bytes \ntime: 2026-08-10 15:39:47")
+		);
+	}
+}

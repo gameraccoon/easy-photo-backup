@@ -285,6 +285,34 @@ ClientConfigStorage::ClientConfigStorage(Lmdb::ReadWriteEnvironment&& environmen
 	return "unhandled path";
 }
 
+[[nodiscard]] static std::string formatActivityRecordTime(uint64_t timestampMs) noexcept
+{
+	using namespace std::chrono;
+
+	milliseconds duration(timestampMs);
+	system_clock::time_point timePoint(duration_cast<system_clock::duration>(duration));
+	std::time_t time = system_clock::to_time_t(timePoint);
+	std::tm localTime{};
+#if defined(_WIN32) || defined(_WIN64)
+	if (localtime_s(&localTime, &time) != 0) [[unlikely]]
+	{
+		return "time err";
+	}
+#else
+	if (localtime_r(&time, &localTime) == nullptr) [[unlikely]]
+	{
+		return "time err";
+	}
+#endif
+
+	char buffer[64];
+	if (std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &localTime) == 0) [[unlikely]]
+	{
+		return "fmt err";
+	}
+	return std::string(buffer);
+}
+
 std::string ClientSentFilesStorage::ActivityJournalRecord::asString() const noexcept
 {
 	uint32_t bytes = bytesTransferred;
@@ -295,13 +323,6 @@ std::string ClientSentFilesStorage::ActivityJournalRecord::asString() const noex
 	const uint32_t kilobytes = bytes / 1024;
 	bytes -= kilobytes * 1024;
 
-	std::chrono::milliseconds duration(timestampMs);
-	std::chrono::system_clock::time_point timePoint(duration);
-	std::time_t time = std::chrono::system_clock::to_time_t(timePoint);
-	std::tm local_tm = *std::localtime(&time);
-	char buffer[64];
-	std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &local_tm);
-
 	return std::format(
 		"{}{}\nfilesSent: {}\nbytesSent: {}{}{}{}\ntime: {}",
 		getActivityRecordTypeName(type),
@@ -311,7 +332,7 @@ std::string ClientSentFilesStorage::ActivityJournalRecord::asString() const noex
 		(megabytes > 0 ? std::format("{}Mb ", megabytes) : ""),
 		(kilobytes > 0 ? std::format("{}Kb ", kilobytes) : ""),
 		(bytes > 0 || bytesTransferred == 0 ? std::format("{} bytes ", bytes) : ""),
-		buffer
+		formatActivityRecordTime(timestampMs)
 	);
 }
 
