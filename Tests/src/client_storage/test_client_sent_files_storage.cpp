@@ -479,7 +479,7 @@ TEST(ClientSentFilesStorage, ActivityJournalRecord_Format_ReturnsExpectedString)
 		};
 		EXPECT_EQ(
 			v.asString(),
-			std::string("end with error\nerror: 'test error'\nfilesSent: 10\nbytesSent: 1Gb 886Mb 219Kb 584 bytes \ntime: 2026-08-10 15:39:47")
+			std::string("end with error\nfiles sent: 10\nsent: 1Gb 886Mb 219Kb 584 bytes\ntime: 2026-08-10 15:39:47\nerror: 'test error'")
 		);
 	}
 
@@ -493,7 +493,7 @@ TEST(ClientSentFilesStorage, ActivityJournalRecord_Format_ReturnsExpectedString)
 		};
 		EXPECT_EQ(
 			v.asString(),
-			std::string("start\nfilesSent: 0\nbytesSent: 0 bytes \ntime: 2026-08-10 15:39:47")
+			std::string("start\ntime: 2026-08-10 15:39:47")
 		);
 	}
 }

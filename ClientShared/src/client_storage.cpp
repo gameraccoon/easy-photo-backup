@@ -323,16 +323,25 @@ std::string ClientSentFilesStorage::ActivityJournalRecord::asString() const noex
 	const uint32_t kilobytes = bytes / 1024;
 	bytes -= kilobytes * 1024;
 
+	std::string bytesSentStr;
+	if (bytesTransferred > 0)
+	{
+		bytesSentStr = std::format(
+			"\nsent: {}{}{}{}",
+			(gigabytes > 0) ? std::format("{}Gb ", gigabytes) : std::string{},
+			(megabytes > 0) ? std::format("{}Mb ", megabytes) : std::string{},
+			(kilobytes > 0) ? std::format("{}Kb ", kilobytes) : std::string{},
+			(bytes > 0) ? std::format("{} bytes", bytes) : std::string{}
+		);
+	}
+
 	return std::format(
-		"{}{}\nfilesSent: {}\nbytesSent: {}{}{}{}\ntime: {}",
+		"{}{}{}\ntime: {}{}",
 		getActivityRecordTypeName(type),
-		error.empty() ? "" : std::format("\nerror: '{}'", error),
-		filesSent,
-		(gigabytes > 0 ? std::format("{}Gb ", gigabytes) : ""),
-		(megabytes > 0 ? std::format("{}Mb ", megabytes) : ""),
-		(kilobytes > 0 ? std::format("{}Kb ", kilobytes) : ""),
-		(bytes > 0 || bytesTransferred == 0 ? std::format("{} bytes ", bytes) : ""),
-		formatActivityRecordTime(timestampMs)
+		(filesSent > 0) ? std::format("\nfiles sent: {}", filesSent) : std::string{},
+		bytesSentStr,
+		formatActivityRecordTime(timestampMs),
+		error.empty() ? "" : std::format("\nerror: '{}'", error)
 	);
 }
 
