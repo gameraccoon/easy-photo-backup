@@ -74,49 +74,7 @@ target_sources(CommonShared
 		${COMMON_SHARED_SRC_DIR}/storage/lmdb_environment.cpp
 		${COMMON_SHARED_SRC_DIR}/storage/lmdb_helpers.cpp
 		${COMMON_SHARED_SRC_DIR}/storage/lmdb_transaction.cpp
-		${COMMON_SHARED_INCLUDE_DIR}/nsd/utils_internal.h
 		${COMMON_SHARED_SRC_DIR}/hash_utils.cpp
-
-	PUBLIC
-		${COMMON_SHARED_INCLUDE_DIR}/cryptography/noise/internal/message_patterns.h
-		${COMMON_SHARED_INCLUDE_DIR}/cryptography/noise/internal/handshake_utils.h
-		${COMMON_SHARED_INCLUDE_DIR}/cryptography/noise/noise_kk_handshake.h
-		${COMMON_SHARED_INCLUDE_DIR}/cryptography/noise/noise_xx_handshake.h
-		${COMMON_SHARED_INCLUDE_DIR}/cryptography/noise/cipher_types.h
-		${COMMON_SHARED_INCLUDE_DIR}/cryptography/noise/cipher_utils.h
-		${COMMON_SHARED_INCLUDE_DIR}/cryptography/noise/handshake_types.h
-		${COMMON_SHARED_INCLUDE_DIR}/cryptography/primitives/cipher_functions.h
-		${COMMON_SHARED_INCLUDE_DIR}/cryptography/primitives/dh_functions.h
-		${COMMON_SHARED_INCLUDE_DIR}/cryptography/primitives/hash_functions.h
-		${COMMON_SHARED_INCLUDE_DIR}/cryptography/types/cipher_types.h
-		${COMMON_SHARED_INCLUDE_DIR}/cryptography/types/dh_types.h
-		${COMMON_SHARED_INCLUDE_DIR}/cryptography/types/hash_types.h
-		${COMMON_SHARED_INCLUDE_DIR}/cryptography/utils/connection_id_utils.h
-		${COMMON_SHARED_INCLUDE_DIR}/cryptography/utils/crypto_wipe.h
-		${COMMON_SHARED_INCLUDE_DIR}/cryptography/utils/erasable_data.h
-		${COMMON_SHARED_INCLUDE_DIR}/cryptography/utils/random.h
-		${COMMON_SHARED_INCLUDE_DIR}/cryptography/utils/short_authentification_string_utils.h
-		${COMMON_SHARED_INCLUDE_DIR}/debug/assert.h
-		${COMMON_SHARED_INCLUDE_DIR}/debug/log.h
-		${COMMON_SHARED_INCLUDE_DIR}/debug/debug_print_helpers.h
-		${COMMON_SHARED_INCLUDE_DIR}/files/file_utils.h
-		${COMMON_SHARED_INCLUDE_DIR}/network/utils.h
-		${COMMON_SHARED_INCLUDE_DIR}/network/protocol.h
-		${COMMON_SHARED_INCLUDE_DIR}/nsd/nsd_client.h
-		${COMMON_SHARED_INCLUDE_DIR}/nsd/nsd_server.h
-		${COMMON_SHARED_INCLUDE_DIR}/serialization/number_serialization.h
-		${COMMON_SHARED_INCLUDE_DIR}/serialization/raw_data_serialization.h
-		${COMMON_SHARED_INCLUDE_DIR}/serialization/serialization_helpers.h
-		${COMMON_SHARED_INCLUDE_DIR}/serialization/string_serialization.h
-		${COMMON_SHARED_INCLUDE_DIR}/storage/lmdb_basic_types.h
-		${COMMON_SHARED_INCLUDE_DIR}/storage/lmdb_cleanup.h
-		${COMMON_SHARED_INCLUDE_DIR}/storage/lmdb_cursor.h
-		${COMMON_SHARED_INCLUDE_DIR}/storage/lmdb_database.h
-		${COMMON_SHARED_INCLUDE_DIR}/storage/lmdb_environment.h
-		${COMMON_SHARED_INCLUDE_DIR}/storage/lmdb_helpers.h
-		${COMMON_SHARED_INCLUDE_DIR}/storage/lmdb_transaction.h
-		${COMMON_SHARED_INCLUDE_DIR}/hash_utils.h
-		${COMMON_SHARED_INCLUDE_DIR}/template_utils.h
 )
 
 if(MSVC)
