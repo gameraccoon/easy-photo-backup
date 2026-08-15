@@ -13,17 +13,17 @@
 
 namespace ServerStorageInternal
 {
-	static constexpr std::string_view ServerStorageEnviromentName = "server_storage";
+	static constexpr std::string_view ServerConfigStorageEnviromentName = "server_config_storage";
 	static constexpr std::zstring_view ConfirmedDatabaseName = "confirmed";
 	static constexpr std::zstring_view ConfigDatabaseName = "config";
 	static constexpr std::string_view ServerIdKey = "server_id";
 } // namespace ServerStorageInternal
 
-std::optional<ServerStorage> ServerStorage::openStorage(const std::filesystem::path& storageRootPath) noexcept
+std::optional<ServerConfigStorage> ServerConfigStorage::openStorage(const std::filesystem::path& storageRootPath) noexcept
 {
 	static constexpr size_t maxNamedDatabases = 5;
 
-	std::filesystem::path dbPath = storageRootPath / ServerStorageInternal::ServerStorageEnviromentName;
+	std::filesystem::path dbPath = storageRootPath / ServerStorageInternal::ServerConfigStorageEnviromentName;
 	Lmdb::Result<Lmdb::ReadWriteEnvironment> envResult = Lmdb::ReadWriteEnvironment::open(dbPath, maxNamedDatabases);
 
 	if (envResult.isError())
@@ -50,10 +50,10 @@ std::optional<ServerStorage> ServerStorage::openStorage(const std::filesystem::p
 		return std::nullopt;
 	}
 
-	return ServerStorage(envResult.consumeResult());
+	return ServerConfigStorage(envResult.consumeResult());
 }
 
-void ServerStorage::addConfirmedClientBinding(const ConnectionId& connectionId, const ClientBinding& binding) noexcept
+void ServerConfigStorage::addConfirmedClientBinding(const ConnectionId& connectionId, const ClientBinding& binding) noexcept
 {
 	Lmdb::Result<Lmdb::ReadWriteSingleDbWrapper> wrapper = Lmdb::openReadWriteSingleDbTransaction(mEnvironment, ServerStorageInternal::ConfirmedDatabaseName);
 	if (wrapper.isError())
@@ -84,7 +84,7 @@ void ServerStorage::addConfirmedClientBinding(const ConnectionId& connectionId, 
 	}
 }
 
-bool ServerStorage::removeConfirmedClientBinding(const ConnectionId& connectionId) noexcept
+bool ServerConfigStorage::removeConfirmedClientBinding(const ConnectionId& connectionId) noexcept
 {
 	Lmdb::Result<Lmdb::ReadWriteSingleDbWrapper> wrapper = Lmdb::openReadWriteSingleDbTransaction(mEnvironment, ServerStorageInternal::ConfirmedDatabaseName);
 	if (wrapper.isError())
@@ -107,7 +107,7 @@ bool ServerStorage::removeConfirmedClientBinding(const ConnectionId& connectionI
 	return true;
 }
 
-std::optional<ServerStorage::ClientBinding> ServerStorage::getConfirmedClientBinding(const ConnectionId& connectionId) noexcept
+std::optional<ServerConfigStorage::ClientBinding> ServerConfigStorage::getConfirmedClientBinding(const ConnectionId& connectionId) noexcept
 {
 	Lmdb::Result<Lmdb::ReadOnlySingleDbWrapper> wrapper = Lmdb::openReadOnlySingleDbTransaction(mEnvironment, ServerStorageInternal::ConfirmedDatabaseName);
 	if (wrapper.isError())
@@ -139,7 +139,7 @@ std::optional<ServerStorage::ClientBinding> ServerStorage::getConfirmedClientBin
 	return result;
 }
 
-bool ServerStorage::hasConfirmedClientBinding(const ConnectionId& connectionId) noexcept
+bool ServerConfigStorage::hasConfirmedClientBinding(const ConnectionId& connectionId) noexcept
 {
 	Lmdb::Result<Lmdb::ReadOnlySingleDbWrapper> wrapper = Lmdb::openReadOnlySingleDbTransaction(mEnvironment, ServerStorageInternal::ConfirmedDatabaseName);
 	if (wrapper.isError())
@@ -158,7 +158,7 @@ bool ServerStorage::hasConfirmedClientBinding(const ConnectionId& connectionId) 
 	return isFound;
 }
 
-std::optional<std::array<std::byte, 16>> ServerStorage::getOrGenerateServerId() noexcept
+std::optional<std::array<std::byte, 16>> ServerConfigStorage::getOrGenerateServerId() noexcept
 {
 	Lmdb::Result<Lmdb::ReadWriteSingleDbWrapper> wrapper = Lmdb::openReadWriteSingleDbTransaction(mEnvironment, ServerStorageInternal::ConfigDatabaseName);
 	if (wrapper.isError())
@@ -192,7 +192,7 @@ std::optional<std::array<std::byte, 16>> ServerStorage::getOrGenerateServerId() 
 	return result;
 }
 
-ServerStorage::ServerStorage(Lmdb::ReadWriteEnvironment&& environment) noexcept
+ServerConfigStorage::ServerConfigStorage(Lmdb::ReadWriteEnvironment&& environment) noexcept
 	: mEnvironment(std::move(environment))
 {
 }

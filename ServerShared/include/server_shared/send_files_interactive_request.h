@@ -9,9 +9,9 @@
 #include "common_shared/cryptography/types/hash_types.h"
 #include "common_shared/network/utils.h"
 
-class ServerStorage;
+class ServerConfigStorage;
 
 namespace Requests
 {
-	void processSendFilesInteractiveRequest(const Cryptography::HashResult& clientId, std::span<const std::byte> firstMessage, const Network::RawSocket socket, ServerStorage& storage, const std::filesystem::path& fileTargetRoot);
+	void processSendFilesInteractiveRequest(const Cryptography::HashResult& clientId, std::span<const std::byte> firstMessage, const Network::RawSocket socket, ServerConfigStorage& configStorage, const std::filesystem::path& fileTargetRoot);
 }

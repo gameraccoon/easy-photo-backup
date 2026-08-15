@@ -34,15 +34,15 @@ namespace ServerCli
 		return answer;
 	}
 
-	static void onPairingRequestReceived(ServerStorage& storage, Requests::PendingClientBinding&& pendingClientBinding)
+	static void onPairingRequestReceived(ServerConfigStorage& configStorage, Requests::PendingClientBinding&& pendingClientBinding)
 	{
 		std::string result = requestCli(std::format("\nClient requested pairing.\nPairing code: {}\nEnter the code on the client device.\n\nConfirmed on the other device (Y/N)?\n> ", Cryptography::generateSas(pendingClientBinding.handshakeHash, 6)));
 
 		if (result == "Y" || result == "y")
 		{
-			storage.addConfirmedClientBinding(
+			configStorage.addConfirmedClientBinding(
 				Cryptography::generateConnectionId(pendingClientBinding.remoteStaticKey, pendingClientBinding.staticKeys.publicKey),
-				ServerStorage::ClientBinding{
+				ServerConfigStorage::ClientBinding{
 					.clientName = "test_client",
 					.remoteStaticKey = std::move(pendingClientBinding.remoteStaticKey),
 					.staticKeys = std::move(pendingClientBinding.staticKeys),
@@ -59,10 +59,10 @@ namespace ServerCli
 
 	void runCliThread(PairingRequestData& pairingRequestData) noexcept
 	{
-		std::optional<ServerStorage> storage = ServerStorage::openStorage(".");
+		std::optional<ServerConfigStorage> configStorage = ServerConfigStorage::openStorage(".");
 		std::vector<Requests::PendingClientBinding> inFlightPairingRequests;
 
-		if (!storage.has_value())
+		if (!configStorage.has_value())
 		{
 			Debug::Log::printDebug("Could not open server storage on the CLI thread");
 			return;
@@ -105,7 +105,7 @@ namespace ServerCli
 				dataLock.unlock();
 				if (!inFlightPairingRequests.empty())
 				{
-					onPairingRequestReceived(*storage, std::move(*inFlightPairingRequests.begin()));
+					onPairingRequestReceived(*configStorage, std::move(*inFlightPairingRequests.begin()));
 					inFlightPairingRequests.erase(inFlightPairingRequests.begin());
 				}
 				dataLock.lock();

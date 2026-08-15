@@ -18,13 +18,13 @@ namespace Requests
 	constexpr const int FileTransferMessagesTimeoutSeconds = 20;
 	constexpr const int FileTransferMessagesTimeoutMicroseconds = 0;
 
-	bool processKkHandshake(const Cryptography::HashResult& connectionId, std::span<const std::byte> firstMessage, const Network::RawSocket socket, ServerStorage& storage, Noise::CipherStateSending& outSendingCipherState, Noise::CipherStateReceiving& outReceivingCipherState)
+	bool processKkHandshake(const Cryptography::HashResult& connectionId, std::span<const std::byte> firstMessage, const Network::RawSocket socket, ServerConfigStorage& configStorage, Noise::CipherStateSending& outSendingCipherState, Noise::CipherStateReceiving& outReceivingCipherState)
 	{
 		using namespace Noise;
 
 		constexpr size_t SecondMessagePreludeSize = sizeof(Protocol::RequestAnswerId);
 
-		std::optional<ServerStorage::ClientBinding> clientBinding = storage.getConfirmedClientBinding(connectionId);
+		std::optional<ServerConfigStorage::ClientBinding> clientBinding = configStorage.getConfirmedClientBinding(connectionId);
 
 		if (!clientBinding.has_value())
 		{
@@ -111,11 +111,11 @@ namespace Requests
 		return false;
 	}
 
-	void processSendFilesInteractiveRequest(const Cryptography::HashResult& connectionId, std::span<const std::byte> firstMessage, const Network::RawSocket socket, ServerStorage& storage, const std::filesystem::path& fileTargetRoot)
+	void processSendFilesInteractiveRequest(const Cryptography::HashResult& connectionId, std::span<const std::byte> firstMessage, const Network::RawSocket socket, ServerConfigStorage& configStorage, const std::filesystem::path& fileTargetRoot)
 	{
 		Noise::CipherStateSending sendingCipherState;
 		Noise::CipherStateReceiving receivingCipherState;
-		if (!processKkHandshake(connectionId, firstMessage, socket, storage, sendingCipherState, receivingCipherState))
+		if (!processKkHandshake(connectionId, firstMessage, socket, configStorage, sendingCipherState, receivingCipherState))
 		{
 			reportDebugError("Could not process KK handshake");
 			return;

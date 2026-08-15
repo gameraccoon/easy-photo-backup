@@ -184,8 +184,8 @@ TEST_F(RequestsTest, PairConfirmAndExchangeFiles_FilesExchanged)
 		clientThread.join();
 	});
 
-	std::optional<ServerStorage> storage = ServerStorage::openStorage(TEST_DATA_PATH);
-	ASSERT_TRUE(storage.has_value());
+	std::optional<ServerConfigStorage> configStorage = ServerConfigStorage::openStorage(TEST_DATA_PATH);
+	ASSERT_TRUE(configStorage.has_value());
 
 	// server pair
 	std::array<std::byte, Protocol::MaxRequestSize> buffer;
@@ -203,9 +203,9 @@ TEST_F(RequestsTest, PairConfirmAndExchangeFiles_FilesExchanged)
 	ASSERT_TRUE(pendingClientBinding.has_value());
 
 	// server approve
-	storage->addConfirmedClientBinding(
+	configStorage->addConfirmedClientBinding(
 		Cryptography::generateConnectionId(pendingClientBinding->remoteStaticKey, pendingClientBinding->staticKeys.publicKey),
-		ServerStorage::ClientBinding{
+		ServerConfigStorage::ClientBinding{
 			.clientName = "test_client",
 			.remoteStaticKey = std::move(pendingClientBinding->remoteStaticKey),
 			.staticKeys = std::move(pendingClientBinding->staticKeys),
@@ -222,7 +222,7 @@ TEST_F(RequestsTest, PairConfirmAndExchangeFiles_FilesExchanged)
 	auto sendFilesRequest = Requests::parseRequest(buffer[2], std::span(buffer.data() + MessagePreludeSize, buffer.data() + readBytes));
 	ASSERT_TRUE(std::holds_alternative<Requests::SendFiles>(sendFilesRequest));
 	Requests::SendFiles sendFiles = std::get<Requests::SendFiles>(std::move(sendFilesRequest));
-	Requests::processSendFilesInteractiveRequest(sendFiles.connectionId, sendFiles.firstMessage, serverSocket, *storage, TEST_DATA_PATH);
+	Requests::processSendFilesInteractiveRequest(sendFiles.connectionId, sendFiles.firstMessage, serverSocket, *configStorage, TEST_DATA_PATH);
 
 	checkFile(folderToSend / fileName, fileContent);
 }

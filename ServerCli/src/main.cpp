@@ -20,15 +20,15 @@ int main()
 {
 	Network::initSocketLib();
 
-	std::optional<ServerStorage> storage = ServerStorage::openStorage(".");
+	std::optional<ServerConfigStorage> configStorage = ServerConfigStorage::openStorage(".");
 
-	if (!storage.has_value())
+	if (!configStorage.has_value())
 	{
 		Debug::Log::printDebug("Could not open server storage");
 		return 0;
 	}
 
-	std::optional<std::array<std::byte, 16>> serverIdResult = storage->getOrGenerateServerId();
+	std::optional<std::array<std::byte, 16>> serverIdResult = configStorage->getOrGenerateServerId();
 	if (!serverIdResult.has_value())
 	{
 		Debug::Log::printDebug("Could not load or save serverId");
@@ -64,8 +64,8 @@ int main()
 		pairingRequestData.condVar.notify_all();
 	};
 
-	auto serverThread = std::thread([&storage, &portPromise, &onPairingRequestReceivedLambda] {
-		TcpServer::runServer(*storage, "0.0.0.0", Network::AddressType::IpV4, portPromise, onPairingRequestReceivedLambda);
+	auto serverThread = std::thread([&configStorage, &portPromise, &onPairingRequestReceivedLambda] {
+		TcpServer::runServer(*configStorage, "0.0.0.0", Network::AddressType::IpV4, portPromise, onPairingRequestReceivedLambda);
 	});
 
 	if (auto status = portFuture.wait_for(std::chrono::seconds(3)); status != std::future_status::ready)

@@ -12,9 +12,9 @@
 
 #include "server_shared/pairing_interactive_request.h"
 
-class ServerStorage;
+class ServerConfigStorage;
 
 namespace TcpServer
 {
-	std::optional<std::string> runServer(ServerStorage& storage, const char* interfaceAddressStr, Network::AddressType addressType, std::promise<uint16_t>& portPromise, const std::function<void(Requests::PendingClientBinding&& pendingClientBinding)>& pairingFn);
+	std::optional<std::string> runServer(ServerConfigStorage& storage, const char* interfaceAddressStr, Network::AddressType addressType, std::promise<uint16_t>& portPromise, const std::function<void(Requests::PendingClientBinding&& pendingClientBinding)>& pairingFn);
 }

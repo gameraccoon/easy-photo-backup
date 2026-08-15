@@ -14,8 +14,8 @@
 
 namespace ClientStorageInternal
 {
-	static constexpr std::string_view ClientConfigStorageEnvironmentName = "client_config";
-	static constexpr std::string_view ClientSentFilesStorageEnvironmentName = "client_sent_files";
+	static constexpr std::string_view ClientConfigStorageEnvironmentName = "client_config_storage";
+	static constexpr std::string_view ClientSentFilesStorageEnvironmentName = "client_sent_files_storage";
 	static constexpr std::zstring_view ConfirmedDatabaseName = "confirmed";
 	static constexpr std::zstring_view SentFilesDatabaseName = "sent_files";
 	static constexpr std::zstring_view PartiallySentDatabaseName = "part_sent";

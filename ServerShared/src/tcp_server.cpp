@@ -25,7 +25,7 @@ namespace TcpServer
 	constexpr const int FirstMessageTimeoutSeconds = 0;
 	constexpr const int FirstMessageTimeoutMicroseconds = 100000;
 
-	static void handleClient(const Network::RawSocket socket, sockaddr /*clientAddr*/, socklen_t /*clientAddrLen*/, ServerStorage& storage, const std::function<void(Requests::PendingClientBinding&& pendingClientBinding)>& onPairingRequestFn)
+	static void handleClient(const Network::RawSocket socket, sockaddr /*clientAddr*/, socklen_t /*clientAddrLen*/, ServerConfigStorage& configStorage, const std::function<void(Requests::PendingClientBinding&& pendingClientBinding)>& onPairingRequestFn)
 	{
 		// we need to make sure to have a timeout to not get DOS as soon as a couple of connections hangs
 		// we should have a shorter timeout now and increase it when we authentificate the user for the file transfer
@@ -118,15 +118,15 @@ namespace TcpServer
 
 					onPairingRequestFn(std::move(*pendingClientBinding));
 				},
-				[socket, &storage](const Requests::SendFiles&& sendFiles) {
-					Requests::processSendFilesInteractiveRequest(sendFiles.connectionId, sendFiles.firstMessage, socket, storage, ".");
+				[socket, &configStorage](const Requests::SendFiles&& sendFiles) {
+					Requests::processSendFilesInteractiveRequest(sendFiles.connectionId, sendFiles.firstMessage, socket, configStorage, ".");
 				},
 			},
 			std::move(request)
 		);
 	}
 
-	std::optional<std::string> runServer(ServerStorage& storage, const char* interfaceAddressStr, const Network::AddressType addressType, std::promise<uint16_t>& portPromise, const std::function<void(Requests::PendingClientBinding&& pendingClientBinding)>& onPairingRequestFn)
+	std::optional<std::string> runServer(ServerConfigStorage& configStorage, const char* interfaceAddressStr, const Network::AddressType addressType, std::promise<uint16_t>& portPromise, const std::function<void(Requests::PendingClientBinding&& pendingClientBinding)>& onPairingRequestFn)
 	{
 		std::variant<Network::RawSocket, std::string> createSocketResult = createSocket(Network::SocketType::Tcp, addressType);
 		if (std::holds_alternative<std::string>(createSocketResult))
@@ -185,9 +185,9 @@ namespace TcpServer
 			// ToDo: creating new threads here is silly, we need to use a thread pool
 			// to both not spend extra time on spinning up threads for small requests
 			// and avoid getting DOSed simply by spamming small requests
-			std::thread([connectionSocket, clientAddr, clientAddrLen, &storage, &onPairingRequestFn] {
+			std::thread([connectionSocket, clientAddr, clientAddrLen, &configStorage, &onPairingRequestFn] {
 				Network::AutoclosingSocket socketGuard(connectionSocket);
-				handleClient(connectionSocket, clientAddr, clientAddrLen, storage, onPairingRequestFn);
+				handleClient(connectionSocket, clientAddr, clientAddrLen, configStorage, onPairingRequestFn);
 			}).detach();
 		}
 

@@ -28,40 +28,40 @@ protected:
 
 TEST_F(ServerStorageTest, Storage_Created_NoErrors)
 {
-	std::optional<ServerStorage> storage = ServerStorage::openStorage(TEST_DATA_PATH);
-	EXPECT_TRUE(storage.has_value());
+	std::optional<ServerConfigStorage> configStorage = ServerConfigStorage::openStorage(TEST_DATA_PATH);
+	EXPECT_TRUE(configStorage.has_value());
 }
 
 TEST_F(ServerStorageTest, EmptyStorage_GetNonExistentConfirmedServer_ReturnsNone)
 {
-	std::optional<ServerStorage> storage = ServerStorage::openStorage(TEST_DATA_PATH);
-	ASSERT_TRUE(storage.has_value());
+	std::optional<ServerConfigStorage> configStorage = ServerConfigStorage::openStorage(TEST_DATA_PATH);
+	ASSERT_TRUE(configStorage.has_value());
 
-	ServerStorage::ConnectionId id{};
+	ServerConfigStorage::ConnectionId id{};
 	Cryptography::fillWithRandomBytes(id);
-	EXPECT_FALSE(storage->hasConfirmedClientBinding(id));
-	EXPECT_FALSE(storage->getConfirmedClientBinding(id).has_value());
+	EXPECT_FALSE(configStorage->hasConfirmedClientBinding(id));
+	EXPECT_FALSE(configStorage->getConfirmedClientBinding(id).has_value());
 }
 
 TEST_F(ServerStorageTest, Storage_AddConfirmedServerAndGetIt_ReturnsTheBinding)
 {
-	std::optional<ServerStorage> storage = ServerStorage::openStorage(TEST_DATA_PATH);
-	ASSERT_TRUE(storage.has_value());
+	std::optional<ServerConfigStorage> configStorage = ServerConfigStorage::openStorage(TEST_DATA_PATH);
+	ASSERT_TRUE(configStorage.has_value());
 
-	ServerStorage::ConnectionId id{};
+	ServerConfigStorage::ConnectionId id{};
 	Cryptography::fillWithRandomBytes(id);
 
-	ServerStorage::ClientBinding binding;
+	ServerConfigStorage::ClientBinding binding;
 	binding.clientName = "asdf";
 	Cryptography::fillWithRandomBytes(binding.remoteStaticKey);
 	Cryptography::fillWithRandomBytes(binding.staticKeys.publicKey);
 	Cryptography::fillWithRandomBytes(binding.staticKeys.secretKey);
 
-	storage->addConfirmedClientBinding(id, binding);
+	configStorage->addConfirmedClientBinding(id, binding);
 
-	EXPECT_TRUE(storage->hasConfirmedClientBinding(id));
+	EXPECT_TRUE(configStorage->hasConfirmedClientBinding(id));
 
-	std::optional<ServerStorage::ClientBinding> result = storage->getConfirmedClientBinding(id);
+	std::optional<ServerConfigStorage::ClientBinding> result = configStorage->getConfirmedClientBinding(id);
 	ASSERT_TRUE(result.has_value());
 
 	EXPECT_EQ(result->clientName, binding.clientName);
@@ -72,53 +72,53 @@ TEST_F(ServerStorageTest, Storage_AddConfirmedServerAndGetIt_ReturnsTheBinding)
 
 TEST_F(ServerStorageTest, Storage_RemoveExistingConfirmedBindingAndGetIt_ReturnsNone)
 {
-	std::optional<ServerStorage> storage = ServerStorage::openStorage(TEST_DATA_PATH);
-	ASSERT_TRUE(storage.has_value());
+	std::optional<ServerConfigStorage> configStorage = ServerConfigStorage::openStorage(TEST_DATA_PATH);
+	ASSERT_TRUE(configStorage.has_value());
 
-	ServerStorage::ConnectionId id{};
+	ServerConfigStorage::ConnectionId id{};
 	Cryptography::fillWithRandomBytes(id);
 
-	ServerStorage::ClientBinding binding;
+	ServerConfigStorage::ClientBinding binding;
 	binding.clientName = "asdf";
 	Cryptography::fillWithRandomBytes(binding.remoteStaticKey);
 	Cryptography::fillWithRandomBytes(binding.staticKeys.publicKey);
 	Cryptography::fillWithRandomBytes(binding.staticKeys.secretKey);
 
-	storage->addConfirmedClientBinding(id, binding);
+	configStorage->addConfirmedClientBinding(id, binding);
 
-	EXPECT_TRUE(storage->removeConfirmedClientBinding(id));
+	EXPECT_TRUE(configStorage->removeConfirmedClientBinding(id));
 
-	EXPECT_FALSE(storage->hasConfirmedClientBinding(id));
-	EXPECT_FALSE(storage->getConfirmedClientBinding(id).has_value());
-	EXPECT_FALSE(storage->removeConfirmedClientBinding(id));
+	EXPECT_FALSE(configStorage->hasConfirmedClientBinding(id));
+	EXPECT_FALSE(configStorage->getConfirmedClientBinding(id).has_value());
+	EXPECT_FALSE(configStorage->removeConfirmedClientBinding(id));
 }
 
 TEST_F(ServerStorageTest, EmptyStorage_TryToRemoveConfirmedServer_ReturnsFalse)
 {
-	std::optional<ServerStorage> storage = ServerStorage::openStorage(TEST_DATA_PATH);
-	ASSERT_TRUE(storage.has_value());
+	std::optional<ServerConfigStorage> configStorage = ServerConfigStorage::openStorage(TEST_DATA_PATH);
+	ASSERT_TRUE(configStorage.has_value());
 
-	ServerStorage::ConnectionId id{};
+	ServerConfigStorage::ConnectionId id{};
 	Cryptography::fillWithRandomBytes(id);
-	EXPECT_FALSE(storage->removeConfirmedClientBinding(id));
+	EXPECT_FALSE(configStorage->removeConfirmedClientBinding(id));
 }
 
 TEST_F(ServerStorageTest, EmptyStorage_GetOrGenerateServerIdTwice_ReturnsTheSameId)
 {
 	std::optional<std::array<std::byte, 16>> serverId1{};
 	{
-		std::optional<ServerStorage> storage = ServerStorage::openStorage(TEST_DATA_PATH);
-		ASSERT_TRUE(storage.has_value());
+		std::optional<ServerConfigStorage> configStorage = ServerConfigStorage::openStorage(TEST_DATA_PATH);
+		ASSERT_TRUE(configStorage.has_value());
 
-		serverId1 = storage->getOrGenerateServerId();
+		serverId1 = configStorage->getOrGenerateServerId();
 		EXPECT_TRUE(serverId1.has_value());
 	}
 
 	{
-		std::optional<ServerStorage> storage = ServerStorage::openStorage(TEST_DATA_PATH);
-		ASSERT_TRUE(storage.has_value());
+		std::optional<ServerConfigStorage> configStorage = ServerConfigStorage::openStorage(TEST_DATA_PATH);
+		ASSERT_TRUE(configStorage.has_value());
 
-		auto serverId2 = storage->getOrGenerateServerId();
+		auto serverId2 = configStorage->getOrGenerateServerId();
 		EXPECT_TRUE(serverId2.has_value());
 		EXPECT_EQ(serverId1, serverId2);
 	}

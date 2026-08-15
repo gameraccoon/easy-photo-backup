@@ -9,7 +9,7 @@
 #include "common_shared/cryptography/types/hash_types.h"
 #include "common_shared/storage/lmdb_environment.h"
 
-class ServerStorage
+class ServerConfigStorage
 {
 public:
 	struct ClientBinding
@@ -22,10 +22,10 @@ public:
 	using ConnectionId = Cryptography::HashResult;
 
 public:
-	ServerStorage(ServerStorage&&) noexcept = default;
-	ServerStorage& operator=(ServerStorage&&) noexcept = default;
+	ServerConfigStorage(ServerConfigStorage&&) noexcept = default;
+	ServerConfigStorage& operator=(ServerConfigStorage&&) noexcept = default;
 
-	[[nodiscard]] static std::optional<ServerStorage> openStorage(const std::filesystem::path& storageRootPath) noexcept;
+	[[nodiscard]] static std::optional<ServerConfigStorage> openStorage(const std::filesystem::path& storageRootPath) noexcept;
 
 	void addConfirmedClientBinding(const ConnectionId& connectionId, const ClientBinding& binding) noexcept;
 	bool removeConfirmedClientBinding(const ConnectionId& connectionId) noexcept;
@@ -35,7 +35,7 @@ public:
 	[[nodiscard]] std::optional<std::array<std::byte, 16>> getOrGenerateServerId() noexcept;
 
 private:
-	explicit ServerStorage(Lmdb::ReadWriteEnvironment&& mEnvironment) noexcept;
+	explicit ServerConfigStorage(Lmdb::ReadWriteEnvironment&& mEnvironment) noexcept;
 
 private:
 	Lmdb::ReadWriteEnvironment mEnvironment;
