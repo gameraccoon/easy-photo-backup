@@ -221,15 +221,15 @@ namespace ClientCli
 						printLnCli(std::format("{}\n", record.asString()));
 					}
 
-					std::string command = requestCli("N - next, P - previous, Q - quit\n> ");
-					if (command == "N")
+					std::string logCmd = requestCli("N - next, P - previous, Q - quit\n> ");
+					if (logCmd == "N")
 					{
 						if (endIdx > pageSize && records.size() == pageSize)
 						{
 							endIdx -= pageSize;
 						}
 					}
-					else if (command == "P")
+					else if (logCmd == "P")
 					{
 						endIdx += pageSize;
 						if (endIdx > lastKnownIdx)
