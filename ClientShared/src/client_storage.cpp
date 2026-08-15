@@ -79,7 +79,7 @@ namespace ClientStorageInternal
 			if (!deserializer.readUint32(record.filesSent, "filesSent")) { break; }
 			if (!deserializer.readUint32(record.bytesTransferred, "bytesTransferred")) { break; }
 			if (!deserializer.readByte(*reinterpret_cast<std::byte*>(&record.type), "type")) { break; }
-			if (!deserializer.readShortString(record.error, "error")) { break; }
+			if (!deserializer.readShortString(record.additionalInfo, "additionalInfo")) { break; }
 
 			if (deserializer.getBytesRead() != view->value.size())
 			{
@@ -341,7 +341,7 @@ std::string ClientSentFilesStorage::ActivityJournalRecord::asString() const noex
 		(filesSent > 0) ? std::format("\nfiles sent: {}", filesSent) : std::string{},
 		bytesSentStr,
 		formatActivityRecordTime(timestampMs),
-		error.empty() ? "" : std::format("\nerror: '{}'", error)
+		additionalInfo.empty() ? "" : std::format("\nadditional info: '{}'", additionalInfo)
 	);
 }
 
@@ -543,19 +543,19 @@ bool ClientSentFilesStorage::addActivityJournalRecord(ActivityJournalRecord&& ne
 	}
 
 	std::vector<std::byte> value;
-	value.resize(ClientStorageInternal::ActivityRecordValueStaticDataSize + newRecord.error.size());
+	value.resize(ClientStorageInternal::ActivityRecordValueStaticDataSize + newRecord.additionalInfo.size());
 	Serialization::GenericSerializationWrapper serializer{ value };
 
-	if (newRecord.error.size() > 255)
+	if (newRecord.additionalInfo.size() > 255)
 	{
-		newRecord.error.resize(255);
+		newRecord.additionalInfo.resize(255);
 	}
 
 	if (!serializer.writeUint64(newRecord.timestampMs, "timestampMs")) { return false; }
 	if (!serializer.writeUint32(newRecord.filesSent, "connectionId")) { return false; }
 	if (!serializer.writeUint32(newRecord.bytesTransferred, "bytesTransferred")) { return false; }
 	if (!serializer.writeByte(static_cast<std::byte>(newRecord.type), "type")) { return false; }
-	if (!serializer.writeShortString(newRecord.error, "error")) { return false; }
+	if (!serializer.writeShortString(newRecord.additionalInfo, "additionalInfo")) { return false; }
 	assertFatalRelease(serializer.getBytesWritten() == value.size(), "Logical error, serialization of confirmed binding leaves not filled bytes, buffer size: {} written: {}", value.size(), serializer.getBytesWritten());
 
 	Lmdb::Result<Lmdb::ReadWriteCursor> cursor = Lmdb::ReadWriteCursor::open(wrapper->transaction, wrapper->database);

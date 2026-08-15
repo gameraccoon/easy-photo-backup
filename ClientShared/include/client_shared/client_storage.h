@@ -61,7 +61,7 @@ public:
 		uint32_t filesSent = 0;
 		uint32_t bytesTransferred = 0;
 		Type type = Type::Unknown;
-		std::string error;
+		std::string additionalInfo;
 
 		[[nodiscard]] std::string asString() const noexcept;
 	};

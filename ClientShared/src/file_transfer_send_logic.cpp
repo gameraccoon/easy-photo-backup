@@ -592,7 +592,7 @@ namespace FileTransferSendLogic
 		EndSuccess,
 	};
 
-	static void recordActivity(FileSendingState& sendingState, ClientSentFilesStorage& storage, ActivityType type, std::string&& error)
+	static void recordActivity(FileSendingState& sendingState, ClientSentFilesStorage& storage, ActivityType type, std::string&& additionalInfo)
 	{
 		const auto now = std::chrono::system_clock::now();
 
@@ -626,7 +626,7 @@ namespace FileTransferSendLogic
 			.filesSent = sendingState.stats.filesSent,
 			.bytesTransferred = static_cast<uint32_t>(sendingState.stats.chunksSent * FileSendingState::ChunkSize),
 			.type = recordType,
-			.error = std::move(error),
+			.additionalInfo = std::move(additionalInfo),
 		});
 
 		sendingState.stats.lastStatsRecordingTime = now;
