@@ -8,8 +8,6 @@
 #include <format>
 #include <thread>
 
-#include "common_shared/cryptography/utils/connection_id_utils.h"
-#include "common_shared/cryptography/utils/short_authentification_string_utils.h"
 #include "common_shared/debug/assert.h"
 #include "common_shared/network/protocol.h"
 #include "common_shared/network/raw_sockets.h"
@@ -17,7 +15,6 @@
 #include "common_shared/serialization/number_serialization.h"
 #include "common_shared/template_utils.h"
 
-#include "server_shared/pairing_interactive_request.h"
 #include "server_shared/request_answers.h"
 #include "server_shared/requests.h"
 #include "server_shared/send_files_interactive_request.h"
@@ -28,7 +25,7 @@ namespace TcpServer
 	constexpr const int FirstMessageTimeoutSeconds = 0;
 	constexpr const int FirstMessageTimeoutMicroseconds = 100000;
 
-	static void handleClient(const Network::RawSocket socket, sockaddr /*clientAddr*/, socklen_t /*clientAddrLen*/, ServerStorage& storage)
+	static void handleClient(const Network::RawSocket socket, sockaddr /*clientAddr*/, socklen_t /*clientAddrLen*/, ServerStorage& storage, const std::function<void(Requests::PendingClientBinding&& pendingClientBinding)>& onPairingRequestFn)
 	{
 		// we need to make sure to have a timeout to not get DOS as soon as a couple of connections hangs
 		// we should have a shorter timeout now and increase it when we authentificate the user for the file transfer
@@ -111,29 +108,15 @@ namespace TcpServer
 						}
 					);
 				},
-				[socket, &storage](const Requests::Pair&& pair) {
+				[socket, &onPairingRequestFn](const Requests::Pair&& pair) {
 					auto pendingClientBinding = Requests::processPairingInteractiveRequest(pair.firstMessage, socket);
 
-					// approve automatically for now
+					if (!pendingClientBinding.has_value() || onPairingRequestFn == nullptr)
 					{
-						if (!pendingClientBinding.has_value())
-						{
-							return;
-						}
-
-						Debug::Log::printDebug(Cryptography::generateSas(pendingClientBinding->handshakeHash, 6));
-
-						storage.addConfirmedClientBinding(
-							Cryptography::generateConnectionId(pendingClientBinding->remoteStaticKey, pendingClientBinding->staticKeys.publicKey),
-							ServerStorage::ClientBinding{
-								.clientName = "test_client",
-								.remoteStaticKey = std::move(pendingClientBinding->remoteStaticKey),
-								.staticKeys = std::move(pendingClientBinding->staticKeys),
-							}
-						);
-
-						Debug::Log::printDebug("The client got automatically approved for testing purposes");
+						return;
 					}
+
+					onPairingRequestFn(std::move(*pendingClientBinding));
 				},
 				[socket, &storage](const Requests::SendFiles&& sendFiles) {
 					Requests::processSendFilesInteractiveRequest(sendFiles.connectionId, sendFiles.firstMessage, socket, storage, ".");
@@ -143,7 +126,7 @@ namespace TcpServer
 		);
 	}
 
-	std::optional<std::string> runServer(ServerStorage& storage, const char* interfaceAddressStr, const Network::AddressType addressType, std::promise<uint16_t>& portPromise)
+	std::optional<std::string> runServer(ServerStorage& storage, const char* interfaceAddressStr, const Network::AddressType addressType, std::promise<uint16_t>& portPromise, const std::function<void(Requests::PendingClientBinding&& pendingClientBinding)>& onPairingRequestFn)
 	{
 		std::variant<Network::RawSocket, std::string> createSocketResult = createSocket(Network::SocketType::Tcp, addressType);
 		if (std::holds_alternative<std::string>(createSocketResult))
@@ -202,9 +185,9 @@ namespace TcpServer
 			// ToDo: creating new threads here is silly, we need to use a thread pool
 			// to both not spend extra time on spinning up threads for small requests
 			// and avoid getting DOSed simply by spamming small requests
-			std::thread([connectionSocket, clientAddr, clientAddrLen, &storage] {
+			std::thread([connectionSocket, clientAddr, clientAddrLen, &storage, &onPairingRequestFn] {
 				Network::AutoclosingSocket socketGuard(connectionSocket);
-				handleClient(connectionSocket, clientAddr, clientAddrLen, storage);
+				handleClient(connectionSocket, clientAddr, clientAddrLen, storage, onPairingRequestFn);
 			}).detach();
 		}
 

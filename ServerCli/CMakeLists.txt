@@ -18,10 +18,12 @@ endif()
 target_include_directories(ServerCli PRIVATE
 	${MAIN_ROOT}/CommonShared/include
 	${MAIN_ROOT}/ServerShared/include
+	${MAIN_ROOT}/ServerCli/include
 )
 
 target_sources(ServerCli PRIVATE
 	${SERVER_CLI_SRC_DIR}/main.cpp
+	${SERVER_CLI_SRC_DIR}/server_cli_thread.cpp
 )
 
 target_link_libraries(ServerCli

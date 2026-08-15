@@ -6,6 +6,10 @@
 #include "common_shared/debug/log.h"
 #include "common_shared/nsd/nsd_client.h"
 
+#ifdef DEBUG_CHECKS
+static constexpr bool NsdDebug = false;
+#endif
+
 void ServerDiscoveryClient::startDiscovery() noexcept
 {
 	mDiscoveryThread = std::thread([&servers = mDiscoveredServers, &mutex = mDataMutex, &nsdStopFlag = mNsdStopFlag] {
@@ -29,8 +33,12 @@ void ServerDiscoveryClient::startDiscovery() noexcept
 					{
 						idString.push_back(static_cast<char>(static_cast<int>(b) + '0'));
 					}
-
-					Debug::Log::printDebug("NSD: Server added v={}, id='{}', ip='{}', port='{}'", version, idString, event.address.ip, event.address.port);
+#ifdef DEBUG_CHECKS
+					if (NsdDebug)
+					{
+						Debug::Log::printDebug("NSD: Server added v={}, id='{}', ip='{}', port='{}'", version, idString, event.address.ip, event.address.port);
+					}
+#endif // DEBUG_CHECKS
 					{
 						std::unique_lock lock(mutex);
 						std::array<std::byte, 16> serverId{};
@@ -47,7 +55,12 @@ void ServerDiscoveryClient::startDiscovery() noexcept
 				}
 				else
 				{
-					Debug::Log::printDebug("NSD: Server removed");
+#ifdef DEBUG_CHECKS
+					if (NsdDebug)
+					{
+						Debug::Log::printDebug("NSD: Server removed");
+					}
+#endif // DEBUG_CHECKS
 					{
 						std::unique_lock lock(mutex);
 						auto it = std::find_if(
@@ -72,10 +85,12 @@ void ServerDiscoveryClient::startDiscovery() noexcept
 		{
 			Debug::Log::printDebug("NSD client error: '{}'", *result);
 		}
-		else
+#ifdef DEBUG_CHECKS
+		else if (NsdDebug)
 		{
 			Debug::Log::printDebug("NSD client stopped without errors");
 		}
+#endif // DEBUG_CHECKS
 	});
 }
 

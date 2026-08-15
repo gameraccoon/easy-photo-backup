@@ -14,6 +14,8 @@
 #include "server_shared/server_storage.h"
 #include "server_shared/tcp_server.h"
 
+#include "server_cli/server_cli_thread.h"
+
 int main()
 {
 	Network::initSocketLib();
@@ -55,9 +57,15 @@ int main()
 
 	std::promise<uint16_t> portPromise{};
 	std::future<uint16_t> portFuture = portPromise.get_future();
+	ServerCli::PairingRequestData pairingRequestData;
+	auto onPairingRequestReceivedLambda = [&](Requests::PendingClientBinding&& pendingClientBinding) {
+		std::scoped_lock l(pairingRequestData.dataMutex);
+		pairingRequestData.newPairingRequests.push_back(std::move(pendingClientBinding));
+		pairingRequestData.condVar.notify_all();
+	};
 
-	auto serverThread = std::thread([&storage, &portPromise] {
-		TcpServer::runServer(*storage, "0.0.0.0", Network::AddressType::IpV4, portPromise);
+	auto serverThread = std::thread([&storage, &portPromise, &onPairingRequestReceivedLambda] {
+		TcpServer::runServer(*storage, "0.0.0.0", Network::AddressType::IpV4, portPromise, onPairingRequestReceivedLambda);
 	});
 
 	if (auto status = portFuture.wait_for(std::chrono::seconds(3)); status != std::future_status::ready)
@@ -67,6 +75,17 @@ int main()
 	}
 
 	const uint16_t serverPort = portFuture.get();
+
+	std::thread cliThread([&pairingRequestData] {
+		if (isatty(fileno(stdin)))
+		{
+			ServerCli::runCliThread(pairingRequestData);
+		}
+		else
+		{
+			Debug::Log::printDebug("Running non-interactively, not starting the command line interface");
+		}
+	});
 
 	std::thread nsdThread([socket, &nsdCloseSocketFlag, serverId, serverPort] {
 		std::array<std::byte, 18> extraData;
@@ -97,10 +116,10 @@ int main()
 		}
 	});
 
+	cliThread.join();
 	serverThread.join();
 
 	stopNsdServer();
-	// wait for the thread to finish
 	nsdThread.join();
 
 	Network::shutdownSocketLib();
