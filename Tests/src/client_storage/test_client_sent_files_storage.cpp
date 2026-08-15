@@ -3,6 +3,7 @@
 
 #include <filesystem>
 
+#include "tests/helper_utils.h"
 #include <gtest/gtest.h>
 
 #include "client_shared/client_storage.h"
@@ -469,6 +470,13 @@ TEST_F(ClientSentFilesStorageTest, StorageWithRecords_GetRecordsWithPagesBackwar
 
 TEST(ClientSentFilesStorage, ActivityJournalRecord_Format_ReturnsExpectedString)
 {
+	setenv("TZ", "UTC", 1);
+	tzset();
+
+	TestFinalizer f = []() {
+		unsetenv("TZ");
+	};
+
 	{
 		ClientSentFilesStorage::ActivityJournalRecord v{
 			.timestampMs = 1786369187509,
@@ -479,7 +487,7 @@ TEST(ClientSentFilesStorage, ActivityJournalRecord_Format_ReturnsExpectedString)
 		};
 		EXPECT_EQ(
 			v.asString(),
-			std::string("end with error\nfiles sent: 10\nsent: 1Gb 886Mb 219Kb 584 bytes\ntime: 2026-08-10 15:39:47\nadditional info: 'test error'")
+			std::string("end with error\nfiles sent: 10\nsent: 1Gb 886Mb 219Kb 584 bytes\ntime: 2026-08-10 13:39:47\nadditional info: 'test error'")
 		);
 	}
 
@@ -493,7 +501,7 @@ TEST(ClientSentFilesStorage, ActivityJournalRecord_Format_ReturnsExpectedString)
 		};
 		EXPECT_EQ(
 			v.asString(),
-			std::string("start\ntime: 2026-08-10 15:39:47")
+			std::string("start\ntime: 2026-08-10 13:39:47")
 		);
 	}
 }
