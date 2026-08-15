@@ -83,7 +83,7 @@ namespace ClientCli
 		{
 			if (discoveryResults.empty())
 			{
-				printLnCli("\nNo discovered servers type 'nsd'");
+				printLnCli("\nNo discovered servers. Type 'nsd'");
 			}
 			else
 			{
@@ -109,6 +109,7 @@ namespace ClientCli
 				printLnCli("pair <index> - pair a server");
 				printLnCli("pair <index> - unpair a server");
 				printLnCli("send <index> - execute sending files routine");
+				printLnCli("log - see the activity journal");
 			}
 			else if (command == "quit" || command == "exit")
 			{
@@ -142,11 +143,12 @@ namespace ClientCli
 				if (std::holds_alternative<std::string>(pairingExchangeResult))
 				{
 					printLnCli(std::format("Error when exchanging pairing information: {}", std::get<std::string>(std::move(pairingExchangeResult))));
+					continue;
 				}
 
 				PendingServerBinding pairingExchange = std::get<PendingServerBinding>(std::move(pairingExchangeResult));
 
-				std::string code = requestCli("Ented the 6-digit code shown on the host machine");
+				std::string code = requestCli("Enter the 6-digit code shown on the host machine\n> ");
 				if (code != Cryptography::generateSas(pairingExchange.handshakeHash, 6))
 				{
 					printLnCli("The code didn't match, please cancel the pairing on the other machine and start again");
@@ -204,6 +206,46 @@ namespace ClientCli
 					continue;
 				}
 				printLnCli("Finished sending files");
+			}
+			else if (command == "log")
+			{
+				constexpr uint32_t pageSize = 5;
+				uint32_t endIdx = 0;
+				uint32_t lastKnownIdx = 0;
+				std::vector<ClientSentFilesStorage::ActivityJournalRecord> records = clientSentFilesStorage->getLastActivityJournalRecords(pageSize, endIdx);
+				lastKnownIdx = endIdx;
+				while (true)
+				{
+					for (ClientSentFilesStorage::ActivityJournalRecord& record : records)
+					{
+						printLnCli(std::format("{}\n", record.asString()));
+					}
+
+					std::string command = requestCli("N - next, P - previous, Q - quit\n> ");
+					if (command == "N")
+					{
+						if (endIdx > pageSize && records.size() == pageSize)
+						{
+							endIdx -= pageSize;
+						}
+					}
+					else if (command == "P")
+					{
+						endIdx += pageSize;
+						if (endIdx > lastKnownIdx)
+						{
+							records = clientSentFilesStorage->getLastActivityJournalRecords(pageSize, endIdx);
+							lastKnownIdx = endIdx;
+							continue;
+						}
+					}
+					else
+					{
+						break;
+					}
+
+					records = clientSentFilesStorage->getActivityJournalRecords(endIdx >= pageSize ? endIdx - pageSize : 0, endIdx);
+				}
 			}
 			else
 			{
