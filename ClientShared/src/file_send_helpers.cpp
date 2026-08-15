@@ -61,7 +61,7 @@ namespace FileSendHelpers
 			.filesSent = 0,
 			.bytesTransferred = 0,
 			.type = ClientSentFilesStorage::ActivityJournalRecord::Type::CheckForNewFiles,
-			.error = {},
+			.additionalInfo = folderPath.lexically_relative(commonRoot).string(),
 		});
 
 		std::vector<std::filesystem::path> files = collectFilesFromDirectory(folderPath);
