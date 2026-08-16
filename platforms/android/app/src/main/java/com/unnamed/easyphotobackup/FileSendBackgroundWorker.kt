@@ -56,8 +56,11 @@ class FileSendBackgroundWorker(
 
                     if (!PairingHelpers.isServerPaired(clientConfigStorage, discoveryResult)) {
                         statuses.add("\nSkipped unknown server '$serverName'")
+                        clientSentFilesStorage.addActivityJournalRecord(2)
                         continue
                     }
+
+                    clientSentFilesStorage.addActivityJournalRecord(0)
 
                     for (folder in foldersToSync) {
                         setProgress(workDataOf(
@@ -81,6 +84,7 @@ class FileSendBackgroundWorker(
             }
             else {
                 resultStatus = "no servers"
+                clientSentFilesStorage.addActivityJournalRecord(1)
             }
 
             prefs.edit {

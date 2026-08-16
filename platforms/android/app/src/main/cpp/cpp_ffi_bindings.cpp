@@ -395,6 +395,43 @@ Java_com_unnamed_easyphotobackup_FileSendHelpers_sendFilesNative(
 	return nullptr;
 }
 
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_unnamed_easyphotobackup_ClientSentFilesStorage_addActivityJournalRecord(
+	JNIEnv* env,
+	jobject /*this*/,
+	jlong clientSentFilesStorageHandle,
+	jint eventIdx
+)
+{
+	ClientSentFilesStorageNative* clientSentFilesStorage = reinterpret_cast<ClientSentFilesStorageNative*>(clientSentFilesStorageHandle);
+
+	ClientSentFilesStorage::ActivityJournalRecord::Type recordType = ClientSentFilesStorage::ActivityJournalRecord::Type::Unknown;
+	switch (eventIdx)
+	{
+	case 0:
+		recordType = ClientSentFilesStorage::ActivityJournalRecord::Type::FoundServer;
+		break;
+	case 1:
+		recordType = ClientSentFilesStorage::ActivityJournalRecord::Type::NoServers;
+		break;
+	case 2:
+		recordType = ClientSentFilesStorage::ActivityJournalRecord::Type::UnknownServer;
+		break;
+	default:
+		break;
+	}
+
+	ClientSentFilesStorage::ActivityJournalRecord activityRecord{
+		.timestampMs = ClientSentFilesStorage::ActivityJournalRecord::convertTimeToMs(std::chrono::system_clock::now()),
+		.filesSent = 0,
+		.bytesTransferred = 0,
+		.type = recordType,
+		.additionalInfo = std::string{},
+	};
+
+	return clientSentFilesStorage->storage.addActivityJournalRecord(std::move(activityRecord));
+}
+
 extern "C" JNIEXPORT jlongArray JNICALL
 Java_com_unnamed_easyphotobackup_ClientSentFilesStorage_getLastActivityJournalRecords(
 	JNIEnv* env,

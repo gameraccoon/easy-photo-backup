@@ -9,6 +9,7 @@ class ClientSentFilesStorage(localStorageDirectory: String) : AutoCloseable {
     private external fun destroy(handle: Long)
     private external fun getLastActivityJournalRecords(handle: Long, numberOfRecords: Int): LongArray
     private external fun getActivityJournalRecords(handle: Long, beginIdx: Int, endIdx: Int): LongArray
+    private external fun addActivityJournalRecord(handle: Long, typeId: Int): Boolean
 
     internal fun getNativeHandle(): Long {
         check(nativeHandle != 0L)
@@ -37,6 +38,12 @@ class ClientSentFilesStorage(localStorageDirectory: String) : AutoCloseable {
         return getActivityJournalRecords(nativeHandle, beginIdx, endIdx)
             .map(::ActivityJournalRecord)
             .toTypedArray()
+    }
+
+    fun addActivityJournalRecord(typeIdx: Int): Boolean {
+        check(nativeHandle != 0L)
+
+        return addActivityJournalRecord(nativeHandle, typeIdx)
     }
 
     companion object {

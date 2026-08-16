@@ -51,6 +51,9 @@ public:
 		enum class Type : uint8_t
 		{
 			Unknown = 0,
+			FoundServer,
+			NoServers,
+			UnknownServer,
 			CheckForNewFiles,
 			Start,
 			Continuation,

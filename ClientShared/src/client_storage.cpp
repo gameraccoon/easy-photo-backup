@@ -268,6 +268,12 @@ ClientConfigStorage::ClientConfigStorage(Lmdb::ReadWriteEnvironment&& environmen
 {
 	switch (type)
 	{
+	case ClientSentFilesStorage::ActivityJournalRecord::Type::FoundServer:
+		return "server found";
+	case ClientSentFilesStorage::ActivityJournalRecord::Type::NoServers:
+		return "no servers";
+	case ClientSentFilesStorage::ActivityJournalRecord::Type::UnknownServer:
+		return "encountered unknown server";
 	case ClientSentFilesStorage::ActivityJournalRecord::Type::CheckForNewFiles:
 		return "check for new files";
 	case ClientSentFilesStorage::ActivityJournalRecord::Type::Start:
