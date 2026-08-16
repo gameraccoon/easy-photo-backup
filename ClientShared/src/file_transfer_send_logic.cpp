@@ -601,9 +601,6 @@ namespace FileTransferSendLogic
 			return;
 		}
 
-		const auto duration = now.time_since_epoch();
-		const auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
-
 		ClientSentFilesStorage::ActivityJournalRecord::Type recordType = ClientSentFilesStorage::ActivityJournalRecord::Type::Unknown;
 		switch (type)
 		{
@@ -622,7 +619,7 @@ namespace FileTransferSendLogic
 		}
 
 		storage.addActivityJournalRecord(ClientSentFilesStorage::ActivityJournalRecord{
-			.timestampMs = static_cast<uint64_t>(milliseconds),
+			.timestampMs = ClientSentFilesStorage::ActivityJournalRecord::convertTimeToMs(now),
 			.filesSent = sendingState.stats.filesSent,
 			.bytesTransferred = static_cast<uint32_t>(sendingState.stats.chunksSent * FileSendingState::ChunkSize),
 			.type = recordType,

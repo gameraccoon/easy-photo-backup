@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <chrono>
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -64,6 +65,7 @@ public:
 		std::string additionalInfo;
 
 		[[nodiscard]] std::string asString() const noexcept;
+		static uint64_t convertTimeToMs(const std::chrono::system_clock::time_point& timePoint) noexcept;
 	};
 
 public:

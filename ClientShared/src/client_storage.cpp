@@ -345,6 +345,11 @@ std::string ClientSentFilesStorage::ActivityJournalRecord::asString() const noex
 	);
 }
 
+uint64_t ClientSentFilesStorage::ActivityJournalRecord::convertTimeToMs(const std::chrono::system_clock::time_point& timePoint) noexcept
+{
+	return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(timePoint.time_since_epoch()).count());
+}
+
 std::optional<ClientSentFilesStorage> ClientSentFilesStorage::openStorage(const std::filesystem::path& storageRootPath) noexcept
 {
 	static constexpr size_t maxNamedDatabases = 5;

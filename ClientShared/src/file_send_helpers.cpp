@@ -46,7 +46,7 @@ namespace FileSendHelpers
 	std::optional<std::string> sendDirectory(ClientConfigStorage& clientConfigStorage, ClientSentFilesStorage& clientSentFilesStorage, const ServerConnectionInfo& serverInfo, const std::filesystem::path& folderPath, const std::filesystem::path& commonRoot) noexcept
 	{
 		const std::chrono::duration activityJournalRecordRetainingTime = std::chrono::days(7);
-		const auto timeNow = std::chrono::system_clock::now();
+		const std::chrono::system_clock::time_point timeNow = std::chrono::system_clock::now();
 		clientSentFilesStorage.truncateLastActivityJournalRecords(
 			static_cast<uint64_t>(
 				std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -57,7 +57,7 @@ namespace FileSendHelpers
 		);
 
 		clientSentFilesStorage.addActivityJournalRecord(ClientSentFilesStorage::ActivityJournalRecord{
-			.timestampMs = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(timeNow.time_since_epoch()).count()),
+			.timestampMs = ClientSentFilesStorage::ActivityJournalRecord::convertTimeToMs(timeNow),
 			.filesSent = 0,
 			.bytesTransferred = 0,
 			.type = ClientSentFilesStorage::ActivityJournalRecord::Type::CheckForNewFiles,
