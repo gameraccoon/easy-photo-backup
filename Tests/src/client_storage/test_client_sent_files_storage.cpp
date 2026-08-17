@@ -468,14 +468,76 @@ TEST_F(ClientSentFilesStorageTest, StorageWithRecords_GetRecordsWithPagesBackwar
 	}
 }
 
+class ScopedTestTimezone
+{
+public:
+	explicit ScopedTestTimezone(const char* timezone) noexcept
+	{
+#ifdef _WIN32
+		char* value = nullptr;
+		std::size_t size = 0;
+		if (_dupenv_s(&value, &size, "TZ") == 0 && value != nullptr)
+		{
+			mOldTimezone = value;
+			free(value);
+		}
+#else
+		if (const char* value = std::getenv("TZ"))
+		{
+			mOldTimezone = value;
+		}
+#endif
+
+		setTimezone(timezone);
+	}
+
+	~ScopedTestTimezone() noexcept
+	{
+		if (mOldTimezone)
+		{
+			setTimezone(mOldTimezone->c_str());
+		}
+		else
+		{
+			unsetTimezone();
+		}
+	}
+
+	ScopedTestTimezone(const ScopedTestTimezone&) noexcept = delete;
+	ScopedTestTimezone& operator=(const ScopedTestTimezone&) noexcept = delete;
+	ScopedTestTimezone(ScopedTestTimezone&&) noexcept = delete;
+	ScopedTestTimezone& operator=(ScopedTestTimezone&&) noexcept = delete;
+
+private:
+	static void setTimezone(const char* timezone) noexcept
+	{
+#ifdef _WIN32
+		_putenv_s("TZ", timezone);
+		_tzset();
+#else
+		setenv("TZ", timezone, 1);
+		tzset();
+#endif
+	}
+
+	static void unsetTimezone() noexcept
+	{
+#ifdef _WIN32
+		_putenv_s("TZ", "");
+		_tzset();
+#else
+		unsetenv("TZ");
+		tzset();
+#endif
+	}
+
+private:
+	std::optional<std::string> mOldTimezone;
+};
+
 TEST(ClientSentFilesStorage, ActivityJournalRecord_Format_ReturnsExpectedString)
 {
-	setenv("TZ", "UTC", 1);
-	tzset();
-
-	TestFinalizer f = []() {
-		unsetenv("TZ");
-	};
+	ScopedTestTimezone tz("UTC");
 
 	{
 		ClientSentFilesStorage::ActivityJournalRecord v{
