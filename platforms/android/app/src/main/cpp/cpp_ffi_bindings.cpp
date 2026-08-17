@@ -400,7 +400,8 @@ Java_com_unnamed_easyphotobackup_ClientSentFilesStorage_addActivityJournalRecord
 	JNIEnv* env,
 	jobject /*this*/,
 	jlong clientSentFilesStorageHandle,
-	jint eventIdx
+	jint eventIdx,
+	jstring additionalInfoJStr
 )
 {
 	ClientSentFilesStorageNative* clientSentFilesStorage = reinterpret_cast<ClientSentFilesStorageNative*>(clientSentFilesStorageHandle);
@@ -421,12 +422,16 @@ Java_com_unnamed_easyphotobackup_ClientSentFilesStorage_addActivityJournalRecord
 		break;
 	}
 
+	const char* additionalInfoChar = env->GetStringUTFChars(additionalInfoJStr, nullptr);
+	std::string additionalInfo(additionalInfoChar);
+	env->ReleaseStringUTFChars(additionalInfoJStr, additionalInfoChar);
+
 	ClientSentFilesStorage::ActivityJournalRecord activityRecord{
 		.timestampMs = ClientSentFilesStorage::ActivityJournalRecord::convertTimeToMs(std::chrono::system_clock::now()),
 		.filesSent = 0,
 		.bytesTransferred = 0,
 		.type = recordType,
-		.additionalInfo = std::string{},
+		.additionalInfo = std::move(additionalInfo),
 	};
 
 	return clientSentFilesStorage->storage.addActivityJournalRecord(std::move(activityRecord));
