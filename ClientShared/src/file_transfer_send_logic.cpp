@@ -586,7 +586,6 @@ namespace FileTransferSendLogic
 
 	enum class ActivityType
 	{
-		Start,
 		Continue,
 		EndError,
 		EndSuccess,
@@ -604,9 +603,6 @@ namespace FileTransferSendLogic
 		ClientSentFilesStorage::ActivityJournalRecord::Type recordType = ClientSentFilesStorage::ActivityJournalRecord::Type::Unknown;
 		switch (type)
 		{
-		case ActivityType::Start:
-			recordType = ClientSentFilesStorage::ActivityJournalRecord::Type::Start;
-			break;
 		case ActivityType::Continue:
 			recordType = ClientSentFilesStorage::ActivityJournalRecord::Type::Continuation;
 			break;
@@ -620,7 +616,7 @@ namespace FileTransferSendLogic
 
 		storage.addActivityJournalRecord(ClientSentFilesStorage::ActivityJournalRecord{
 			.timestampMs = ClientSentFilesStorage::ActivityJournalRecord::convertTimeToMs(now),
-			.filesSent = sendingState.stats.filesSent,
+			.filesCount = sendingState.stats.filesSent,
 			.bytesTransferred = static_cast<uint32_t>(sendingState.stats.chunksSent * FileSendingState::ChunkSize),
 			.type = recordType,
 			.additionalInfo = std::move(additionalInfo),
@@ -652,8 +648,15 @@ namespace FileTransferSendLogic
 	void sendFiles(const std::vector<std::filesystem::path>& files, const std::vector<uint64_t>& previouslySentBytes, const std::filesystem::path& commonRoot, Network::RawSocket socket, ClientSentFilesStorage& storage, Noise::CipherStateSending& sendingCipherstate, Noise::CipherStateReceiving& receivingCipherState, [[maybe_unused]] Mocks mocks) noexcept
 	{
 		FileSendingState sendingState;
-
-		recordActivity(sendingState, storage, ActivityType::Start, std::string{});
+		{
+			const auto now = std::chrono::system_clock::now();
+			storage.addActivityJournalRecord(ClientSentFilesStorage::ActivityJournalRecord{
+				.timestampMs = ClientSentFilesStorage::ActivityJournalRecord::convertTimeToMs(now),
+				.filesCount = static_cast<uint32_t>(files.size()),
+				.type = ClientSentFilesStorage::ActivityJournalRecord::Type::Start,
+			});
+			sendingState.stats.lastStatsRecordingTime = now;
+		}
 
 #ifdef WITH_TESTS
 		sendingState.mocks = std::move(mocks);

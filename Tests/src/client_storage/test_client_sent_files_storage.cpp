@@ -233,14 +233,14 @@ TEST_F(ClientSentFilesStorageTest, EmptyStorage_AddNewJournalRecordsAndGetLast_R
 
 	EXPECT_TRUE(storage->addActivityJournalRecord(ClientSentFilesStorage::ActivityJournalRecord{
 		.timestampMs = uint64_t(100500),
-		.filesSent = uint32_t(100),
+		.filesCount = uint32_t(100),
 		.bytesTransferred = uint32_t(10000),
 		.type = ClientSentFilesStorage::ActivityJournalRecord::Type::Start,
 		.additionalInfo = {},
 	}));
 	EXPECT_TRUE(storage->addActivityJournalRecord(ClientSentFilesStorage::ActivityJournalRecord{
 		.timestampMs = uint64_t(100501),
-		.filesSent = uint32_t(1000),
+		.filesCount = uint32_t(1000),
 		.bytesTransferred = uint32_t(100000),
 		.type = ClientSentFilesStorage::ActivityJournalRecord::Type::EndSuccessfully,
 		.additionalInfo = "test error",
@@ -251,12 +251,12 @@ TEST_F(ClientSentFilesStorageTest, EmptyStorage_AddNewJournalRecordsAndGetLast_R
 	ASSERT_EQ(records.size(), size_t(2));
 	EXPECT_EQ(endIdx, uint32_t(2));
 	EXPECT_EQ(records[0].timestampMs, uint64_t(100500));
-	EXPECT_EQ(records[0].filesSent, uint32_t(100));
+	EXPECT_EQ(records[0].filesCount, uint32_t(100));
 	EXPECT_EQ(records[0].bytesTransferred, uint32_t(10000));
 	EXPECT_EQ(records[0].type, ClientSentFilesStorage::ActivityJournalRecord::Type::Start);
 	EXPECT_EQ(records[0].additionalInfo, std::string());
 	EXPECT_EQ(records[1].timestampMs, uint64_t(100501));
-	EXPECT_EQ(records[1].filesSent, uint32_t(1000));
+	EXPECT_EQ(records[1].filesCount, uint32_t(1000));
 	EXPECT_EQ(records[1].bytesTransferred, uint32_t(100000));
 	EXPECT_EQ(records[1].type, ClientSentFilesStorage::ActivityJournalRecord::Type::EndSuccessfully);
 	EXPECT_EQ(records[1].additionalInfo, std::string("test error"));
@@ -271,7 +271,7 @@ TEST_F(ClientSentFilesStorageTest, StorageWithRecords_GetLastWithSmallerPageSize
 	{
 		EXPECT_TRUE(storage->addActivityJournalRecord(ClientSentFilesStorage::ActivityJournalRecord{
 			.timestampMs = uint64_t(1000 + i),
-			.filesSent = uint32_t(20 + i),
+			.filesCount = uint32_t(20 + i),
 			.bytesTransferred = uint32_t(30 * i),
 			.type = ClientSentFilesStorage::ActivityJournalRecord::Type::Start,
 			.additionalInfo = {},
@@ -287,7 +287,7 @@ TEST_F(ClientSentFilesStorageTest, StorageWithRecords_GetLastWithSmallerPageSize
 	for (int i = firstIdx; i < 20; ++i)
 	{
 		EXPECT_EQ(records[i - firstIdx].timestampMs, uint64_t(1000 + i));
-		EXPECT_EQ(records[i - firstIdx].filesSent, uint32_t(20 + i));
+		EXPECT_EQ(records[i - firstIdx].filesCount, uint32_t(20 + i));
 		EXPECT_EQ(records[i - firstIdx].bytesTransferred, uint32_t(30 * i));
 		EXPECT_EQ(records[i - firstIdx].type, ClientSentFilesStorage::ActivityJournalRecord::Type::Start);
 	}
@@ -302,7 +302,7 @@ TEST_F(ClientSentFilesStorageTest, StorageWithRecords_GetLastWithBiggerPageSize_
 	{
 		EXPECT_TRUE(storage->addActivityJournalRecord(ClientSentFilesStorage::ActivityJournalRecord{
 			.timestampMs = uint64_t(1000 + i),
-			.filesSent = uint32_t(20 + i),
+			.filesCount = uint32_t(20 + i),
 			.bytesTransferred = uint32_t(30 * i),
 			.type = ClientSentFilesStorage::ActivityJournalRecord::Type::Start,
 			.additionalInfo = {},
@@ -317,7 +317,7 @@ TEST_F(ClientSentFilesStorageTest, StorageWithRecords_GetLastWithBiggerPageSize_
 	for (int i = 0; i < 20; ++i)
 	{
 		EXPECT_EQ(records[i].timestampMs, uint64_t(1000 + i));
-		EXPECT_EQ(records[i].filesSent, uint32_t(20 + i));
+		EXPECT_EQ(records[i].filesCount, uint32_t(20 + i));
 		EXPECT_EQ(records[i].bytesTransferred, uint32_t(30 * i));
 		EXPECT_EQ(records[i].type, ClientSentFilesStorage::ActivityJournalRecord::Type::Start);
 	}
@@ -332,7 +332,7 @@ TEST_F(ClientSentFilesStorageTest, StorageWithRecords_TruncateAndGetLast_Returns
 	{
 		EXPECT_TRUE(storage->addActivityJournalRecord(ClientSentFilesStorage::ActivityJournalRecord{
 			.timestampMs = uint64_t(1000 + i),
-			.filesSent = uint32_t(20 + i),
+			.filesCount = uint32_t(20 + i),
 			.bytesTransferred = uint32_t(30 * i),
 			.type = ClientSentFilesStorage::ActivityJournalRecord::Type::Start,
 			.additionalInfo = {},
@@ -350,7 +350,7 @@ TEST_F(ClientSentFilesStorageTest, StorageWithRecords_TruncateAndGetLast_Returns
 	for (int i = firstIdx; i < 20; ++i)
 	{
 		EXPECT_EQ(records[i - firstIdx].timestampMs, uint64_t(1000 + i));
-		EXPECT_EQ(records[i - firstIdx].filesSent, uint32_t(20 + i));
+		EXPECT_EQ(records[i - firstIdx].filesCount, uint32_t(20 + i));
 		EXPECT_EQ(records[i - firstIdx].bytesTransferred, uint32_t(30 * i));
 		EXPECT_EQ(records[i - firstIdx].type, ClientSentFilesStorage::ActivityJournalRecord::Type::Start);
 	}
@@ -366,7 +366,7 @@ TEST_F(ClientSentFilesStorageTest, StorageWithRecords_GetRecordsWithPagesForward
 	{
 		EXPECT_TRUE(storage->addActivityJournalRecord(ClientSentFilesStorage::ActivityJournalRecord{
 			.timestampMs = uint64_t(1000 + i),
-			.filesSent = uint32_t(20 + i),
+			.filesCount = uint32_t(20 + i),
 			.bytesTransferred = uint32_t(30 * i),
 			.type = ClientSentFilesStorage::ActivityJournalRecord::Type::Start,
 			.additionalInfo = {},
@@ -383,7 +383,7 @@ TEST_F(ClientSentFilesStorageTest, StorageWithRecords_GetRecordsWithPagesForward
 		{
 			const int k = i + j;
 			EXPECT_EQ(records[j].timestampMs, uint64_t(1000 + k));
-			EXPECT_EQ(records[j].filesSent, uint32_t(20 + k));
+			EXPECT_EQ(records[j].filesCount, uint32_t(20 + k));
 			EXPECT_EQ(records[j].bytesTransferred, uint32_t(30 * k));
 			EXPECT_EQ(records[j].type, ClientSentFilesStorage::ActivityJournalRecord::Type::Start);
 		}
@@ -400,7 +400,7 @@ TEST_F(ClientSentFilesStorageTest, StorageWithRecords_GetRecordsWithPagesForward
 	{
 		EXPECT_TRUE(storage->addActivityJournalRecord(ClientSentFilesStorage::ActivityJournalRecord{
 			.timestampMs = uint64_t(1000 + i),
-			.filesSent = uint32_t(20 + i),
+			.filesCount = uint32_t(20 + i),
 			.bytesTransferred = uint32_t(30 * i),
 			.type = ClientSentFilesStorage::ActivityJournalRecord::Type::Start,
 			.additionalInfo = {},
@@ -417,7 +417,7 @@ TEST_F(ClientSentFilesStorageTest, StorageWithRecords_GetRecordsWithPagesForward
 		{
 			const int k = i + j;
 			EXPECT_EQ(records[j].timestampMs, uint64_t(1000 + k));
-			EXPECT_EQ(records[j].filesSent, uint32_t(20 + k));
+			EXPECT_EQ(records[j].filesCount, uint32_t(20 + k));
 			EXPECT_EQ(records[j].bytesTransferred, uint32_t(30 * k));
 			EXPECT_EQ(records[j].type, ClientSentFilesStorage::ActivityJournalRecord::Type::Start);
 		}
@@ -436,7 +436,7 @@ TEST_F(ClientSentFilesStorageTest, StorageWithRecords_GetRecordsWithPagesBackwar
 	{
 		EXPECT_TRUE(storage->addActivityJournalRecord(ClientSentFilesStorage::ActivityJournalRecord{
 			.timestampMs = uint64_t(1000 + i),
-			.filesSent = uint32_t(20 + i),
+			.filesCount = uint32_t(20 + i),
 			.bytesTransferred = uint32_t(30 * i),
 			.type = ClientSentFilesStorage::ActivityJournalRecord::Type::Start,
 			.additionalInfo = {},
@@ -453,14 +453,14 @@ TEST_F(ClientSentFilesStorageTest, StorageWithRecords_GetRecordsWithPagesBackwar
 		{
 			const int k = i + j;
 			EXPECT_EQ(records[j].timestampMs, uint64_t(1000 + k));
-			EXPECT_EQ(records[j].filesSent, uint32_t(20 + k));
+			EXPECT_EQ(records[j].filesCount, uint32_t(20 + k));
 			EXPECT_EQ(records[j].bytesTransferred, uint32_t(30 * k));
 			EXPECT_EQ(records[j].type, ClientSentFilesStorage::ActivityJournalRecord::Type::Start);
 		}
 
 		EXPECT_TRUE(storage->addActivityJournalRecord(ClientSentFilesStorage::ActivityJournalRecord{
 			.timestampMs = uint64_t(2000 + i),
-			.filesSent = uint32_t(50 + i),
+			.filesCount = uint32_t(50 + i),
 			.bytesTransferred = uint32_t(300 * i),
 			.type = ClientSentFilesStorage::ActivityJournalRecord::Type::Start,
 			.additionalInfo = {},
@@ -542,28 +542,28 @@ TEST(ClientSentFilesStorage, ActivityJournalRecord_Format_ReturnsExpectedString)
 	{
 		ClientSentFilesStorage::ActivityJournalRecord v{
 			.timestampMs = 1786369187509,
-			.filesSent = 10,
+			.filesCount = 10,
 			.bytesTransferred = 2003005000,
 			.type = ClientSentFilesStorage::ActivityJournalRecord::Type::EndError,
 			.additionalInfo = "test error",
 		};
 		EXPECT_EQ(
 			v.asString(),
-			std::string("end with error\nfiles sent: 10\nsent: 1Gb 886Mb 219Kb 584 bytes\ntime: 2026-08-10 13:39:47\nadditional info: 'test error'")
+			std::string("end with error\nfiles sent: 10\noutbound traffic: 1Gb 886Mb 219Kb 584 bytes\ntime: 2026-08-10 13:39:47\nadditional info: 'test error'")
 		);
 	}
 
 	{
 		ClientSentFilesStorage::ActivityJournalRecord v{
 			.timestampMs = 1786369187509,
-			.filesSent = 0,
+			.filesCount = 0,
 			.bytesTransferred = 0,
 			.type = ClientSentFilesStorage::ActivityJournalRecord::Type::Start,
 			.additionalInfo = "",
 		};
 		EXPECT_EQ(
 			v.asString(),
-			std::string("start\ntime: 2026-08-10 13:39:47")
+			std::string("start\nfiles to send: 0\ntime: 2026-08-10 13:39:47")
 		);
 	}
 }

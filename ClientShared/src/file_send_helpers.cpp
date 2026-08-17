@@ -58,7 +58,7 @@ namespace FileSendHelpers
 
 		clientSentFilesStorage.addActivityJournalRecord(ClientSentFilesStorage::ActivityJournalRecord{
 			.timestampMs = ClientSentFilesStorage::ActivityJournalRecord::convertTimeToMs(timeNow),
-			.filesSent = 0,
+			.filesCount = 0,
 			.bytesTransferred = 0,
 			.type = ClientSentFilesStorage::ActivityJournalRecord::Type::CheckForNewFiles,
 			.additionalInfo = folderPath.lexically_relative(commonRoot).string(),

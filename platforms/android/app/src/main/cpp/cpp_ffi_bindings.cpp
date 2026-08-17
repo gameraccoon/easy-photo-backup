@@ -428,7 +428,7 @@ Java_com_unnamed_easyphotobackup_ClientSentFilesStorage_addActivityJournalRecord
 
 	ClientSentFilesStorage::ActivityJournalRecord activityRecord{
 		.timestampMs = ClientSentFilesStorage::ActivityJournalRecord::convertTimeToMs(std::chrono::system_clock::now()),
-		.filesSent = 0,
+		.filesCount = 0,
 		.bytesTransferred = 0,
 		.type = recordType,
 		.additionalInfo = std::move(additionalInfo),

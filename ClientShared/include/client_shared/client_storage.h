@@ -62,10 +62,10 @@ public:
 		};
 
 		uint64_t timestampMs = 0;
-		uint32_t filesSent = 0;
+		uint32_t filesCount = 0;
 		uint32_t bytesTransferred = 0;
 		Type type = Type::Unknown;
-		std::string additionalInfo;
+		std::string additionalInfo = {};
 
 		[[nodiscard]] std::string asString() const noexcept;
 		static uint64_t convertTimeToMs(const std::chrono::system_clock::time_point& timePoint) noexcept;

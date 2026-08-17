@@ -1154,9 +1154,9 @@ TEST_F(FileSendReceiveTest, Roundtrip_SendAndReceiveOneTinyFile_LoggedBeginAndEn
 	ASSERT_EQ(records.size(), size_t(2));
 	EXPECT_GE(endRecordIdx, uint32_t(2));
 	EXPECT_EQ(records[0].bytesTransferred, uint64_t(0));
-	EXPECT_EQ(records[0].filesSent, uint32_t(0));
+	EXPECT_EQ(records[0].filesCount, uint32_t(1));
 	EXPECT_EQ(records[0].type, ClientSentFilesStorage::ActivityJournalRecord::Type::Start);
 	EXPECT_EQ(records[1].bytesTransferred, uint64_t(1 * Protocol::FileExchange::ChunkSize));
-	EXPECT_EQ(records[1].filesSent, uint32_t(1));
+	EXPECT_EQ(records[1].filesCount, uint32_t(1));
 	EXPECT_EQ(records[1].type, ClientSentFilesStorage::ActivityJournalRecord::Type::EndSuccessfully);
 }

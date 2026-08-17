@@ -76,7 +76,7 @@ namespace ClientStorageInternal
 			Serialization::GenericDeserializationWrapper deserializer{ view->value };
 
 			if (!deserializer.readUint64(record.timestampMs, "timestampMs")) { break; }
-			if (!deserializer.readUint32(record.filesSent, "filesSent")) { break; }
+			if (!deserializer.readUint32(record.filesCount, "filesCount")) { break; }
 			if (!deserializer.readUint32(record.bytesTransferred, "bytesTransferred")) { break; }
 			if (!deserializer.readByte(*reinterpret_cast<std::byte*>(&record.type), "type")) { break; }
 			if (!deserializer.readShortString(record.additionalInfo, "additionalInfo")) { break; }
@@ -319,6 +319,18 @@ ClientConfigStorage::ClientConfigStorage(Lmdb::ReadWriteEnvironment&& environmen
 	return std::string(buffer);
 }
 
+[[nodiscard]] std::string formatActivityRecordFilesSent(ClientSentFilesStorage::ActivityJournalRecord::Type type, uint32_t filesSent) noexcept
+{
+	if (type == ClientSentFilesStorage::ActivityJournalRecord::Type::Start)
+	{
+		return std::format("\nfiles to send: {}", filesSent);
+	}
+	else
+	{
+		return (filesSent > 0) ? std::format("\nfiles sent: {}", filesSent) : std::string{};
+	}
+}
+
 std::string ClientSentFilesStorage::ActivityJournalRecord::asString() const noexcept
 {
 	uint32_t bytes = bytesTransferred;
@@ -333,7 +345,7 @@ std::string ClientSentFilesStorage::ActivityJournalRecord::asString() const noex
 	if (bytesTransferred > 0)
 	{
 		bytesSentStr = std::format(
-			"\nsent: {}{}{}{}",
+			"\noutbound traffic: {}{}{}{}",
 			(gigabytes > 0) ? std::format("{}Gb ", gigabytes) : std::string{},
 			(megabytes > 0) ? std::format("{}Mb ", megabytes) : std::string{},
 			(kilobytes > 0) ? std::format("{}Kb ", kilobytes) : std::string{},
@@ -344,7 +356,7 @@ std::string ClientSentFilesStorage::ActivityJournalRecord::asString() const noex
 	return std::format(
 		"{}{}{}\ntime: {}{}",
 		getActivityRecordTypeName(type),
-		(filesSent > 0) ? std::format("\nfiles sent: {}", filesSent) : std::string{},
+		formatActivityRecordFilesSent(type, filesCount),
 		bytesSentStr,
 		formatActivityRecordTime(timestampMs),
 		additionalInfo.empty() ? "" : std::format("\nadditional info: '{}'", additionalInfo)
@@ -563,7 +575,7 @@ bool ClientSentFilesStorage::addActivityJournalRecord(ActivityJournalRecord&& ne
 	}
 
 	if (!serializer.writeUint64(newRecord.timestampMs, "timestampMs")) { return false; }
-	if (!serializer.writeUint32(newRecord.filesSent, "connectionId")) { return false; }
+	if (!serializer.writeUint32(newRecord.filesCount, "filesCount")) { return false; }
 	if (!serializer.writeUint32(newRecord.bytesTransferred, "bytesTransferred")) { return false; }
 	if (!serializer.writeByte(static_cast<std::byte>(newRecord.type), "type")) { return false; }
 	if (!serializer.writeShortString(newRecord.additionalInfo, "additionalInfo")) { return false; }
