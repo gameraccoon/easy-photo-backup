@@ -713,6 +713,11 @@ namespace FileTransferReceiveLogic
 			{
 				receivingState.writeFileToDiskFromBuffer();
 
+				if (receivingState.isEndOfTransmission())
+				{
+					break;
+				}
+
 				if (receivingState.hasFileFinished())
 				{
 					if (receivingState.file.is_open())
@@ -739,14 +744,7 @@ namespace FileTransferReceiveLogic
 						}
 					}
 
-#ifdef DEBUG_CHECKS
 					receivingState.debugPrintState(FileReceivingState::DebugState::EndFile);
-#endif // DEBUG_CHECKS
-				}
-
-				if (receivingState.isEndOfTransmission())
-				{
-					break;
 				}
 
 				if (receivingState.isBufferFullyRead())
