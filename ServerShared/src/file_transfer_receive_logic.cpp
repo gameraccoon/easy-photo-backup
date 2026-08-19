@@ -210,6 +210,39 @@ namespace FileTransferReceiveLogic
 			}
 		}
 
+		void replaceFile(const std::filesystem::path& sourcePath, const std::filesystem::path& targetPath)
+		{
+#ifdef WITH_TESTS
+			if (mocks.openFile)
+			{
+				mocks.replaceFile(sourcePath, targetPath);
+				return;
+			}
+#endif
+
+			if (std::filesystem::exists(targetPath))
+			{
+				std::filesystem::remove(targetPath);
+			}
+			std::filesystem::rename(sourcePath, targetPath);
+		}
+
+		void removeFile(const std::filesystem::path& path)
+		{
+#ifdef WITH_TESTS
+			if (mocks.openFile)
+			{
+				mocks.removeFile(path);
+				return;
+			}
+#endif
+
+			if (std::filesystem::exists(path))
+			{
+				std::filesystem::remove(path);
+			}
+		}
+
 		bool isFileOpen(std::ofstream& stream) const
 		{
 #ifdef WITH_TESTS
@@ -222,12 +255,12 @@ namespace FileTransferReceiveLogic
 			return stream.is_open();
 		}
 
-		[[nodiscard]] int calculateFileHash(int64_t size, Cryptography::HashResult& outHash) const
+		[[nodiscard]] int calculateFileHash(const std::filesystem::path& path, int64_t size, Cryptography::HashResult& outHash) const
 		{
 #ifdef WITH_TESTS
 			if (mocks.calculateFileHash)
 			{
-				return mocks.calculateFileHash(filePath, size, outHash);
+				return mocks.calculateFileHash(path, size, outHash);
 			}
 #endif
 
@@ -235,7 +268,7 @@ namespace FileTransferReceiveLogic
 			{
 				if (size == -1)
 				{
-					if (Cryptography::hashFile(rootPath / filePath, outHash) != 0)
+					if (Cryptography::hashFile(rootPath / path, outHash) != 0)
 					{
 						return -1;
 					}
@@ -243,7 +276,7 @@ namespace FileTransferReceiveLogic
 				else
 				{
 					std::ifstream stream;
-					stream.open(rootPath / filePath, std::ios::binary | std::ios::in);
+					stream.open(rootPath / path, std::ios::binary | std::ios::in);
 					if (Cryptography::hashFileBytes(stream, size, outHash) != 0)
 					{
 						return -1;
@@ -438,11 +471,15 @@ namespace FileTransferReceiveLogic
 				if (Files::isFilePathAcceptable(filePath))
 				{
 					std::filesystem::path fullPath = rootPath / filePath;
+					std::filesystem::path filePartPath = filePath;
+					filePartPath += ".part";
+					std::filesystem::path fullFilePartPath = rootPath / filePartPath;
+
 					bool shouldSkip = false;
 					if (isEndFileHashed && isFileExist(fullPath))
 					{
 						Cryptography::HashResult previousHash;
-						if (calculateFileHash(-1, previousHash) != 0)
+						if (calculateFileHash(filePath, -1, previousHash) != 0)
 						{
 							reportDebugError("Could not calculate file hash {}", filePath);
 							recordFileError(Protocol::FileExchange::FileReceiveStatus::CouldNotRead);
@@ -458,12 +495,12 @@ namespace FileTransferReceiveLogic
 					{
 						bytesWrittenToFile = previousFileSize;
 
-						if (isFileExist(fullPath))
+						if (isFileExist(fullFilePartPath))
 						{
 							Cryptography::HashResult previousHash;
-							if (calculateFileHash(static_cast<int64_t>(previousFileSize), previousHash) != 0)
+							if (calculateFileHash(filePartPath, static_cast<int64_t>(previousFileSize), previousHash) != 0)
 							{
-								reportDebugError("Could not calculate file hash {}", filePath);
+								reportDebugError("Could not calculate file hash for '{}'", filePartPath.string());
 								recordFileError(Protocol::FileExchange::FileReceiveStatus::CouldNotRead);
 							}
 							if (fileHash != previousHash)
@@ -484,11 +521,11 @@ namespace FileTransferReceiveLogic
 
 					if (!shouldSkip)
 					{
-						openFile(file, bytesWrittenToFile, fullPath);
+						openFile(file, bytesWrittenToFile, fullFilePartPath);
 
 						if (!isFileOpen(file))
 						{
-							reportDebugError("Could not open file for writing {}", filePath);
+							reportDebugError("Could not open file for writing {}.part", filePath);
 							recordFileError(Protocol::FileExchange::FileReceiveStatus::CouldNotCreate);
 						}
 					}
@@ -725,26 +762,43 @@ namespace FileTransferReceiveLogic
 						receivingState.file.close();
 					}
 
-					// this shouldn't be necessary, but since we have the hash why not check it
-					if (receivingState.isEndFileHashed && receivingState.currentFileHasNoErrors())
+					if (receivingState.currentFileHasNoErrors())
 					{
-						Cryptography::HashResult fileHash;
-						if (receivingState.calculateFileHash(-1, fileHash) != 0)
+						// this shouldn't be necessary, but since we have the hash why not check it
+						if (receivingState.isEndFileHashed)
 						{
-							reportDebugError("Could not calculate hash for '{}'", receivingState.filePath);
-							return;
+							Cryptography::HashResult fileHash;
+							std::filesystem::path partFileRelativePath = receivingState.filePath;
+							partFileRelativePath += ".part";
+							if (receivingState.calculateFileHash(partFileRelativePath, -1, fileHash) != 0)
+							{
+								reportDebugError("Could not calculate hash for '{}'", partFileRelativePath.string());
+								return;
+							}
+
+							if (receivingState.fileHash != fileHash)
+							{
+								Debug::Log::printDebug("File '{}' hash mismatch", receivingState.filePath);
+								Debug::Print::printSpan("received hash", receivingState.fileHash);
+								Debug::Print::printSpan("actual hash", fileHash);
+								receivingState.recordFileError(Protocol::FileExchange::FileReceiveStatus::CorruptedFile);
+							}
 						}
 
-						if (receivingState.fileHash != fileHash)
-						{
-							Debug::Log::printDebug("File '{}' hash mismatch", receivingState.filePath);
-							Debug::Print::printSpan("received hash", receivingState.fileHash);
-							Debug::Print::printSpan("actual hash", fileHash);
-							receivingState.recordFileError(Protocol::FileExchange::FileReceiveStatus::CorruptedFile);
-						}
+						std::filesystem::path fullPath = receivingState.rootPath / receivingState.filePath;
+						std::filesystem::path partFilePath = fullPath;
+						partFilePath += ".part";
+
+						receivingState.replaceFile(partFilePath, fullPath);
+						receivingState.debugPrintState(FileReceivingState::DebugState::EndFile);
 					}
+					else
+					{
+						std::filesystem::path partFilePath = receivingState.rootPath / receivingState.filePath;
+						partFilePath += ".part";
 
-					receivingState.debugPrintState(FileReceivingState::DebugState::EndFile);
+						receivingState.removeFile(partFilePath);
+					}
 				}
 
 				if (receivingState.isBufferFullyRead())

@@ -124,7 +124,7 @@ static void expectTwoArraysEqual(std::vector<TestFileExchangeFile> actual, std::
 	{
 		if (actual[i].path != expected[i].path)
 		{
-			ADD_FAILURE() << std::format("acrtual[{}].path != expected[{}].path, values are '{}' and '{}'", i, i, actual[i].path.string(), expected[i].path.string());
+			ADD_FAILURE() << std::format("actual[{}].path != expected[{}].path, values are '{}' and '{}'", i, i, actual[i].path.string(), expected[i].path.string());
 		}
 		else if (actual[i].data != expected[i].data)
 		{
@@ -466,6 +466,70 @@ static FileExchangeTestResult runFileExchangeTest(ClientSentFilesStorage& client
 				ASSERT_LE(expectedStartPos + buffer.size(), fileRange.data.size());
 				expectBuffersEqual(buffer, std::span<const std::byte>(fileRange.data.data() + expectedStartPos, buffer.size()));
 			}
+		},
+		.replaceFile = [&receivedFiles, &receivedFilesIndex, &instructions, &overriddenFileFlags, &serverRootFolder](const std::filesystem::path& sourcePath, const std::filesystem::path& destinationPath) -> void {
+			const std::filesystem::path sourceRelativePath = sourcePath.lexically_relative(serverRootFolder);
+
+			auto sourceIndexIt = receivedFilesIndex.find(sourceRelativePath);
+			if (sourceIndexIt == receivedFilesIndex.end())
+			{
+				FAIL() << "Tried to move/rename non-existent file " << sourcePath;
+				return;
+			}
+
+			const std::filesystem::path destinationRelativePath = destinationPath.lexically_relative(serverRootFolder);
+			if (auto it = receivedFilesIndex.find(destinationRelativePath); it != receivedFilesIndex.end())
+			{
+				if (auto expectedFileIt = std::find_if(instructions.expectedOverriddenFiles.begin(), instructions.expectedOverriddenFiles.end(), [&destinationRelativePath](auto& element) {
+						return element.path == destinationRelativePath;
+					});
+					expectedFileIt != instructions.expectedOverriddenFiles.end())
+				{
+					overriddenFileFlags[std::distance(instructions.expectedOverriddenFiles.begin(), expectedFileIt)] = true;
+				}
+				else
+				{
+					FAIL() << std::format("File {} is being overridden, which is not expected", destinationRelativePath.string());
+				}
+				ASSERT_NE(it->second, sourceIndexIt->second) << "Something went wrong, trying to copy a file to itself";
+				receivedFiles[it->second].data = std::move(receivedFiles[sourceIndexIt->second].data);
+
+				ASSERT_EQ(sourceIndexIt->second + 1, receivedFiles.size()) << "The test expects the source file being the last file, this isn't necessary a bug, but it means the test code needs to be extended to cover this case";
+				receivedFiles.erase(receivedFiles.begin() + sourceIndexIt->second);
+			}
+			else
+			{
+				if (auto expectedFileIt = std::find_if(instructions.expectedOverriddenFiles.begin(), instructions.expectedOverriddenFiles.end(), [&destinationRelativePath](auto& element) {
+						return element.path == destinationRelativePath;
+					});
+					expectedFileIt != instructions.expectedOverriddenFiles.end())
+				{
+					overriddenFileFlags[std::distance(instructions.expectedOverriddenFiles.begin(), expectedFileIt)] = true;
+					FAIL() << std::format("Expected file '{}' to be overridden, instead of created anew", expectedFileIt->path);
+				}
+				// relink our temp file as the destination file
+				receivedFiles[sourceIndexIt->second].path = destinationRelativePath;
+				receivedFilesIndex.emplace(destinationRelativePath, sourceIndexIt->second);
+			}
+
+			receivedFilesIndex.erase(sourceIndexIt);
+
+			ASSERT_FALSE(instructions.checkNoFilesWritten) << "Opening a file, when expected no files to be written to";
+		},
+		.removeFile = [&receivedFiles, &receivedFilesIndex, &instructions, &serverRootFolder](const std::filesystem::path& path) -> void {
+			const std::filesystem::path relativePath = path.lexically_relative(serverRootFolder);
+
+			auto it = receivedFilesIndex.find(relativePath);
+			if (it == receivedFilesIndex.end())
+			{
+				return;
+			}
+
+			ASSERT_EQ(it->second + 1, receivedFiles.size()) << "The test expects the file being the last file, this isn't necessary a bug, but it means the test code needs to be extended to cover this case";
+			receivedFiles.erase(receivedFiles.begin() + it->second);
+			receivedFilesIndex.erase(it);
+
+			ASSERT_FALSE(instructions.checkNoFilesWritten) << "Opening a file, when expected no files to be written to";
 		},
 	};
 
@@ -855,6 +919,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_BigFilesPartiallySentAndThenContinued_Only
 	filesToReceiveFirstChunk.push_back(filesToSend[2]);
 	filesToReceiveFirstChunk.push_back(filesToSend[3]);
 	filesToReceiveFirstChunk.push_back(filesToSend[4]);
+	filesToReceiveFirstChunk[4].path += ".part";
 	filesToReceiveFirstChunk[4].data.resize(2596);
 	std::vector<TestFileExchangeFile> filesToConfirmFirstChunk;
 	filesToConfirmFirstChunk.push_back(filesToSend[0]);
@@ -884,7 +949,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_BigFilesPartiallySentAndThenContinued_Only
 		FileExchangeTestInstructions{
 			.existingFiles = std::move(firstResult.totalReceivedFiles),
 			.expectedOverriddenFiles = { FileExchangeTestFileRange{
-				.path = "f4",
+				.path = "f4.part",
 				.startByte = expectedLastConfirmedByte,
 				.data = std::vector<std::byte>(filesToSend[4].data.begin() + expectedLastConfirmedByte, filesToSend[4].data.end()),
 			} },
@@ -913,6 +978,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_BigFilesPartiallySentAndThenDiscoveredCorr
 	filesToReceiveFirstChunk.push_back(filesToSend[2]);
 	filesToReceiveFirstChunk.push_back(filesToSend[3]);
 	filesToReceiveFirstChunk.push_back(filesToSend[4]);
+	filesToReceiveFirstChunk[4].path += ".part";
 	filesToReceiveFirstChunk[4].data.resize(2596);
 	std::vector<TestFileExchangeFile> filesToConfirmFirstChunk;
 	filesToConfirmFirstChunk.push_back(filesToSend[0]);
@@ -921,7 +987,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_BigFilesPartiallySentAndThenDiscoveredCorr
 	filesToConfirmFirstChunk.push_back(filesToSend[3]);
 
 	std::vector<TestFileExchangeFile> filesToReceiveSecondChunk = filesToReceiveFirstChunk;
-	filesToReceiveSecondChunk[4].data[0] = static_cast<std::byte>(static_cast<uint8_t>(filesToReceiveFirstChunk[4].data[0]) + 1);
+	filesToReceiveSecondChunk.pop_back();
 	filesToReceiveSecondChunk.push_back(filesToSend[5]);
 	filesToReceiveSecondChunk.push_back(filesToSend[6]);
 	std::vector<TestFileExchangeFile> filesToConfirmSecondChunk;
@@ -966,11 +1032,6 @@ TEST_F(FileSendReceiveTest, Roundtrip_BigFilesPartiallySentAndThenDiscoveredCorr
 		filesToSend,
 		FileExchangeTestInstructions{
 			.existingFiles = std::move(secondResult.totalReceivedFiles),
-			.expectedOverriddenFiles = { FileExchangeTestFileRange{
-				.path = "f4",
-				.startByte = 0,
-				.data = filesToSend[4].data,
-			} },
 		}
 	);
 }
@@ -991,6 +1052,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_BigFilePartiallySentFourTimesAndThenSentFu
 	constexpr size_t FirstMessageFileWrittenBytes = BytesBetweenAnswers + ChunkSize - FileHeaderSizeStart;
 	constexpr size_t FirstMessageFileApprovedBytes = BytesBetweenAnswers - FileHeaderSizeStart;
 	TestFileExchangeFile fileToReceiveFirstChunk = fileToSend;
+	fileToReceiveFirstChunk.path += ".part";
 	fileToReceiveFirstChunk.data.resize(FirstMessageFileWrittenBytes);
 	AssertHelper::disableAsserts();
 	FileExchangeTestResult fileExchangeResult = runFileExchangeTest(
@@ -1009,6 +1071,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_BigFilePartiallySentFourTimesAndThenSentFu
 	constexpr size_t SecondMessageFileWrittenBytes = FirstMessageFileApprovedBytes + BytesBetweenAnswers * 2 + ChunkSize * 2 - FileHeaderSizePartial;
 	constexpr size_t SecondMessageFileApprovedBytes = FirstMessageFileApprovedBytes + BytesBetweenAnswers * 2 - FileHeaderSizePartial;
 	TestFileExchangeFile fileToReceiveSecondChunk = fileToSend;
+	fileToReceiveSecondChunk.path += ".part";
 	fileToReceiveSecondChunk.data.resize(SecondMessageFileWrittenBytes);
 	AssertHelper::disableAsserts();
 	fileExchangeResult = runFileExchangeTest(
@@ -1020,7 +1083,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_BigFilePartiallySentFourTimesAndThenSentFu
 			.breakFileSendPipeAfterBytes = SecondMessageBreakPoint,
 			.existingFiles = std::move(fileExchangeResult.totalReceivedFiles),
 			.expectedOverriddenFiles = { FileExchangeTestFileRange{
-				.path = "file",
+				.path = "file.part",
 				.startByte = FirstMessageFileApprovedBytes,
 				.data = std::vector<std::byte>(fileToSend.data.begin() + FirstMessageFileApprovedBytes, fileToSend.data.begin() + SecondMessageFileWrittenBytes),
 			} },
@@ -1033,6 +1096,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_BigFilePartiallySentFourTimesAndThenSentFu
 	constexpr size_t ThirdMessageFileWrittenBytes = SecondMessageFileApprovedBytes + ChunkSize * 3 - FileHeaderSizePartial;
 	constexpr size_t ThirdMessageFileApprovedBytes = SecondMessageFileApprovedBytes;
 	TestFileExchangeFile fileToReceiveThirdChunk = fileToSend;
+	fileToReceiveThirdChunk.path += ".part";
 	fileToReceiveThirdChunk.data.resize(ThirdMessageFileWrittenBytes);
 	AssertHelper::disableAsserts();
 	fileExchangeResult = runFileExchangeTest(
@@ -1044,7 +1108,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_BigFilePartiallySentFourTimesAndThenSentFu
 			.breakFileSendPipeAfterBytes = ThirdMessageBreakPoint,
 			.existingFiles = std::move(fileExchangeResult.totalReceivedFiles),
 			.expectedOverriddenFiles = { FileExchangeTestFileRange{
-				.path = "file",
+				.path = "file.part",
 				.startByte = SecondMessageFileApprovedBytes,
 				.data = std::vector<std::byte>(fileToSend.data.begin() + SecondMessageFileApprovedBytes, fileToSend.data.begin() + ThirdMessageFileWrittenBytes),
 			} },
@@ -1057,6 +1121,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_BigFilePartiallySentFourTimesAndThenSentFu
 	constexpr size_t FourthMessageFileWrittenBytes = ThirdMessageFileApprovedBytes + BytesBetweenAnswers + ChunkSize - FileHeaderSizePartial;
 	constexpr size_t FourthMessageFileApprovedBytes = ThirdMessageFileApprovedBytes + BytesBetweenAnswers - FileHeaderSizePartial;
 	TestFileExchangeFile fileToReceiveFourthChunk = fileToSend;
+	fileToReceiveFourthChunk.path += ".part";
 	fileToReceiveFourthChunk.data.resize(FourthMessageFileWrittenBytes);
 	AssertHelper::disableAsserts();
 	fileExchangeResult = runFileExchangeTest(
@@ -1068,7 +1133,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_BigFilePartiallySentFourTimesAndThenSentFu
 			.breakFileSendPipeAfterBytes = FourthMessageBreakPoint,
 			.existingFiles = std::move(fileExchangeResult.totalReceivedFiles),
 			.expectedOverriddenFiles = { FileExchangeTestFileRange{
-				.path = "file",
+				.path = "file.part",
 				.startByte = ThirdMessageFileApprovedBytes,
 				.data = std::vector<std::byte>(fileToSend.data.begin() + ThirdMessageFileApprovedBytes, fileToSend.data.begin() + FourthMessageFileWrittenBytes),
 			} },
@@ -1084,7 +1149,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_BigFilePartiallySentFourTimesAndThenSentFu
 		FileExchangeTestInstructions{
 			.existingFiles = std::move(fileExchangeResult.totalReceivedFiles),
 			.expectedOverriddenFiles = { FileExchangeTestFileRange{
-				.path = "file",
+				.path = "file.part",
 				.startByte = FourthMessageFileApprovedBytes,
 				.data = std::vector<std::byte>(fileToSend.data.begin() + FourthMessageFileApprovedBytes, fileToSend.data.end()),
 			} },

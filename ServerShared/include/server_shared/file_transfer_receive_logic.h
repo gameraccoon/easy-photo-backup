@@ -24,6 +24,8 @@ namespace FileTransferReceiveLogic
 		std::function<bool(std::ofstream&)> isFileOpen;
 		std::function<int(const std::filesystem::path&, int64_t, Cryptography::HashResult&)> calculateFileHash;
 		std::function<void(std::ofstream&, std::span<const std::byte>)> writeSpanIntoStream;
+		std::function<void(const std::filesystem::path&, const std::filesystem::path&)> replaceFile;
+		std::function<void(const std::filesystem::path&)> removeFile;
 	};
 #else
 	struct Mocks
