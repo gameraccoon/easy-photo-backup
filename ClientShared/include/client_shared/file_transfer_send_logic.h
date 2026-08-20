@@ -11,7 +11,6 @@
 #include <filesystem>
 
 #include "common_shared/cryptography/noise/cipher_types.h"
-#include "common_shared/cryptography/types/hash_types.h"
 #include "common_shared/network/utils.h"
 
 #include "client_shared/client_storage.h"
@@ -25,7 +24,6 @@ namespace FileTransferSendLogic
 		std::function<uint64_t(std::ifstream& file)> getFileLength;
 		std::function<bool(std::ifstream&)> isFileOpen;
 		std::function<void(std::ifstream&, size_t)> seek;
-		std::function<int(std::ifstream&, size_t, Cryptography::HashResult&)> calculateFileHash;
 		std::function<void(std::ifstream&, std::span<std::byte>)> readFileStreamIntoSpan;
 	};
 #else

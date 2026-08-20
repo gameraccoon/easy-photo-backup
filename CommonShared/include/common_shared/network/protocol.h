@@ -140,8 +140,6 @@ namespace Protocol
 			CouldNotRead = 6,
 			// tried to partially receive file, but the previous part is missing
 			PartMissing = 7,
-			// tried to partially receive file, but the existing part is corrupted
-			PartCorrupted = 8,
 		};
 	}
 } // namespace Protocol

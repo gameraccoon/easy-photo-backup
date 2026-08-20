@@ -6,7 +6,6 @@
 #include <fstream>
 
 #include "common_shared/cryptography/noise/cipher_utils.h"
-#include "common_shared/cryptography/primitives/hash_functions.h"
 #include "common_shared/debug/assert.h"
 #include "common_shared/network/protocol.h"
 #include "common_shared/network/utils.h"
@@ -27,8 +26,6 @@ namespace FileTransferSendLogic
 		constexpr static size_t ChunksBetweenAnswers = Protocol::FileExchange::ChunksBetweenAnswers;
 		constexpr static size_t AnswerChunkSize = Protocol::FileExchange::AnswerChunkSize;
 
-		// it doesn't make sense to hash very small files as it doesn't save us any bandwidth
-		constexpr static uint64_t MaxSizeWithoutHash = 64;
 		constexpr static uint32_t MbBetweenSavingState = 10;
 		constexpr static uint32_t ChunksBetweenSavingState = (MbBetweenSavingState * 1024 * 1024) / ChunkSize;
 
@@ -42,7 +39,6 @@ namespace FileTransferSendLogic
 			FileSize,
 			FilePathSize,
 			FilePath,
-			FileHash,
 			FileAlreadySentSize,
 			FileContent,
 			FileContentSkipped,
@@ -81,9 +77,6 @@ namespace FileTransferSendLogic
 					break;
 				case DebugState::FilePath:
 					Debug::Log::printDebug("Send: |    file path     |");
-					break;
-				case DebugState::FileHash:
-					Debug::Log::printDebug("Send: |    file hash     |");
 					break;
 				case DebugState::FileAlreadySentSize:
 					Debug::Log::printDebug("Send: |  previous size   |");
@@ -131,9 +124,7 @@ namespace FileTransferSendLogic
 		uint16_t filePathSize = 0;
 		uint64_t bytesReadFromFile = 0;
 		size_t fileIndex = 0;
-		bool isEndFileHashed = false;
 		bool isPartial = false;
-		Cryptography::HashResult fileHash;
 		std::vector<std::filesystem::path> filesAwaitingConfirmation;
 		uint64_t firstAwaitingFileBytesConfirmed = 0;
 		std::vector<std::filesystem::path> confirmedFilesCache;
@@ -217,19 +208,6 @@ namespace FileTransferSendLogic
 			stream.seekg(position, std::ios::beg);
 		}
 
-		int calculateFileHash(std::ifstream& stream, size_t fileSize, Cryptography::HashResult& outHash) const
-		{
-#ifdef WITH_TESTS
-			if (mocks.calculateFileHash)
-			{
-				return mocks.calculateFileHash(stream, fileSize, outHash);
-			}
-#endif
-			int result = Cryptography::hashFileBytes(stream, fileSize, outHash);
-			stream.seekg(0, std::ios::beg);
-			return result;
-		}
-
 		void readFileStreamIntoSpan(std::ifstream& stream, std::span<std::byte> bufferSpan)
 		{
 #ifdef WITH_TESTS
@@ -264,8 +242,7 @@ namespace FileTransferSendLogic
 			fileMetadataWritten = 0;
 			filePathSize = static_cast<uint16_t>(filePath.size());
 			isPartial = startBytePos > 0;
-			isEndFileHashed = !isPartial && size > MaxSizeWithoutHash;
-			fileMetadataBytes = 8 + 2 + filePathSize + (isEndFileHashed ? Cryptography::HASHLEN : 0) + (isPartial ? Cryptography::HASHLEN + sizeof(uint64_t) : 0);
+			fileMetadataBytes = 8 + 2 + filePathSize + (isPartial ? sizeof(uint64_t) : 0);
 			filesAwaitingConfirmation.push_back(path);
 			++fileIndex;
 			debugPrintState(DebugState::NewFile);
@@ -286,9 +263,8 @@ namespace FileTransferSendLogic
 			{
 				writeData(0, 8, DebugState::FileSize, [this] {
 					std::array<std::byte, 8> data;
-					constexpr uint64_t hashedBit = static_cast<size_t>(0b1) << (sizeof(size_t) * 8 - 1);
-					constexpr uint64_t partialBit = static_cast<size_t>(0b1) << (sizeof(size_t) * 8 - 2);
-					Serialization::writeUint64(data, fileSizeBytes | (isEndFileHashed ? hashedBit : 0) | (isPartial ? partialBit : 0));
+					constexpr uint64_t partialBit = static_cast<size_t>(0b1) << (sizeof(size_t) * 8 - 1);
+					Serialization::writeUint64(data, fileSizeBytes | (isPartial ? partialBit : 0));
 					return data;
 				});
 
@@ -302,23 +278,12 @@ namespace FileTransferSendLogic
 					return std::as_bytes(std::span(filePath));
 				});
 
-				if (isEndFileHashed)
-				{
-					writeData(8 + 2 + filePathSize, Cryptography::HASHLEN, DebugState::FileHash, [this] {
-						return std::span<std::byte>(fileHash);
-					});
-				}
-
 				if (isPartial)
 				{
 					writeData(8 + 2 + filePathSize, 8, DebugState::FileAlreadySentSize, [this] {
 						std::array<std::byte, 8> data;
 						Serialization::writeUint64(data, bytesReadFromFile);
 						return data;
-					});
-
-					writeData(8 + 2 + filePathSize + 8, Cryptography::HASHLEN, DebugState::FileHash, [this] {
-						return std::span<std::byte>(fileHash);
 					});
 				}
 
@@ -543,7 +508,6 @@ namespace FileTransferSendLogic
 						// ToDo: log an error
 						break;
 					case static_cast<uint8_t>(Protocol::FileExchange::FileReceiveStatus::PartMissing):
-					case static_cast<uint8_t>(Protocol::FileExchange::FileReceiveStatus::PartCorrupted):
 						rejectedPartialFiles.push_back(filesAwaitingConfirmation[fileIdx]);
 						break;
 					case static_cast<uint8_t>(Protocol::FileExchange::FileReceiveStatus::AlreadyExists):
@@ -686,15 +650,6 @@ namespace FileTransferSendLogic
 				}
 
 				sendingState.newFile(dirEntry.lexically_relative(commonRoot), fileLength, partialSendStartByte);
-
-				if (sendingState.isEndFileHashed || sendingState.isPartial)
-				{
-					const size_t fileSizeToHash = partialSendStartByte > 0 ? std::min(fileLength, partialSendStartByte) : fileLength;
-					if (sendingState.calculateFileHash(file, fileSizeToHash, sendingState.fileHash) != 0)
-					{
-						return recordSentFiles(sendingState, storage, ActivityType::EndError, std::format("Could not calculate file hash for {}", dirEntry.string()));
-					}
-				}
 
 				if (sendingState.isPartial)
 				{
