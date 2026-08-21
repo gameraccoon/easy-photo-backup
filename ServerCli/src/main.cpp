@@ -81,11 +81,11 @@ int main()
 	const uint16_t serverPort = portFuture.get();
 
 	std::thread cliThread([&pairingRequestData] {
-	#ifdef _WIN32
+#ifdef _WIN32
 		if (_isatty(_fileno(stdin)))
-	#else
+#else
 		if (isatty(fileno(stdin)))
-	#endif
+#endif
 		{
 			ServerCli::runCliThread(pairingRequestData);
 		}
