@@ -62,8 +62,8 @@ public:
 		};
 
 		uint64_t timestampMs = 0;
+		uint64_t bytesTransferred = 0;
 		uint32_t filesCount = 0;
-		uint32_t bytesTransferred = 0;
 		Type type = Type::Unknown;
 		std::string additionalInfo = {};
 

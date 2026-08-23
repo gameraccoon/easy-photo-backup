@@ -21,7 +21,7 @@ namespace ClientStorageInternal
 	static constexpr std::zstring_view PartiallySentDatabaseName = "part_sent";
 	static constexpr std::zstring_view ActivityJournalDatabaseName = "activity";
 
-	static constexpr size_t ActivityRecordValueStaticDataSize = 18;
+	static constexpr size_t ActivityRecordValueStaticDataSize = 22;
 
 	static std::vector<ClientSentFilesStorage::ActivityJournalRecord> readActivityJournalRecords(Lmdb::ReadOnlyCursor& cursor, uint32_t beginIdx, uint32_t endIdx) noexcept
 	{
@@ -76,8 +76,8 @@ namespace ClientStorageInternal
 			Serialization::GenericDeserializationWrapper deserializer{ view->value };
 
 			if (!deserializer.readUint64(record.timestampMs, "timestampMs")) { break; }
+			if (!deserializer.readUint64(record.bytesTransferred, "bytesTransferred")) { break; }
 			if (!deserializer.readUint32(record.filesCount, "filesCount")) { break; }
-			if (!deserializer.readUint32(record.bytesTransferred, "bytesTransferred")) { break; }
 			if (!deserializer.readByte(*reinterpret_cast<std::byte*>(&record.type), "type")) { break; }
 			if (!deserializer.readShortString(record.additionalInfo, "additionalInfo")) { break; }
 
@@ -333,12 +333,12 @@ ClientConfigStorage::ClientConfigStorage(Lmdb::ReadWriteEnvironment&& environmen
 
 std::string ClientSentFilesStorage::ActivityJournalRecord::asString() const noexcept
 {
-	uint32_t bytes = bytesTransferred;
-	const uint32_t gigabytes = bytes / (1024 * 1024 * 1024);
+	uint64_t bytes = bytesTransferred;
+	const uint64_t gigabytes = bytes / (1024 * 1024 * 1024);
 	bytes -= gigabytes * 1024 * 1024 * 1024;
-	const uint32_t megabytes = bytes / (1024 * 1024);
+	const uint64_t megabytes = bytes / (1024 * 1024);
 	bytes -= megabytes * 1024 * 1024;
-	const uint32_t kilobytes = bytes / 1024;
+	const uint64_t kilobytes = bytes / 1024;
 	bytes -= kilobytes * 1024;
 
 	std::string bytesSentStr;
@@ -346,9 +346,9 @@ std::string ClientSentFilesStorage::ActivityJournalRecord::asString() const noex
 	{
 		bytesSentStr = std::format(
 			"\noutbound traffic: {}{}{}{}",
-			(gigabytes > 0) ? std::format("{}Gb ", gigabytes) : std::string{},
-			(megabytes > 0) ? std::format("{}Mb ", megabytes) : std::string{},
-			(kilobytes > 0) ? std::format("{}Kb ", kilobytes) : std::string{},
+			(gigabytes > 0) ? std::format("{}GiB ", gigabytes) : std::string{},
+			(megabytes > 0) ? std::format("{}MiB ", megabytes) : std::string{},
+			(kilobytes > 0) ? std::format("{}KiB ", kilobytes) : std::string{},
 			(bytes > 0) ? std::format("{} bytes", bytes) : std::string{}
 		);
 	}
@@ -575,8 +575,8 @@ bool ClientSentFilesStorage::addActivityJournalRecord(ActivityJournalRecord&& ne
 	}
 
 	if (!serializer.writeUint64(newRecord.timestampMs, "timestampMs")) { return false; }
+	if (!serializer.writeUint64(newRecord.bytesTransferred, "bytesTransferred")) { return false; }
 	if (!serializer.writeUint32(newRecord.filesCount, "filesCount")) { return false; }
-	if (!serializer.writeUint32(newRecord.bytesTransferred, "bytesTransferred")) { return false; }
 	if (!serializer.writeByte(static_cast<std::byte>(newRecord.type), "type")) { return false; }
 	if (!serializer.writeShortString(newRecord.additionalInfo, "additionalInfo")) { return false; }
 	assertFatalRelease(serializer.getBytesWritten() == value.size(), "Logical error, serialization of confirmed binding leaves not filled bytes, buffer size: {} written: {}", value.size(), serializer.getBytesWritten());

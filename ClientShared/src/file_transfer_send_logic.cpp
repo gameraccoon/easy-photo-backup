@@ -580,8 +580,8 @@ namespace FileTransferSendLogic
 
 		storage.addActivityJournalRecord(ClientSentFilesStorage::ActivityJournalRecord{
 			.timestampMs = ClientSentFilesStorage::ActivityJournalRecord::convertTimeToMs(now),
+			.bytesTransferred = static_cast<uint64_t>(sendingState.stats.chunksSent * FileSendingState::ChunkSize),
 			.filesCount = sendingState.stats.filesSent,
-			.bytesTransferred = static_cast<uint32_t>(sendingState.stats.chunksSent * FileSendingState::ChunkSize),
 			.type = recordType,
 			.additionalInfo = std::move(additionalInfo),
 		});
