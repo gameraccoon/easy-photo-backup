@@ -418,7 +418,7 @@ bool ClientSentFilesStorage::addSentFiles(const std::vector<std::filesystem::pat
 
 	for (const std::filesystem::path& path : newSentFiles)
 	{
-		const Lmdb::ReturnCode returnCode = sentFilesDb->put(std::as_bytes(std::span(path.native())), std::array<std::byte, 1>{ std::byte(0x00) });
+		const Lmdb::ReturnCode returnCode = sentFilesDb->put(std::as_bytes(std::span(std::filesystem::path(path).make_preferred().native())), std::array<std::byte, 1>{ std::byte(0x00) });
 		if (returnCode != Lmdb::ReturnCode::Success)
 		{
 			return false;
@@ -435,7 +435,9 @@ bool ClientSentFilesStorage::addSentFiles(const std::vector<std::filesystem::pat
 	{
 		std::array<std::byte, 8> sentDataBytes{};
 		Serialization::writeUint64(sentDataBytes, partiallySentData);
-		Lmdb::ReturnCode returnCode = partiallySentDb->put(std::as_bytes(std::span(partiallySentPath)), sentDataBytes);
+		std::filesystem::path tempPath = partiallySentPath;
+		tempPath.make_preferred();
+		Lmdb::ReturnCode returnCode = partiallySentDb->put(std::as_bytes(std::span(tempPath.native())), sentDataBytes);
 		if (returnCode != Lmdb::ReturnCode::Success)
 		{
 			return false;
@@ -455,7 +457,7 @@ bool ClientSentFilesStorage::addSentFiles(const std::vector<std::filesystem::pat
 	return (returnCode == Lmdb::ReturnCode::Success);
 }
 
-void ClientSentFilesStorage::filterOutSentFiles(const std::filesystem::path& rootPath, std::vector<std::filesystem::path>& inOutPaths, std::vector<uint64_t>& outPreviouslySentBytes) noexcept
+void ClientSentFilesStorage::filterOutSentFiles(std::vector<std::filesystem::path>& inOutPaths, std::vector<uint64_t>& outPreviouslySentBytes) noexcept
 {
 	Lmdb::Result<Lmdb::ReadOnlyTransaction> transaction = Lmdb::ReadOnlyTransaction::create(mEnvironment);
 	if (transaction.isError())
@@ -471,9 +473,9 @@ void ClientSentFilesStorage::filterOutSentFiles(const std::filesystem::path& roo
 
 	// it may be theoretically more efficient to load the list and cache it into a better search structure
 	inOutPaths.erase(
-		std::remove_if(inOutPaths.begin(), inOutPaths.end(), [&sentFilesDb, &rootPath](const std::filesystem::path& path) -> bool {
+		std::remove_if(inOutPaths.begin(), inOutPaths.end(), [&sentFilesDb](const std::filesystem::path& path) -> bool {
 			bool hasMatched = false;
-			auto result = sentFilesDb->readValue(std::as_bytes(std::span(path.lexically_relative(rootPath).native())), [&hasMatched](std::span<const std::byte>) {
+			auto result = sentFilesDb->readValue(std::as_bytes(std::span(path.native())), [&hasMatched](std::span<const std::byte>) {
 				hasMatched = true;
 			});
 			return hasMatched && result == Lmdb::ReturnCode::Success;
@@ -494,9 +496,16 @@ void ClientSentFilesStorage::filterOutSentFiles(const std::filesystem::path& roo
 	};
 
 	std::vector<PartiallySentFile> partiallySent;
-	Lmdb::ReturnCode returnCode = Lmdb::readAllDbRecords(*transaction, *partiallySentDb, [&partiallySent, &rootPath](std::span<const std::byte> key, std::span<const std::byte> value) {
+	Lmdb::ReturnCode returnCode = Lmdb::readAllDbRecords(*transaction, *partiallySentDb, [&partiallySent](std::span<const std::byte> key, std::span<const std::byte> value) {
 		uint64_t readBytes = Serialization::readUint64(value);
-		partiallySent.emplace_back(rootPath / std::string(reinterpret_cast<const char*>(key.data()), key.size()), readBytes);
+		if (key.size() % sizeof(std::filesystem::path::string_type::value_type) == 0)
+		{
+			partiallySent.emplace_back(std::filesystem::path::string_type(reinterpret_cast<std::filesystem::path::string_type::const_pointer>(key.data()), key.size() / sizeof(std::filesystem::path::string_type::value_type)), readBytes);
+		}
+		else
+		{
+			reportDebugError("A path in the database has an unexpected length, skipping");
+		}
 	});
 	debugAssert(returnCode == Lmdb::ReturnCode::Success, "Unexpected result from cursor iteration");
 

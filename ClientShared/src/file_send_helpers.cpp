@@ -66,8 +66,13 @@ namespace FileSendHelpers
 
 		std::vector<std::filesystem::path> files = collectFilesFromDirectory(folderPath);
 
+		for (std::filesystem::path& file : files)
+		{
+			file = file.lexically_relative(commonRoot);
+		}
+
 		std::vector<uint64_t> previouslySentBytes;
-		clientSentFilesStorage.filterOutSentFiles(commonRoot, files, previouslySentBytes);
+		clientSentFilesStorage.filterOutSentFiles(files, previouslySentBytes);
 
 		if (files.empty())
 		{

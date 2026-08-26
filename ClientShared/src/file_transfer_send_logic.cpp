@@ -364,7 +364,9 @@ namespace FileTransferSendLogic
 					}
 				}
 
-				confirmedFilesCache.push_back(filesAwaitingConfirmation[i]);
+				std::filesystem::path tempFilePath = std::move(filesAwaitingConfirmation[i]);
+				tempFilePath.make_preferred(); // convert to native format for later saving
+				confirmedFilesCache.push_back(std::move(tempFilePath));
 				++stats.filesSent;
 			}
 
@@ -632,15 +634,16 @@ namespace FileTransferSendLogic
 		{
 			for (size_t fileIdx = 0; fileIdx < files.size(); ++fileIdx)
 			{
-				const std::filesystem::path& dirEntry = files[fileIdx];
+				const std::filesystem::path& relativePath = files[fileIdx];
 				uint64_t partialSendStartByte = fileIdx < previouslySentBytes.size() ? previouslySentBytes[fileIdx] : 0;
 
 				std::ifstream file;
-				sendingState.openFile(file, dirEntry);
+				std::filesystem::path absoluteFilePath = commonRoot / relativePath;
+				sendingState.openFile(file, absoluteFilePath);
 
 				if (!sendingState.isFileOpen(file)) [[unlikely]]
 				{
-					return recordSentFiles(sendingState, storage, ActivityType::EndError, std::format("Could not open file for reading: {}", dirEntry.string()));
+					return recordSentFiles(sendingState, storage, ActivityType::EndError, std::format("Could not open file for reading: {}", relativePath.string()));
 				}
 				const uint64_t fileLength = sendingState.getFileLength(file);
 				// ToDo: should also save and check hash here, since the file may have changed since we started sending it
@@ -649,7 +652,7 @@ namespace FileTransferSendLogic
 					partialSendStartByte = 0;
 				}
 
-				sendingState.newFile(dirEntry.lexically_relative(commonRoot), fileLength, partialSendStartByte);
+				sendingState.newFile(relativePath, fileLength, partialSendStartByte);
 
 				if (sendingState.isPartial)
 				{

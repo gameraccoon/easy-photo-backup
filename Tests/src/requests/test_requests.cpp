@@ -176,8 +176,12 @@ TEST_F(RequestsTest, PairConfirmAndExchangeFiles_FilesExchanged)
 		// client send
 		auto storageSentFiles = ClientSentFilesStorage::openStorage(TEST_DATA_PATH);
 		std::vector<std::filesystem::path> files = FileSendHelpers::collectFilesFromDirectory(folderToSend);
+		for (std::filesystem::path& file : files)
+		{
+			file = file.lexically_relative(folderToSend);
+		}
 		std::vector<uint64_t> previouslySentBytes;
-		storageSentFiles->filterOutSentFiles(folderToSend, files, previouslySentBytes);
+		storageSentFiles->filterOutSentFiles(files, previouslySentBytes);
 		Requests::sendAndProcessSendFilesInteractiveRequest(clientSocket, *storageConfig, *storageSentFiles, serverId, files, previouslySentBytes, folderToSend);
 	});
 	TestFinalizer f([&clientThread] {

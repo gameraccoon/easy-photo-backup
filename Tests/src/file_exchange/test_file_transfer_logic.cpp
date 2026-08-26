@@ -320,11 +320,11 @@ static FileExchangeTestResult runFileExchangeTest(ClientSentFilesStorage& client
 			filePathsToSend.reserve(filesToSend.size());
 			for (const auto& file : filesToSend)
 			{
-				filePathsToSend.push_back(clientRootFolder / file.path);
+				filePathsToSend.push_back(file.path);
 			}
 
 			std::vector<uint64_t> previouslySentBytes;
-			clientStorage.filterOutSentFiles(clientRootFolder, filePathsToSend, previouslySentBytes);
+			clientStorage.filterOutSentFiles(filePathsToSend, previouslySentBytes);
 			FileTransferSendLogic::sendFiles(filePathsToSend, previouslySentBytes, clientRootFolder, senderSocket, clientStorage, cipherStateSending, cipherStateReceiving, sendMocks);
 		}
 
@@ -334,11 +334,11 @@ static FileExchangeTestResult runFileExchangeTest(ClientSentFilesStorage& client
 			filesToConfirm.reserve(expectedFilesToConfirm.size());
 			for (const TestFileExchangeFile& fileToConfirm : expectedFilesToConfirm)
 			{
-				filesToConfirm.push_back(clientRootFolder / fileToConfirm.path);
+				filesToConfirm.push_back(fileToConfirm.path);
 			}
 
 			std::vector<uint64_t> previouslySentBytes;
-			clientStorage.filterOutSentFiles(clientRootFolder, filesToConfirm, previouslySentBytes);
+			clientStorage.filterOutSentFiles(filesToConfirm, previouslySentBytes);
 			EXPECT_EQ(filesToConfirm.size() - previouslySentBytes.size(), size_t(0)) << std::format("Some files were not confirmed (confirmed {} out of {})", expectedFilesToConfirm.size() - filesToConfirm.size() + previouslySentBytes.size(), expectedFilesToConfirm.size());
 			for (size_t i = previouslySentBytes.size(); i < filesToConfirm.size(); ++i)
 			{
