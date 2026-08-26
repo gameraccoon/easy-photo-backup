@@ -109,7 +109,8 @@ namespace FileTransferReceiveLogic
 		Cryptography::ByteSequence<Cryptography::ByteSequenceTag::TempInternalBuffer, ChunkSize + Cryptography::CipherAuthDataSize> buffer;
 		std::ofstream file;
 		std::filesystem::path rootPath;
-		std::string filePath;
+		std::u8string filePathStr;
+		std::filesystem::path filePath;
 		size_t bytesReadInChunk = ChunkSize;
 		size_t chunksReceived = 0;
 		size_t fileMetadataRead = 0;
@@ -292,6 +293,7 @@ namespace FileTransferReceiveLogic
 			filePathSize = 0;
 			fileSizeBytes = 0;
 			isPartial = false;
+			filePathStr.clear();
 			filePath.clear();
 			// set the default status to update later
 			lastFileStatuses.push_back(Protocol::FileExchange::FileReceiveStatus::Success);
@@ -356,7 +358,7 @@ namespace FileTransferReceiveLogic
 						filePathSize = Serialization::readUint16(data.raw[0], data.raw[1]);
 					},
 					[this] {
-						filePath.resize(filePathSize);
+						filePathStr.resize(filePathSize);
 					}
 				);
 
@@ -369,9 +371,11 @@ namespace FileTransferReceiveLogic
 					8 + 2, static_cast<size_t>(filePathSize),
 					DebugState::FilePath,
 					[this](auto readFn) {
-						readFn(std::as_writable_bytes(std::span(filePath)));
+						readFn(std::as_writable_bytes(std::span(filePathStr)));
 					},
-					[] {}
+					[this] {
+						filePath = filePathStr;
+					}
 				);
 
 				if (isPartial)
@@ -432,7 +436,7 @@ namespace FileTransferReceiveLogic
 
 						if (!isFileOpen(file))
 						{
-							reportDebugError("Could not open file for writing {}.part", filePath);
+							reportDebugError("Could not open file for writing {}.part", filePath.string());
 							recordFileError(Protocol::FileExchange::FileReceiveStatus::CouldNotCreate);
 						}
 					}

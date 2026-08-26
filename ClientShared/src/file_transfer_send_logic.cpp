@@ -236,7 +236,8 @@ namespace FileTransferSendLogic
 
 		void newFile(const std::filesystem::path& path, uint64_t size, uint64_t startBytePos) noexcept
 		{
-			filePath = path.generic_string();
+			auto utf8PathStr = path.u8string();
+			filePath = std::string(reinterpret_cast<const char*>(utf8PathStr.data()), utf8PathStr.size());
 			fileSizeBytes = size;
 			bytesReadFromFile = startBytePos;
 			fileMetadataWritten = 0;
