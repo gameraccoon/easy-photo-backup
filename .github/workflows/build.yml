@@ -58,5 +58,5 @@ jobs:
         working-directory: build
 
       - name: Run tests
-        run: ./Release/Tests.exe
+        run: ./Debug/Tests.exe
         working-directory: build
