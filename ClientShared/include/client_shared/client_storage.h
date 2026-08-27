@@ -77,7 +77,7 @@ public:
 
 	[[nodiscard]] static std::optional<ClientSentFilesStorage> openStorage(const std::filesystem::path& storageRootPath) noexcept;
 
-	bool addSentFiles(const std::vector<std::filesystem::path>& newSentFiles, const std::string& partiallySentPath, uint64_t partiallySentData, const std::vector<std::filesystem::path>& rejectedPartialFiles) noexcept;
+	bool addSentFiles(const std::vector<std::filesystem::path>& newSentFiles, const std::filesystem::path& partiallySentPath, uint64_t partiallySentData, const std::vector<std::filesystem::path>& rejectedPartialFiles) noexcept;
 	void filterOutSentFiles(std::vector<std::filesystem::path>& inOutPaths, std::vector<uint64_t>& outPreviouslySentBytes) noexcept;
 
 	void truncateLastActivityJournalRecords(uint64_t oldestTimestampToLeaveMs) noexcept;

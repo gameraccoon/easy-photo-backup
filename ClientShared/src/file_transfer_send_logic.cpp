@@ -116,6 +116,7 @@ namespace FileTransferSendLogic
 		Mocks mocks;
 #endif
 		Cryptography::ByteSequence<Cryptography::ByteSequenceTag::TempInternalBuffer, ChunkSize + Cryptography::CipherAuthDataSize> buffer;
+		std::filesystem::path filePathNative;
 		std::string filePath;
 		size_t bytesFilledInChunk = 0;
 		size_t fileMetadataBytes = 0; // 8 bytes of size + 2 bytes of path + name
@@ -236,8 +237,12 @@ namespace FileTransferSendLogic
 
 		void newFile(const std::filesystem::path& path, uint64_t size, uint64_t startBytePos) noexcept
 		{
+			filePathNative = path;
 			auto utf8PathStr = path.u8string();
 			filePath = std::string(reinterpret_cast<const char*>(utf8PathStr.data()), utf8PathStr.size());
+#ifdef WIN32
+			std::replace(filePath.begin(), filePath.end(), '\\', '/');
+#endif // WIN32
 			fileSizeBytes = size;
 			bytesReadFromFile = startBytePos;
 			fileMetadataWritten = 0;
@@ -365,9 +370,7 @@ namespace FileTransferSendLogic
 					}
 				}
 
-				std::filesystem::path tempFilePath = std::move(filesAwaitingConfirmation[i]);
-				tempFilePath.make_preferred(); // convert to native format for later saving
-				confirmedFilesCache.push_back(std::move(tempFilePath));
+				confirmedFilesCache.push_back(std::move(filesAwaitingConfirmation[i]));
 				++stats.filesSent;
 			}
 
@@ -596,7 +599,7 @@ namespace FileTransferSendLogic
 	{
 		if (activityType != ActivityType::Continue || sendingState.shouldSaveState())
 		{
-			const bool isSuccess = storage.addSentFiles(sendingState.confirmedFilesCache, sendingState.filePath, sendingState.firstAwaitingFileBytesConfirmed, sendingState.rejectedPartialFiles);
+			const bool isSuccess = storage.addSentFiles(sendingState.confirmedFilesCache, sendingState.filePathNative, sendingState.firstAwaitingFileBytesConfirmed, sendingState.rejectedPartialFiles);
 			if (isSuccess)
 			{
 				sendingState.confirmedFilesCache.clear();

@@ -402,7 +402,7 @@ std::optional<ClientSentFilesStorage> ClientSentFilesStorage::openStorage(const 
 	return ClientSentFilesStorage(envResult.consumeResult());
 }
 
-bool ClientSentFilesStorage::addSentFiles(const std::vector<std::filesystem::path>& newSentFiles, const std::string& partiallySentPath, uint64_t partiallySentData, const std::vector<std::filesystem::path>& rejectedPartialFiles) noexcept
+bool ClientSentFilesStorage::addSentFiles(const std::vector<std::filesystem::path>& newSentFiles, const std::filesystem::path& partiallySentPath, uint64_t partiallySentData, const std::vector<std::filesystem::path>& rejectedPartialFiles) noexcept
 {
 	Lmdb::Result<Lmdb::ReadWriteTransaction> transaction = Lmdb::ReadWriteTransaction::create(mEnvironment);
 	if (transaction.isError())
@@ -418,7 +418,7 @@ bool ClientSentFilesStorage::addSentFiles(const std::vector<std::filesystem::pat
 
 	for (const std::filesystem::path& path : newSentFiles)
 	{
-		const Lmdb::ReturnCode returnCode = sentFilesDb->put(std::as_bytes(std::span(std::filesystem::path(path).make_preferred().native())), std::array<std::byte, 1>{ std::byte(0x00) });
+		const Lmdb::ReturnCode returnCode = sentFilesDb->put(std::as_bytes(std::span(path.native())), std::array<std::byte, 1>{ std::byte(0x00) });
 		if (returnCode != Lmdb::ReturnCode::Success)
 		{
 			return false;
@@ -435,9 +435,7 @@ bool ClientSentFilesStorage::addSentFiles(const std::vector<std::filesystem::pat
 	{
 		std::array<std::byte, 8> sentDataBytes{};
 		Serialization::writeUint64(sentDataBytes, partiallySentData);
-		std::filesystem::path tempPath = partiallySentPath;
-		tempPath.make_preferred();
-		Lmdb::ReturnCode returnCode = partiallySentDb->put(std::as_bytes(std::span(tempPath.native())), sentDataBytes);
+		Lmdb::ReturnCode returnCode = partiallySentDb->put(std::as_bytes(std::span(partiallySentPath.native())), sentDataBytes);
 		if (returnCode != Lmdb::ReturnCode::Success)
 		{
 			return false;

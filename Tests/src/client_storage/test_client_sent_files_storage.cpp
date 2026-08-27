@@ -23,6 +23,11 @@ protected:
 	{
 		std::filesystem::remove_all(TEST_DATA_PATH);
 	}
+
+	static std::filesystem::path nativePath(const char* pathStr)
+	{
+		return std::filesystem::path(pathStr);
+	}
 };
 
 TEST_F(ClientSentFilesStorageTest, Storage_Created_NoErrors)
@@ -39,9 +44,9 @@ TEST_F(ClientSentFilesStorageTest, EmptyStorage_AddSentFilesAndFilter_FiltersOut
 	{
 		std::vector<std::filesystem::path> sentFiles;
 		sentFiles.reserve(3);
-		sentFiles.push_back("some/path/to/a/file.txt");
-		sentFiles.push_back("some/a/bit/longer/path/to/a/file.bin");
-		sentFiles.push_back("some/relatively/looooooooooooooooooooong/path/to/a/file/but/maybe/not/to/long.bin");
+		sentFiles.push_back(nativePath("some/path/to/a/file.txt"));
+		sentFiles.push_back(nativePath("some/a/bit/longer/path/to/a/file.bin"));
+		sentFiles.push_back(nativePath("some/relatively/looooooooooooooooooooong/path/to/a/file/but/maybe/not/to/long.bin"));
 		EXPECT_TRUE(storage->addSentFiles(sentFiles, "", 0, {}));
 	}
 
@@ -49,13 +54,13 @@ TEST_F(ClientSentFilesStorageTest, EmptyStorage_AddSentFilesAndFilter_FiltersOut
 	pathsToFilterOut.reserve(4);
 	std::vector<std::filesystem::path> expectedPathsToRemain;
 	expectedPathsToRemain.reserve(3);
-	pathsToFilterOut.push_back(std::filesystem::path("some/relatively/looooooooooooooooooooong/path/to/a/file/but/maybe/not/to/long.bin").make_preferred());
-	pathsToFilterOut.push_back(std::filesystem::path("some/other/path.txt").make_preferred());
-	expectedPathsToRemain.push_back(std::filesystem::path("some/other/path.txt").make_preferred());
-	pathsToFilterOut.push_back(std::filesystem::path("some/path/to/a/file.txt.log").make_preferred());
-	expectedPathsToRemain.push_back(std::filesystem::path("some/path/to/a/file.txt.log").make_preferred()); // different path
-	pathsToFilterOut.push_back(std::filesystem::path("file.txt").make_preferred());
-	expectedPathsToRemain.push_back(std::filesystem::path("file.txt").make_preferred()); // different path
+	pathsToFilterOut.push_back(nativePath("some/relatively/looooooooooooooooooooong/path/to/a/file/but/maybe/not/to/long.bin"));
+	pathsToFilterOut.push_back(nativePath("some/other/path.txt"));
+	expectedPathsToRemain.push_back(nativePath("some/other/path.txt"));
+	pathsToFilterOut.push_back(nativePath("some/path/to/a/file.txt.log"));
+	expectedPathsToRemain.push_back(nativePath("some/path/to/a/file.txt.log")); // different path
+	pathsToFilterOut.push_back(nativePath("file.txt"));
+	expectedPathsToRemain.push_back(nativePath("file.txt")); // different path
 
 	{
 		std::vector<size_t> previouslySentBytes;
@@ -73,7 +78,7 @@ TEST_F(ClientSentFilesStorageTest, EmptyStorage_AddSentFilesWithPartiallySentAnd
 	{
 		std::vector<std::filesystem::path> sentFiles;
 		sentFiles.reserve(1);
-		sentFiles.push_back(std::filesystem::path("some/path/to/a/file.txt").make_preferred());
+		sentFiles.push_back(nativePath("some/path/to/a/file.txt"));
 		EXPECT_TRUE(storage->addSentFiles(sentFiles, "partially/sent/file/path.txt", 102040, {}));
 	}
 
@@ -82,7 +87,7 @@ TEST_F(ClientSentFilesStorageTest, EmptyStorage_AddSentFilesWithPartiallySentAnd
 		std::vector<std::filesystem::path> pathsToFilterOut;
 		pathsToFilterOut.reserve(1);
 		std::vector<std::filesystem::path> expectedPathsToRemain;
-		pathsToFilterOut.push_back(std::filesystem::path("some/path/to/a/file.txt").make_preferred());
+		pathsToFilterOut.push_back(nativePath("some/path/to/a/file.txt"));
 		std::vector<size_t> previouslySentBytes;
 		storage->filterOutSentFiles(pathsToFilterOut, previouslySentBytes);
 		EXPECT_EQ(expectedPathsToRemain, pathsToFilterOut);
@@ -95,9 +100,9 @@ TEST_F(ClientSentFilesStorageTest, EmptyStorage_AddSentFilesWithPartiallySentAnd
 		pathsToFilterOut.reserve(2);
 		std::vector<std::filesystem::path> expectedPathsToRemain;
 		expectedPathsToRemain.reserve(1);
-		pathsToFilterOut.push_back(std::filesystem::path("some/path/to/a/file.txt").make_preferred());
-		pathsToFilterOut.push_back(std::filesystem::path("partially/sent/file/path.txt").make_preferred());
-		expectedPathsToRemain.push_back(std::filesystem::path("partially/sent/file/path.txt").make_preferred());
+		pathsToFilterOut.push_back(nativePath("some/path/to/a/file.txt"));
+		pathsToFilterOut.push_back(nativePath("partially/sent/file/path.txt"));
+		expectedPathsToRemain.push_back(nativePath("partially/sent/file/path.txt"));
 		std::vector<size_t> previouslySentBytes;
 		storage->filterOutSentFiles(pathsToFilterOut, previouslySentBytes);
 		EXPECT_EQ(expectedPathsToRemain, pathsToFilterOut);
@@ -114,14 +119,14 @@ TEST_F(ClientSentFilesStorageTest, StorageWithPartiallySentFile_ConfirmAnotherFi
 	{
 		std::vector<std::filesystem::path> sentFiles;
 		sentFiles.reserve(1);
-		sentFiles.push_back(std::filesystem::path("some/path/to/a/file.txt").make_preferred());
-		EXPECT_TRUE(storage->addSentFiles(sentFiles, "partially/sent/file/path.txt", 102040, {}));
+		sentFiles.push_back(nativePath("some/path/to/a/file.txt"));
+		EXPECT_TRUE(storage->addSentFiles(sentFiles, nativePath("partially/sent/file/path.txt"), 102040, {}));
 	}
 
 	{
 		std::vector<std::filesystem::path> sentFiles;
 		sentFiles.reserve(1);
-		sentFiles.push_back(std::filesystem::path("some/path/to/another/file.txt").make_preferred());
+		sentFiles.push_back(nativePath("some/path/to/another/file.txt"));
 		EXPECT_TRUE(storage->addSentFiles(sentFiles, "", 0, {}));
 	}
 
@@ -130,8 +135,8 @@ TEST_F(ClientSentFilesStorageTest, StorageWithPartiallySentFile_ConfirmAnotherFi
 		pathsToFilterOut.reserve(1);
 		std::vector<std::filesystem::path> expectedPathsToRemain;
 		expectedPathsToRemain.reserve(1);
-		pathsToFilterOut.push_back(std::filesystem::path("partially/sent/file/path.txt").make_preferred());
-		expectedPathsToRemain.push_back(std::filesystem::path("partially/sent/file/path.txt").make_preferred());
+		pathsToFilterOut.push_back(nativePath("partially/sent/file/path.txt"));
+		expectedPathsToRemain.push_back(nativePath("partially/sent/file/path.txt"));
 		std::vector<size_t> previouslySentBytes;
 		storage->filterOutSentFiles(pathsToFilterOut, previouslySentBytes);
 		EXPECT_EQ(expectedPathsToRemain, pathsToFilterOut);
@@ -148,14 +153,14 @@ TEST_F(ClientSentFilesStorageTest, StorageWithPartiallySentFile_ConfirmPartially
 	{
 		std::vector<std::filesystem::path> sentFiles;
 		sentFiles.reserve(1);
-		sentFiles.push_back(std::filesystem::path("some/path/to/a/file.txt").make_preferred());
-		EXPECT_TRUE(storage->addSentFiles(sentFiles, "partially/sent/file/path.txt", 102040, {}));
+		sentFiles.push_back(nativePath("some/path/to/a/file.txt"));
+		EXPECT_TRUE(storage->addSentFiles(sentFiles, nativePath("partially/sent/file/path.txt"), 102040, {}));
 	}
 
 	{
 		std::vector<std::filesystem::path> sentFiles;
 		sentFiles.reserve(1);
-		sentFiles.push_back(std::filesystem::path("partially/sent/file/path.txt").make_preferred());
+		sentFiles.push_back(nativePath("partially/sent/file/path.txt"));
 		EXPECT_TRUE(storage->addSentFiles(sentFiles, "", 0, {}));
 	}
 
@@ -164,7 +169,7 @@ TEST_F(ClientSentFilesStorageTest, StorageWithPartiallySentFile_ConfirmPartially
 		pathsToFilterOut.reserve(2);
 		std::vector<std::filesystem::path> expectedPathsToRemain;
 		expectedPathsToRemain.reserve(1);
-		pathsToFilterOut.push_back(std::filesystem::path("partially/sent/file/path.txt").make_preferred());
+		pathsToFilterOut.push_back(nativePath("partially/sent/file/path.txt"));
 		std::vector<size_t> previouslySentBytes;
 		storage->filterOutSentFiles(pathsToFilterOut, previouslySentBytes);
 		EXPECT_EQ(expectedPathsToRemain, pathsToFilterOut);
@@ -180,12 +185,12 @@ TEST_F(ClientSentFilesStorageTest, StorageWithPartiallySentFile_RejectPartiallyS
 	{
 		std::vector<std::filesystem::path> sentFiles;
 		sentFiles.reserve(1);
-		sentFiles.push_back(std::filesystem::path("some/path/to/a/file.txt").make_preferred());
-		EXPECT_TRUE(storage->addSentFiles(sentFiles, "partially/sent/file/path.txt", 102040, {}));
+		sentFiles.push_back(nativePath("some/path/to/a/file.txt"));
+		EXPECT_TRUE(storage->addSentFiles(sentFiles, nativePath("partially/sent/file/path.txt"), 102040, {}));
 	}
 
 	{
-		EXPECT_TRUE(storage->addSentFiles({}, "", 0, { std::filesystem::path("partially/sent/file/path.txt").make_preferred() }));
+		EXPECT_TRUE(storage->addSentFiles({}, "", 0, { nativePath("partially/sent/file/path.txt") }));
 	}
 
 	{
@@ -193,8 +198,8 @@ TEST_F(ClientSentFilesStorageTest, StorageWithPartiallySentFile_RejectPartiallyS
 		pathsToFilterOut.reserve(2);
 		std::vector<std::filesystem::path> expectedPathsToRemain;
 		expectedPathsToRemain.reserve(1);
-		pathsToFilterOut.push_back(std::filesystem::path("partially/sent/file/path.txt").make_preferred());
-		expectedPathsToRemain.push_back(std::filesystem::path("partially/sent/file/path.txt").make_preferred());
+		pathsToFilterOut.push_back(nativePath("partially/sent/file/path.txt"));
+		expectedPathsToRemain.push_back(nativePath("partially/sent/file/path.txt"));
 		std::vector<size_t> previouslySentBytes;
 		storage->filterOutSentFiles(pathsToFilterOut, previouslySentBytes);
 		EXPECT_EQ(expectedPathsToRemain, pathsToFilterOut);

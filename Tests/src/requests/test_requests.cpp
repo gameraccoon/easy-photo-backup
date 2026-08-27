@@ -111,12 +111,27 @@ TEST_F(RequestsTest, PairConfirmAndExchangeFiles_FilesExchanged)
 	constexpr Network::RawSocket clientSocket = 10;
 	constexpr Network::RawSocket serverSocket = 11;
 
-	const std::vector<std::byte> fileContent = hexToBytes("abcdef777777");
-	constexpr std::string_view fileName = "test_file_to_send";
 	const std::filesystem::path folderToSend = "./tests/requests_test/files_to_send";
 
+	std::vector<std::filesystem::path> fileNames;
+	fileNames.reserve(4);
+	std::vector<std::vector<std::byte>> fileContents;
+	fileContents.reserve(4);
+	fileNames.push_back("test_file_to_send");
+	fileContents.push_back(strToBytes("some content"));
+	fileNames.push_back("тестовый файл для отправки");
+	fileContents.push_back(strToBytes("некоторый контент"));
+	fileNames.push_back("要傳送的測試文件");
+	fileContents.push_back(strToBytes("部分內容"));
+	fileNames.push_back("送信するテストファイル");
+	fileContents.push_back(strToBytes("一部のコンテンツ"));
+
 	std::filesystem::create_directories(folderToSend);
-	createFile(folderToSend / fileName, fileContent);
+	ASSERT_EQ(fileNames.size(), fileContents.size());
+	for (size_t i = 0; i < fileNames.size(); ++i)
+	{
+		createFile(folderToSend / fileNames[i], fileContents[i]);
+	}
 
 	Network::gSendTestMock = [&clientToServerMessages, &serverToClientMessages](Network::RawSocket socket, const char* buffer, int dataSize, int /*flags*/) -> int {
 		if (socket == clientSocket)
@@ -228,5 +243,9 @@ TEST_F(RequestsTest, PairConfirmAndExchangeFiles_FilesExchanged)
 	Requests::SendFiles sendFiles = std::get<Requests::SendFiles>(std::move(sendFilesRequest));
 	Requests::processSendFilesInteractiveRequest(sendFiles.connectionId, sendFiles.firstMessage, serverSocket, *configStorage, TEST_DATA_PATH);
 
-	checkFile(folderToSend / fileName, fileContent);
+	ASSERT_EQ(fileNames.size(), fileContents.size());
+	for (size_t i = 0; i < fileNames.size(); ++i)
+	{
+		checkFile(folderToSend / fileNames[i], fileContents[i]);
+	}
 }

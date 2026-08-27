@@ -375,6 +375,7 @@ namespace FileTransferReceiveLogic
 					},
 					[this] {
 						filePath = filePathStr;
+						filePath.make_preferred();
 					}
 				);
 
