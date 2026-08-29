@@ -58,13 +58,14 @@ TEST_F(ClientConfigStorageTest, Storage_AddConfirmedServerAndGetIt_ReturnsTheBin
 	Cryptography::fillWithRandomBytes(binding.staticKeys.publicKey);
 	Cryptography::fillWithRandomBytes(binding.staticKeys.secretKey);
 
-	storage->addConfirmedServerBinding(id, binding);
+	ASSERT_TRUE(storage->addConfirmedServerBinding(id, binding));
 
 	EXPECT_TRUE(storage->hasConfirmedServerBinding(id));
 
 	std::optional<ClientConfigStorage::ServerBinding> result = storage->getConfirmedServerBinding(id);
 	ASSERT_TRUE(result.has_value());
 
+	EXPECT_EQ(result->serverIdx, uint8_t(0));
 	EXPECT_EQ(result->serverName, binding.serverName);
 	EXPECT_EQ(result->connectionId, binding.connectionId);
 	EXPECT_EQ(result->remoteStaticKey, binding.remoteStaticKey);
@@ -87,7 +88,7 @@ TEST_F(ClientConfigStorageTest, Storage_RemoveExistingConfirmedBindingAndGetIt_R
 	Cryptography::fillWithRandomBytes(binding.staticKeys.publicKey);
 	Cryptography::fillWithRandomBytes(binding.staticKeys.secretKey);
 
-	storage->addConfirmedServerBinding(id, binding);
+	ASSERT_TRUE(storage->addConfirmedServerBinding(id, binding));
 
 	EXPECT_TRUE(storage->removeConfirmedServerBinding(id));
 

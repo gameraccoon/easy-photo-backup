@@ -149,42 +149,93 @@ std::optional<ClientConfigStorage> ClientConfigStorage::openStorage(const std::f
 	return ClientConfigStorage(envResult.consumeResult());
 }
 
-void ClientConfigStorage::addConfirmedServerBinding(const ServerId& serverId, const ServerBinding& binding) noexcept
+bool ClientConfigStorage::addConfirmedServerBinding(const ServerId& serverId, const ServerBinding& binding) noexcept
 {
 	if (serverId.size() > 255) [[unlikely]]
 	{
 		reportReleaseError("Too long server ID to serialize {}", serverId.size());
-		return;
+		return false;
 	}
 
 	Lmdb::Result<Lmdb::ReadWriteSingleDbWrapper> wrapper = Lmdb::openReadWriteSingleDbTransaction(mEnvironment, ClientStorageInternal::ConfirmedDatabaseName);
 	if (wrapper.isError()) [[unlikely]]
 	{
-		return;
+		return false;
+	}
+
+	// find first free
+	std::array<bool, 256> takenIndexes = {};
+	Lmdb::Result<Lmdb::ReadOnlyCursor> cursor = Lmdb::ReadOnlyCursor::open(wrapper->transaction, wrapper->database);
+	if (cursor.isError()) [[unlikely]]
+	{
+		return false;
+	}
+
+	Lmdb::ReturnCode result = cursor->first();
+	if (result != Lmdb::ReturnCode::Success && result != Lmdb::ReturnCode::NotFound) [[unlikely]]
+	{
+		return false;
+	}
+
+	if (result != Lmdb::ReturnCode::NotFound)
+	{
+		Lmdb::Result<Lmdb::CursorDataView> view = cursor->viewCurrent();
+		while (view.isValid())
+		{
+			if (view->value.size() > 1)
+			{
+				takenIndexes[static_cast<size_t>(view->value[0])] = true;
+			}
+
+			if (cursor->next() != Lmdb::ReturnCode::Success) [[unlikely]]
+			{
+				break;
+			}
+			view = cursor->viewCurrent();
+		}
+	}
+
+	std::optional<uint8_t> firstFreeIndex{};
+	for (size_t i = 0; i < 256; ++i)
+	{
+		if (takenIndexes[i] == false)
+		{
+			firstFreeIndex = static_cast<uint8_t>(i);
+			break;
+		}
+	}
+
+	if (!firstFreeIndex.has_value())
+	{
+		reportDebugError("All 256 server indexes are taken, can't pair more servers");
+		return false;
 	}
 
 	std::vector<std::byte> value;
-	value.resize(1 + binding.serverName.size() + binding.connectionId.size() + binding.remoteStaticKey.size() + binding.staticKeys.publicKey.size() + binding.staticKeys.secretKey.size());
+	value.resize(1 + 1 + binding.serverName.size() + binding.connectionId.size() + binding.remoteStaticKey.size() + binding.staticKeys.publicKey.size() + binding.staticKeys.secretKey.size());
 	Serialization::GenericSerializationWrapper serializer{ value };
 
-	if (!serializer.writeShortString(binding.serverName, "serverName")) { return; }
-	if (!serializer.writeFixedData(binding.connectionId, "connectionId")) { return; }
-	if (!serializer.writeFixedData(binding.remoteStaticKey, "remoteStaticKey")) { return; }
-	if (!serializer.writeFixedData(binding.staticKeys.publicKey, "publicKey")) { return; }
-	if (!serializer.writeFixedData(binding.staticKeys.secretKey, "secretKey")) { return; }
+	if (!serializer.writeUint8(*firstFreeIndex, "serverIdx")) { return false; }
+	if (!serializer.writeShortString(binding.serverName, "serverName")) { return false; }
+	if (!serializer.writeFixedData(binding.connectionId, "connectionId")) { return false; }
+	if (!serializer.writeFixedData(binding.remoteStaticKey, "remoteStaticKey")) { return false; }
+	if (!serializer.writeFixedData(binding.staticKeys.publicKey, "publicKey")) { return false; }
+	if (!serializer.writeFixedData(binding.staticKeys.secretKey, "secretKey")) { return false; }
 	assertFatalRelease(serializer.getBytesWritten() == value.size(), "Logical error, serialization of confirmed binding leaves not filled bytes, buffer size: {} written: {}", value.size(), serializer.getBytesWritten());
 
 	Lmdb::ReturnCode returnCode = wrapper->database.put(serverId, value);
 	if (returnCode != Lmdb::ReturnCode::Success) [[unlikely]]
 	{
-		return;
+		return false;
 	}
 
-	returnCode = wrapper->commitTransaction();
+	returnCode = wrapper->commitTransactionNoCursors();
 	if (returnCode != Lmdb::ReturnCode::Success)
 	{
-		return;
+		return false;
 	}
+
+	return true;
 }
 
 bool ClientConfigStorage::removeConfirmedServerBinding(const ServerId& serverId) noexcept
@@ -201,7 +252,7 @@ bool ClientConfigStorage::removeConfirmedServerBinding(const ServerId& serverId)
 		return false;
 	}
 
-	returnCode = wrapper->commitTransaction();
+	returnCode = wrapper->commitTransactionNoCursors();
 	if (returnCode != Lmdb::ReturnCode::Success) [[unlikely]]
 	{
 		return false;
@@ -228,6 +279,7 @@ std::optional<ClientConfigStorage::ServerBinding> ClientConfigStorage::getConfir
 	ServerBinding result{};
 	Serialization::GenericDeserializationWrapper deserializer{ value };
 
+	if (!deserializer.readUint8(result.serverIdx, "serverIdx")) { return std::nullopt; }
 	if (!deserializer.readShortString(result.serverName, "serverName")) { return std::nullopt; }
 	if (!deserializer.readFixedData(result.connectionId, "connectionId")) { return std::nullopt; }
 	if (!deserializer.readFixedData(result.remoteStaticKey, "remoteStaticKey")) { return std::nullopt; }
@@ -626,7 +678,7 @@ void ClientSentFilesStorage::deleteServer(uint8_t serverIdx) noexcept
 		return;
 	}
 
-	if (sentFilesCursor->first() == Lmdb::ReturnCode::Success) [[unlikely]]
+	if (sentFilesCursor->first() == Lmdb::ReturnCode::Success)
 	{
 		Lmdb::Result<Lmdb::CursorDataView> view = sentFilesCursor->viewCurrent();
 		while (view.isValid())
@@ -676,7 +728,7 @@ void ClientSentFilesStorage::deleteServer(uint8_t serverIdx) noexcept
 		return;
 	}
 
-	if (partiallySentCursor->first() == Lmdb::ReturnCode::Success) [[unlikely]]
+	if (partiallySentCursor->first() == Lmdb::ReturnCode::Success)
 	{
 		Lmdb::Result<Lmdb::CursorDataView> view = partiallySentCursor->viewCurrent();
 		while (view.isValid())

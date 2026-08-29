@@ -12,7 +12,7 @@ namespace Lmdb
 		return ::Lmdb::commitTransaction(std::move(transaction), std::move(cursor));
 	}
 
-	ReturnCode ReadWriteSingleDbWrapper::commitTransaction() noexcept
+	ReturnCode ReadWriteSingleDbWrapper::commitTransactionNoCursors() noexcept
 	{
 		return ::Lmdb::commitTransactionNoCursors(std::move(transaction));
 	}

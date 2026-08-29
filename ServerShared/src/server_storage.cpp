@@ -77,7 +77,7 @@ void ServerConfigStorage::addConfirmedClientBinding(const ConnectionId& connecti
 		return;
 	}
 
-	returnCode = wrapper->commitTransaction();
+	returnCode = wrapper->commitTransactionNoCursors();
 	if (returnCode != Lmdb::ReturnCode::Success)
 	{
 		return;
@@ -98,7 +98,7 @@ bool ServerConfigStorage::removeConfirmedClientBinding(const ConnectionId& conne
 		return false;
 	}
 
-	returnCode = wrapper->commitTransaction();
+	returnCode = wrapper->commitTransactionNoCursors();
 	if (returnCode != Lmdb::ReturnCode::Success)
 	{
 		return false;
@@ -179,7 +179,7 @@ std::optional<std::array<std::byte, 16>> ServerConfigStorage::getOrGenerateServe
 			return std::nullopt;
 		}
 
-		returnCode = wrapper->commitTransaction();
+		returnCode = wrapper->commitTransactionNoCursors();
 		if (returnCode != Lmdb::ReturnCode::Success)
 		{
 			return std::nullopt;

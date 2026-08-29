@@ -178,7 +178,7 @@ TEST_F(RequestsTest, PairConfirmAndExchangeFiles_FilesExchanged)
 		// client approve
 		auto storageConfig = ClientConfigStorage::openStorage(TEST_DATA_PATH);
 		ASSERT_TRUE(storageConfig.has_value());
-		storageConfig->addConfirmedServerBinding(
+		ASSERT_TRUE(storageConfig->addConfirmedServerBinding(
 			serverId,
 			ClientConfigStorage::ServerBinding{
 				.serverName = "test server",
@@ -186,7 +186,7 @@ TEST_F(RequestsTest, PairConfirmAndExchangeFiles_FilesExchanged)
 				.remoteStaticKey = pairingInformation.remoteStaticKey.clone(),
 				.staticKeys = pairingInformation.staticKeys.clone(),
 			}
-		);
+		));
 
 		// client send
 		const auto serverBinding = storageConfig->getConfirmedServerBinding(serverId);

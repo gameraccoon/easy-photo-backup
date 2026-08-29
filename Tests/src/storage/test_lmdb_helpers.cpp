@@ -104,7 +104,7 @@ TEST_F(LmdbHelpersTest, Database_PutThenGet_ReturnsStoredValue)
 		ASSERT_TRUE(helper.isValid());
 
 		EXPECT_EQ(Lmdb::ReturnCode::Success, helper->database.put(key, value));
-		EXPECT_EQ(Lmdb::ReturnCode::Success, helper->commitTransaction());
+		EXPECT_EQ(Lmdb::ReturnCode::Success, helper->commitTransactionNoCursors());
 	}
 
 	{
@@ -146,7 +146,7 @@ TEST_F(LmdbHelpersTest, Cursor_IteratesAllValuesInKeyOrder)
 		put("b", "value_b");
 		put("c", "value_c");
 
-		EXPECT_EQ(Lmdb::ReturnCode::Success, helper->commitTransaction());
+		EXPECT_EQ(Lmdb::ReturnCode::Success, helper->commitTransactionNoCursors());
 	}
 
 	// Iterate with a cursor.

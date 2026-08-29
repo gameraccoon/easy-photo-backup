@@ -20,6 +20,7 @@ namespace Serialization
 		{}
 
 		bool writeByte(std::byte data, std::string_view logName) noexcept;
+		bool writeUint8(uint8_t data, std::string_view logName) noexcept;
 		bool writeUint32(uint32_t data, std::string_view logName) noexcept;
 		bool writeUint64(uint64_t data, std::string_view logName) noexcept;
 		bool writeFixedData(std::span<const std::byte> data, std::string_view logName) noexcept;
@@ -42,6 +43,7 @@ namespace Serialization
 		{}
 
 		bool readByte(std::byte& outData, std::string_view logName) noexcept;
+		bool readUint8(uint8_t& outData, std::string_view logName) noexcept;
 		bool readUint32(uint32_t& outData, std::string_view logName) noexcept;
 		bool readUint64(uint64_t& outData, std::string_view logName) noexcept;
 		bool readFixedData(std::span<std::byte> outData, std::string_view logName) noexcept;

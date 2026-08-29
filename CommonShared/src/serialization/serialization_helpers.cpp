@@ -51,6 +51,11 @@ namespace Serialization
 		return true;
 	}
 
+	bool GenericSerializationWrapper::writeUint8(uint8_t data, std::string_view logName) noexcept
+	{
+		return writeByte(std::byte(data), logName);
+	}
+
 	bool GenericSerializationWrapper::writeUint32(uint32_t data, std::string_view logName) noexcept
 	{
 		if (mBytesWritten + 4 > mBuffer.size())
@@ -107,6 +112,11 @@ namespace Serialization
 		outData = mBuffer[mBytesRead];
 		mBytesRead += 1;
 		return true;
+	}
+
+	bool GenericDeserializationWrapper::readUint8(uint8_t& outData, std::string_view logName) noexcept
+	{
+		return readByte(*reinterpret_cast<std::byte*>(&outData), logName);
 	}
 
 	bool GenericDeserializationWrapper::readUint32(uint32_t& outData, std::string_view logName) noexcept
