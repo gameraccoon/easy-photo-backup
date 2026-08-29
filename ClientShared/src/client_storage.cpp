@@ -229,7 +229,7 @@ bool ClientConfigStorage::addConfirmedServerBinding(const ServerId& serverId, co
 		return false;
 	}
 
-	returnCode = wrapper->commitTransactionNoCursors();
+	returnCode = wrapper->commitTransaction(std::move(*cursor));
 	if (returnCode != Lmdb::ReturnCode::Success)
 	{
 		return false;

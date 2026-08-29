@@ -23,6 +23,7 @@ namespace Lmdb
 		ReadWriteDatabase database;
 
 		ReturnCode commitTransaction(ReadWriteCursor&& cursor) noexcept;
+		ReturnCode commitTransaction(ReadOnlyCursor&& cursor) noexcept;
 		ReturnCode commitTransactionNoCursors() noexcept;
 	};
 
