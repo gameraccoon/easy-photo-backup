@@ -47,7 +47,7 @@ object PairingHelpers {
     fun removePairedServer(configStorage: ClientConfigStorage, sentFilesStorage: ClientSentFilesStorage, serverInfo: ServerConnectionInfo): Boolean {
         return removePairedServerNative(
             configStorage.getNativeHandle(),
-            sentFilesStorage.getNativeHandle()
+            sentFilesStorage.getNativeHandle(),
             serverInfo.getNativeHandle()
         )
     }

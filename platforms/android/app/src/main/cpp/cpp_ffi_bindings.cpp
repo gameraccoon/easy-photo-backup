@@ -350,7 +350,7 @@ Java_com_unnamed_easyphotobackup_PairingHelpers_removePairedServerNative(
 	auto serverIdx = clientConfigStorage->storage.removeConfirmedServerBinding(info->serverInfo.serverId);
 	if (serverIdx.has_value())
 	{
-		clientSentFilesStorage->deleteServer(*serverIdx);
+		clientSentFilesStorage->storage.deleteServer(*serverIdx);
 		return true;
 	}
 
@@ -437,8 +437,8 @@ Java_com_unnamed_easyphotobackup_ClientSentFilesStorage_addActivityJournalRecord
 
 	ClientSentFilesStorage::ActivityJournalRecord activityRecord{
 		.timestampMs = ClientSentFilesStorage::ActivityJournalRecord::convertTimeToMs(std::chrono::system_clock::now()),
-		.filesCount = 0,
 		.bytesTransferred = 0,
+		.filesCount = 0,
 		.type = recordType,
 		.additionalInfo = std::move(additionalInfo),
 	};
