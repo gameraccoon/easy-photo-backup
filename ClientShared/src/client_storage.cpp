@@ -4,6 +4,7 @@
 #include "client_shared/client_storage.h"
 
 #include <algorithm>
+#include <cstring>
 #include <string_view>
 
 #include "common_shared/debug/assert.h"
