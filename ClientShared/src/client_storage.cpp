@@ -238,27 +238,40 @@ bool ClientConfigStorage::addConfirmedServerBinding(const ServerId& serverId, co
 	return true;
 }
 
-bool ClientConfigStorage::removeConfirmedServerBinding(const ServerId& serverId) noexcept
+std::optional<uint8_t> ClientConfigStorage::removeConfirmedServerBinding(const ServerId& serverId) noexcept
 {
 	Lmdb::Result<Lmdb::ReadWriteSingleDbWrapper> wrapper = Lmdb::openReadWriteSingleDbTransaction(mEnvironment, ClientStorageInternal::ConfirmedDatabaseName);
 	if (wrapper.isError()) [[unlikely]]
 	{
-		return false;
+		return std::nullopt;
 	}
 
-	Lmdb::ReturnCode returnCode = wrapper->database.deleteKey(serverId);
+	std::optional<uint8_t> result{};
+	Lmdb::ReturnCode returnCode = wrapper->database.readValue(serverId, [&result](const auto& value) noexcept -> void {
+		if (value.size() > 0)
+		{
+			result = static_cast<uint8_t>(value[0]);
+		}
+	});
+
 	if (returnCode != Lmdb::ReturnCode::Success) [[unlikely]]
 	{
-		return false;
+		return std::nullopt;
+	}
+
+	returnCode = wrapper->database.deleteKey(serverId);
+	if (returnCode != Lmdb::ReturnCode::Success) [[unlikely]]
+	{
+		return std::nullopt;
 	}
 
 	returnCode = wrapper->commitTransactionNoCursors();
 	if (returnCode != Lmdb::ReturnCode::Success) [[unlikely]]
 	{
-		return false;
+		return std::nullopt;
 	}
 
-	return true;
+	return result;
 }
 
 std::optional<ClientConfigStorage::ServerBinding> ClientConfigStorage::getConfirmedServerBinding(const ServerId& serverId) noexcept

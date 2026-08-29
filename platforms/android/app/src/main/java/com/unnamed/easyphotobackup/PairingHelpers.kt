@@ -10,6 +10,7 @@ object PairingHelpers {
     ): String?
     private external fun removePairedServerNative(
         clientConfigStorageHandle: Long,
+        clientSentFilesStorageHandle: Long,
         serverInfoHandle: Long
     ): Boolean
     private external fun isServerPairedNative(
@@ -42,9 +43,11 @@ object PairingHelpers {
         )
     }
 
-    fun removePairedServer(storage: ClientConfigStorage, serverInfo: ServerConnectionInfo): Boolean {
+    // note that this function can lock if there is a write operation to any of the storages
+    fun removePairedServer(configStorage: ClientConfigStorage, sentFilesStorage: ClientSentFilesStorage, serverInfo: ServerConnectionInfo): Boolean {
         return removePairedServerNative(
-            storage.getNativeHandle(),
+            configStorage.getNativeHandle(),
+            sentFilesStorage.getNativeHandle()
             serverInfo.getNativeHandle()
         )
     }

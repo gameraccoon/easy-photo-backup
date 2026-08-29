@@ -182,8 +182,11 @@ namespace ClientCli
 					continue;
 				}
 
-				if (clientConfigStorage->removeConfirmedServerBinding(discoveryResults[idx].serverId))
+				auto serverIdx = clientConfigStorage->removeConfirmedServerBinding(discoveryResults[idx].serverId);
+				if (serverIdx.has_value())
 				{
+					// note that this can lock
+					clientSentFilesStorage->deleteServer(*serverIdx);
 					printLnCli("Server got removed from approved servers");
 				}
 				else

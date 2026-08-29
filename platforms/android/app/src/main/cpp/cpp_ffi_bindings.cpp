@@ -339,13 +339,22 @@ Java_com_unnamed_easyphotobackup_PairingHelpers_removePairedServerNative(
 	JNIEnv* env,
 	jobject /*this*/,
 	jlong clientConfigStorageHandle,
+	jlong clientSentFilesStorageHandle,
 	jlong serverInfoHandle
 )
 {
 	ClientConfigStorageNative* clientConfigStorage = reinterpret_cast<ClientConfigStorageNative*>(clientConfigStorageHandle);
+	ClientSentFilesStorageNative* clientSentFilesStorage = reinterpret_cast<ClientSentFilesStorageNative*>(clientSentFilesStorageHandle);
 	ServerConnectionInfoNative* info = reinterpret_cast<ServerConnectionInfoNative*>(serverInfoHandle);
 
-	return clientConfigStorage->storage.removeConfirmedServerBinding(info->serverInfo.serverId);
+	auto serverIdx = clientConfigStorage->storage.removeConfirmedServerBinding(info->serverInfo.serverId);
+	if (serverIdx.has_value())
+	{
+		clientSentFilesStorage->deleteServer(*serverIdx);
+		return true;
+	}
+
+	return false;
 }
 
 extern "C" JNIEXPORT jboolean JNICALL

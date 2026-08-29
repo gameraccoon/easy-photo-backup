@@ -27,6 +27,7 @@ import java.util.concurrent.TimeUnit
 class MainActivity : AppCompatActivity() {
 
     private lateinit var clientConfigStorage: ClientConfigStorage
+    private lateinit var clientSentFilesStorage: ClientSentFilesStorage
 
     private lateinit var binding: ActivityMainBinding
 
@@ -35,6 +36,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
 
         clientConfigStorage = ClientConfigStorage(filesDir.absolutePath)
+        clientSentFilesStorage = ClientSentFilesStorage(filesDir.absolutePath)
 
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
@@ -190,6 +192,7 @@ class MainActivity : AppCompatActivity() {
                             val success = withContext(Dispatchers.IO) {
                                 PairingHelpers.removePairedServer(
                                     clientConfigStorage,
+                                    clientSentFilesStorage,
                                     discoveryResult
                                 )
                             }
