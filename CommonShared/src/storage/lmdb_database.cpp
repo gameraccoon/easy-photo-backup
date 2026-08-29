@@ -58,7 +58,7 @@ namespace Lmdb
 		{
 			reportDebugError("The buffer is too small to get value from LMDB database, buffer size {}, value size {}", outBuffer.size(), readBytes);
 			readBytes = 0;
-			return ReturnCode::BadValueSize;
+			return ReturnCode::BufferIsTooSmall;
 		}
 
 		if (valueData == nullptr)

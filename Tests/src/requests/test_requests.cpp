@@ -189,6 +189,8 @@ TEST_F(RequestsTest, PairConfirmAndExchangeFiles_FilesExchanged)
 		);
 
 		// client send
+		const auto serverBinding = storageConfig->getConfirmedServerBinding(serverId);
+		ASSERT_TRUE(serverBinding.has_value());
 		auto storageSentFiles = ClientSentFilesStorage::openStorage(TEST_DATA_PATH);
 		std::vector<std::filesystem::path> files = FileSendHelpers::collectFilesFromDirectory(folderToSend);
 		for (std::filesystem::path& file : files)
@@ -196,8 +198,8 @@ TEST_F(RequestsTest, PairConfirmAndExchangeFiles_FilesExchanged)
 			file = file.lexically_relative(folderToSend);
 		}
 		std::vector<uint64_t> previouslySentBytes;
-		storageSentFiles->filterOutSentFiles(files, previouslySentBytes);
-		Requests::sendAndProcessSendFilesInteractiveRequest(clientSocket, *storageConfig, *storageSentFiles, serverId, files, previouslySentBytes, folderToSend);
+		storageSentFiles->filterOutSentFiles(serverBinding->serverIdx, files, previouslySentBytes);
+		Requests::sendAndProcessSendFilesInteractiveRequest(clientSocket, *storageSentFiles, *serverBinding, files, previouslySentBytes, folderToSend);
 	});
 	TestFinalizer f([&clientThread] {
 		clientThread.join();

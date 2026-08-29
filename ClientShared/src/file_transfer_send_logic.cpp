@@ -130,6 +130,7 @@ namespace FileTransferSendLogic
 		uint64_t firstAwaitingFileBytesConfirmed = 0;
 		std::vector<std::filesystem::path> confirmedFilesCache;
 		std::vector<std::filesystem::path> rejectedPartialFiles;
+		uint8_t serverIdx = 0;
 		Stats stats;
 
 		[[nodiscard]] bool isBufferEmpty() const noexcept
@@ -599,7 +600,7 @@ namespace FileTransferSendLogic
 	{
 		if (activityType != ActivityType::Continue || sendingState.shouldSaveState())
 		{
-			const bool isSuccess = storage.addSentFiles(sendingState.confirmedFilesCache, sendingState.filePathNative, sendingState.firstAwaitingFileBytesConfirmed, sendingState.rejectedPartialFiles);
+			const bool isSuccess = storage.addSentFiles(sendingState.serverIdx, sendingState.confirmedFilesCache, sendingState.filePathNative, sendingState.firstAwaitingFileBytesConfirmed, sendingState.rejectedPartialFiles);
 			if (isSuccess)
 			{
 				sendingState.confirmedFilesCache.clear();
@@ -615,9 +616,11 @@ namespace FileTransferSendLogic
 		recordActivity(sendingState, storage, activityType, std::move(error));
 	}
 
-	void sendFiles(const std::vector<std::filesystem::path>& files, const std::vector<uint64_t>& previouslySentBytes, const std::filesystem::path& commonRoot, Network::RawSocket socket, ClientSentFilesStorage& storage, Noise::CipherStateSending& sendingCipherstate, Noise::CipherStateReceiving& receivingCipherState, [[maybe_unused]] Mocks mocks) noexcept
+	void sendFiles(const std::vector<std::filesystem::path>& files, const std::vector<uint64_t>& previouslySentBytes, const std::filesystem::path& commonRoot, Network::RawSocket socket, ClientSentFilesStorage& storage, uint8_t serverIdx, Noise::CipherStateSending& sendingCipherstate, Noise::CipherStateReceiving& receivingCipherState, [[maybe_unused]] Mocks mocks) noexcept
 	{
 		FileSendingState sendingState;
+		sendingState.serverIdx = serverIdx;
+
 		{
 			const auto now = std::chrono::system_clock::now();
 			storage.addActivityJournalRecord(ClientSentFilesStorage::ActivityJournalRecord{

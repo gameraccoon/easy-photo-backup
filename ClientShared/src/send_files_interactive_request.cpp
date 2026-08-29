@@ -10,28 +10,20 @@
 #include "common_shared/network/utils.h"
 #include "common_shared/serialization/number_serialization.h"
 
-#include "client_shared/client_storage.h"
 #include "client_shared/file_transfer_send_logic.h"
 
 namespace Requests
 {
-	bool processKkHandshake(Network::RawSocket socket, ClientConfigStorage& clientStorage, const std::array<std::byte, 16>& serverId, Noise::CipherStateSending& outSendingCipherState, Noise::CipherStateReceiving& outReceivingCipherState) noexcept
+	bool processKkHandshake(Network::RawSocket socket, const ClientConfigStorage::ServerBinding& serverBinding, Noise::CipherStateSending& outSendingCipherState, Noise::CipherStateReceiving& outReceivingCipherState) noexcept
 	{
 		using namespace Noise;
 
 		constexpr size_t FirstMessagePreludeSize = sizeof(Protocol::NetworkProtocolVersion) + sizeof(Protocol::RequestId) + DHLEN;
 		constexpr size_t SecondMessagePreludeSize = sizeof(Protocol::RequestAnswerId);
 
-		std::optional<ClientConfigStorage::ServerBinding> serverBinding = clientStorage.getConfirmedServerBinding(serverId);
+		InitiatorHandshakeState handshakeState = NoiseKK::initializeInitiator(serverBinding.staticKeys, serverBinding.remoteStaticKey);
 
-		if (!serverBinding.has_value())
-		{
-			return false;
-		}
-
-		InitiatorHandshakeState handshakeState = NoiseKK::initializeInitiator(serverBinding->staticKeys, serverBinding->remoteStaticKey);
-
-		Cryptography::HashResult connectionId = serverBinding->connectionId.clone();
+		Cryptography::HashResult connectionId = serverBinding.connectionId.clone();
 
 		constexpr size_t BufferSize = SecondMessagePreludeSize + DHLEN + DHLEN + DHLEN + CipherAuthDataSize;
 		Cryptography::ByteSequence<Cryptography::ByteSequenceTag::TempInternalBuffer, BufferSize> buffer;
@@ -123,14 +115,14 @@ namespace Requests
 		return false;
 	}
 
-	RequestAnswers::RequestAnswer sendAndProcessSendFilesInteractiveRequest(Network::RawSocket socket, ClientConfigStorage& storageConfig, ClientSentFilesStorage& storageSentFiles, const std::array<std::byte, 16>& serverId, const std::vector<std::filesystem::path>& files, const std::vector<uint64_t>& previouslySentBytes, const std::filesystem::path& commonRoot) noexcept
+	RequestAnswers::RequestAnswer sendAndProcessSendFilesInteractiveRequest(Network::RawSocket socket, ClientSentFilesStorage& storageSentFiles, const ClientConfigStorage::ServerBinding& serverBinding, const std::vector<std::filesystem::path>& files, const std::vector<uint64_t>& previouslySentBytes, const std::filesystem::path& commonRoot) noexcept
 	{
 		constexpr const int FileTransferMessagesTimeoutSeconds = 20;
 		constexpr const int FileTransferMessagesTimeoutMicroseconds = 0;
 
 		Noise::CipherStateSending sendingCipherState;
 		Noise::CipherStateReceiving receivingCipherState;
-		if (!processKkHandshake(socket, storageConfig, serverId, sendingCipherState, receivingCipherState))
+		if (!processKkHandshake(socket, serverBinding, sendingCipherState, receivingCipherState))
 		{
 			reportDebugError("Failed to process KK handshake");
 			return RequestAnswers::ErrorNoHandling{};
@@ -151,7 +143,7 @@ namespace Requests
 
 		Debug::Log::printDebug("Start sending files");
 
-		FileTransferSendLogic::sendFiles(files, previouslySentBytes, commonRoot, socket, storageSentFiles, sendingCipherState, receivingCipherState);
+		FileTransferSendLogic::sendFiles(files, previouslySentBytes, commonRoot, socket, storageSentFiles, serverBinding.serverIdx, sendingCipherState, receivingCipherState);
 
 		return Protocol::RequestAnswers::SendFiles{};
 	}

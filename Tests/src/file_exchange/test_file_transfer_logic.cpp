@@ -279,6 +279,7 @@ static FileExchangeTestResult runFileExchangeTest(ClientSentFilesStorage& client
 		int fileToWriteIdx = -1;
 		size_t fileCursor = 0;
 		const std::filesystem::path clientRootFolder = "cr";
+		constexpr uint8_t serverIdx = 0;
 
 		FileTransferSendLogic::Mocks sendMocks{
 			.openFile = [&filesToSendIndex, &fileToWriteIdx, &fileCursor, &clientRootFolder](std::ifstream&, const std::filesystem::path& path) {
@@ -324,8 +325,8 @@ static FileExchangeTestResult runFileExchangeTest(ClientSentFilesStorage& client
 			}
 
 			std::vector<uint64_t> previouslySentBytes;
-			clientStorage.filterOutSentFiles(filePathsToSend, previouslySentBytes);
-			FileTransferSendLogic::sendFiles(filePathsToSend, previouslySentBytes, clientRootFolder, senderSocket, clientStorage, cipherStateSending, cipherStateReceiving, sendMocks);
+			clientStorage.filterOutSentFiles(serverIdx, filePathsToSend, previouslySentBytes);
+			FileTransferSendLogic::sendFiles(filePathsToSend, previouslySentBytes, clientRootFolder, senderSocket, clientStorage, serverIdx, cipherStateSending, cipherStateReceiving, sendMocks);
 		}
 
 		// validate confirmed files
@@ -338,7 +339,7 @@ static FileExchangeTestResult runFileExchangeTest(ClientSentFilesStorage& client
 			}
 
 			std::vector<uint64_t> previouslySentBytes;
-			clientStorage.filterOutSentFiles(filesToConfirm, previouslySentBytes);
+			clientStorage.filterOutSentFiles(serverIdx, filesToConfirm, previouslySentBytes);
 			EXPECT_EQ(filesToConfirm.size() - previouslySentBytes.size(), size_t(0)) << std::format("Some files were not confirmed (confirmed {} out of {})", expectedFilesToConfirm.size() - filesToConfirm.size() + previouslySentBytes.size(), expectedFilesToConfirm.size());
 			for (size_t i = previouslySentBytes.size(); i < filesToConfirm.size(); ++i)
 			{
@@ -1008,7 +1009,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_FileMarkedPartiallySentAtEOF_FileIsSkipped
 		.data = generateTestFileData(5000, seed),
 	};
 
-	clientStorage.addSentFiles({}, "file", static_cast<uint64_t>(fileToSend.data.size()), {});
+	clientStorage.addSentFiles(0, {}, "file", static_cast<uint64_t>(fileToSend.data.size()), {});
 
 	runFileExchangeTest(
 		clientStorage,
@@ -1033,7 +1034,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_InvalidResumeOffset_FileIsResentFromBeginn
 		.data = generateTestFileData(4000, seed),
 	};
 
-	clientStorage.addSentFiles({}, "file", static_cast<uint64_t>(fileToSend.data.size()), {});
+	clientStorage.addSentFiles(0, {}, "file", static_cast<uint64_t>(fileToSend.data.size()), {});
 
 	runFileExchangeTest(
 		clientStorage,

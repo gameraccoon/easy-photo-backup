@@ -45,6 +45,13 @@ namespace FileSendHelpers
 
 	std::optional<std::string> sendDirectory(ClientConfigStorage& clientConfigStorage, ClientSentFilesStorage& clientSentFilesStorage, const ServerConnectionInfo& serverInfo, const std::filesystem::path& folderPath, const std::filesystem::path& commonRoot) noexcept
 	{
+		std::optional<ClientConfigStorage::ServerBinding> serverBinding = clientConfigStorage.getConfirmedServerBinding(serverInfo.serverId);
+
+		if (!serverBinding.has_value())
+		{
+			return "Tried to send files to a server that has no pairing data, logical error";
+		}
+
 		const std::chrono::duration activityJournalRecordRetainingTime = std::chrono::days(7);
 		const std::chrono::system_clock::time_point timeNow = std::chrono::system_clock::now();
 		clientSentFilesStorage.truncateLastActivityJournalRecords(
@@ -72,7 +79,7 @@ namespace FileSendHelpers
 		}
 
 		std::vector<uint64_t> previouslySentBytes;
-		clientSentFilesStorage.filterOutSentFiles(files, previouslySentBytes);
+		clientSentFilesStorage.filterOutSentFiles(serverBinding->serverIdx, files, previouslySentBytes);
 
 		if (files.empty())
 		{
@@ -83,8 +90,8 @@ namespace FileSendHelpers
 			serverInfo.address.ip.data(),
 			serverInfo.address.addressType,
 			serverInfo.address.port,
-			[&storageConfig = clientConfigStorage, &storageSentFiles = clientSentFilesStorage, &serverId = serverInfo.serverId, &files, &previouslySentBytes, &commonRoot](Network::RawSocket socket) -> RequestAnswers::RequestAnswer {
-				return Requests::sendAndProcessSendFilesInteractiveRequest(socket, storageConfig, storageSentFiles, serverId, files, previouslySentBytes, std::filesystem::path(commonRoot));
+			[&storageSentFiles = clientSentFilesStorage, &serverBinding, &files, &previouslySentBytes, &commonRoot](Network::RawSocket socket) -> RequestAnswers::RequestAnswer {
+				return Requests::sendAndProcessSendFilesInteractiveRequest(socket, storageSentFiles, *serverBinding, files, previouslySentBytes, std::filesystem::path(commonRoot));
 			}
 		);
 

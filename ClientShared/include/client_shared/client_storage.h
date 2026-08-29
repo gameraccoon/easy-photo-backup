@@ -21,6 +21,9 @@ public:
 		Cryptography::HashResult connectionId;
 		Cryptography::PublicKey remoteStaticKey;
 		Cryptography::Keypair staticKeys;
+
+		// the field is ignored when adding the record
+		uint8_t serverIdx = 0;
 	};
 
 	using ServerId = std::array<std::byte, 16>;
@@ -77,8 +80,9 @@ public:
 
 	[[nodiscard]] static std::optional<ClientSentFilesStorage> openStorage(const std::filesystem::path& storageRootPath) noexcept;
 
-	bool addSentFiles(const std::vector<std::filesystem::path>& newSentFiles, const std::filesystem::path& partiallySentPath, uint64_t partiallySentData, const std::vector<std::filesystem::path>& rejectedPartialFiles) noexcept;
-	void filterOutSentFiles(std::vector<std::filesystem::path>& inOutPaths, std::vector<uint64_t>& outPreviouslySentBytes) noexcept;
+	bool addSentFiles(uint8_t serverIdx, const std::vector<std::filesystem::path>& newSentFiles, const std::filesystem::path& partiallySentPath, uint64_t partiallySentData, const std::vector<std::filesystem::path>& rejectedPartialFiles) noexcept;
+	void filterOutSentFiles(uint8_t serverIdx, std::vector<std::filesystem::path>& inOutPaths, std::vector<uint64_t>& outPreviouslySentBytes) noexcept;
+	void deleteServer(uint8_t serverIdx) noexcept;
 
 	void truncateLastActivityJournalRecords(uint64_t oldestTimestampToLeaveMs) noexcept;
 	bool addActivityJournalRecord(ActivityJournalRecord&& newRecord) noexcept;
