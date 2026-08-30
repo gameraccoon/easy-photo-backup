@@ -92,9 +92,9 @@ Static keys for Noise protocol are generated per unique pairing, and re-generate
 
 Noise_KK_25519_ChaChaPoly_BLAKE2b is used for file exchange, however accompanied with sending a connection ID in plain-text (static ID generated based on public keys of this device pairing).
 
-Both Noise implementation is covered with tests, including tests comparing it with Rust implementation from [noiseexplorer.com](https://noiseexplorer.com))
+Both Noise implementations are covered with tests, including tests comparing them with Rust implementation from [noiseexplorer.com](https://noiseexplorer.com))
 
-Used primitives (by [monocypher](https://monocypher.org/manual/aead):
+Used primitives (by [monocypher](https://monocypher.org/manual/aead)):
 - X25519 for public key cryptography
 - BLAKE2b for hashing
 - XChaCha20/Poly1305 for authenticated symmetrical encryption
