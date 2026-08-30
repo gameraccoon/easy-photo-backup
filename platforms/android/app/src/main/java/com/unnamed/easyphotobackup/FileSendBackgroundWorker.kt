@@ -4,9 +4,13 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.content.pm.ServiceInfo
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.net.NetworkInfo
 import android.os.Build
 import android.os.Environment
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat.getSystemService
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
@@ -29,6 +33,20 @@ class FileSendBackgroundWorker(
     override suspend fun doWork(): Result {
         setForeground(createForegroundInfo())
 
+        val connectivityManager =
+            applicationContext.getSystemService(ConnectivityManager::class.java)
+
+        val network = connectivityManager.activeNetwork
+        val capabilities = connectivityManager.getNetworkCapabilities(network)
+
+        val isWifi =
+            capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+
+        if (!isWifi) {
+            setProgress(workDataOf("status" to "no wifi connection"))
+            return Result.success()
+        }
+
         val root = Environment.getExternalStorageDirectory().absolutePath
         val prefs = applicationContext.getSharedPreferences("backup_prefs", Context.MODE_PRIVATE)
 
@@ -37,9 +55,7 @@ class FileSendBackgroundWorker(
                 putString("last_status", "")
             }
 
-            setProgress(workDataOf(
-                "status" to "discovering"
-            ))
+            setProgress(workDataOf("status" to "discovering"))
 
             val discoveryClient = ServerDiscoveryClient()
             discoveryClient.startDiscovery()
@@ -63,9 +79,7 @@ class FileSendBackgroundWorker(
                     clientSentFilesStorage.addActivityJournalRecord(0, serverName.toString())
 
                     for (folder in foldersToSync) {
-                        setProgress(workDataOf(
-                            "status" to "sending $folder to $serverName"
-                        ))
+                        setProgress(workDataOf("status" to "sending $folder to $serverName"))
 
                         val folderPath = "$root/$folder"
                         val sendStatus = FileSendHelpers.sendFiles(clientConfigStorage, clientSentFilesStorage,discoveryResult, folderPath, root)

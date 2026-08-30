@@ -15,7 +15,9 @@ import androidx.appcompat.app.AppCompatActivity
 import com.unnamed.easyphotobackup.databinding.ActivityMainBinding
 import androidx.core.net.toUri
 import androidx.lifecycle.lifecycleScope
+import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
@@ -59,9 +61,12 @@ class MainActivity : AppCompatActivity() {
             }
 
         binding.syncButton.setOnClickListener {
+            val constraints = Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.UNMETERED)
+                .build()
             val request = PeriodicWorkRequestBuilder<FileSendBackgroundWorker>(
                 15, TimeUnit.MINUTES
-            ).build()
+            ).setConstraints(constraints).build()
 
             WorkManager.getInstance(this)
                 .enqueueUniquePeriodicWork(
