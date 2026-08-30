@@ -3,14 +3,14 @@
 Direct automatic file back up from your Android device to your computer over your local Wi-Fi network.
 
 No cloud storage, no third-party servers, and no subscription required.  
-(also no ads, no tracking, no spying on you, you own your data from the beginning to the end)
+(also no ads, no tracking, no spying on you)
 
 ## How It Works
 
 1. Install the host app on your PC.
 1. Pair your phone app with the host app.
-1. Set up what you want to back up.
-1. Every time your phone is in the same Wi-Fi network with your PC, and the PC is on, your files will be backed up to the PC in the background.
+1. Choose what folders you want to back up.
+1. Every time your phone is in the same Wi-Fi network with your PC, and the PC is on, your files will be backed up to the PC automatically.
 
 // Add a diagram here with a phone, Wi-Fi router and a PC
 
@@ -24,11 +24,11 @@ Even though most of the groundwork is already done (and I already use it for bac
 
 What is left until the first beta:
 
-- UI for selecting folders to back up (right now it automatically backs up a selection of folders)
-- UI for pairing with MITM protection (6 digit SAS codes)
-- Activity log
-- Fix issues related to background task lifetime
-- UI for configuring the host application (PC app)
+-[] UI for selecting folders to back up (right now it automatically backs up a selection of folders)
+-[x] UI for pairing with MITM protection (6 digit SAS codes)
+-[x] Activity log
+-[x] Fix issues related to background task lifetime
+-[] UI for configuring the host application (PC app)
 
 Before the first beta, neither protocol nor local storage versions are fixed and updating the app may require completely reinstalling it with removing all the configs and storage.
 
