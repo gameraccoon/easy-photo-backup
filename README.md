@@ -24,11 +24,11 @@ Even though most of the groundwork is already done (and I already use it for bac
 
 What is left until the first beta:
 
--[] UI for selecting folders to back up (right now it automatically backs up a selection of folders)
--[x] UI for pairing with MITM protection (6 digit SAS codes)
--[x] Activity log
--[x] Fix issues related to background task lifetime
--[] UI for configuring the host application (PC app)
+- [x] UI for pairing with MITM protection (6 digit SAS codes)
+- [x] Activity log
+- [x] Fix issues related to background task lifetime
+- [ ] UI for configuring the host application (PC app)
+- [ ] UI for selecting folders to back up (right now it automatically backs up a selection of folders)
 
 Before the first beta, neither protocol nor local storage versions are fixed and updating the app may require completely reinstalling it with removing all the configs and storage.
 
