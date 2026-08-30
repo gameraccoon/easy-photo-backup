@@ -14,6 +14,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.unnamed.easyphotobackup.databinding.ActivityMainBinding
 import androidx.core.net.toUri
+import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -21,6 +22,7 @@ import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import com.google.android.material.color.utilities.Variant
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -32,6 +34,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var clientSentFilesStorage: ClientSentFilesStorage
 
     private lateinit var binding: ActivityMainBinding
+
+    private var confirmingServer: ServerConnectionInfo? = null
 
     @RequiresApi(Build.VERSION_CODES.R)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -53,9 +57,11 @@ class MainActivity : AppCompatActivity() {
                 val info = workInfos.firstOrNull() ?: return@observe
 
                 if (info.state == WorkInfo.State.RUNNING) {
-                    binding.sendFilesStatus.text = info.progress.getString("status") ?: "running without status"
+                    binding.sendFilesStatus.text =
+                        info.progress.getString("status") ?: "running without status"
                 } else {
-                    val lastStatus = prefs.getString("last_status", "waiting for the worker thread to start")
+                    val lastStatus =
+                        prefs.getString("last_status", "waiting for the worker thread to start")
                     binding.sendFilesStatus.text = lastStatus
                 }
             }
@@ -149,42 +155,66 @@ class MainActivity : AppCompatActivity() {
             removeButton.isEnabled = isPaired
 
             pairButton.setOnClickListener {
+                pairButton.isEnabled = false
                 lifecycleScope.launch {
-                    pairButton.isEnabled = false
-
-                    val error = withContext(Dispatchers.IO) {
-                        val pendingServerBinding = PairingHelpers.exchangePairingInformationWithServer(
-                            discoveryResult
-                        )
+                    val result: Pair<String?, PendingServerBinding?> = withContext(Dispatchers.IO) {
+                        val pendingServerBinding =
+                            PairingHelpers.exchangePairingInformationWithServer(
+                                discoveryResult
+                            )
 
                         if (pendingServerBinding == null) {
-                            "Could not pair to '$serverName'"
+                            Pair("Could not pair to '$serverName'", null)
                         } else {
-                            PairingHelpers.approveServer(
-                                clientConfigStorage,
-                                discoveryResult,
-                                pendingServerBinding
-                            )?.let {
-                                "Could not pair to '$serverName': $it"
-                            }
+                            Pair(null, pendingServerBinding)
                         }
                     }
 
-                    if (error == null) {
-                        Toast.makeText(
-                            this@MainActivity,
-                            "Paired to '$serverName'",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                        removeButton.isEnabled = true
+                    if (result.first == null) {
+                        confirmingServer = discoveryResult
+                        binding.pairButtons.isVisible = true
+                        binding.sasNumberEditText.setText("")
+                        binding.pairConfirmButton.setOnClickListener {
+                            if (result.second!!.generateShortAuthentificationString() == binding.sasNumberEditText.text.toString().trim()) {
+                                val error = PairingHelpers.approveServer(
+                                    clientConfigStorage,
+                                    discoveryResult,
+                                    result.second!!
+                                )
+
+                                if (error != null) {
+                                    Toast.makeText(
+                                        this@MainActivity,
+                                        error,
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                } else {
+                                    Toast.makeText(
+                                        this@MainActivity,
+                                        "Paired to '$serverName'",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                    removeButton.isEnabled = true
+                                }
+                            } else {
+                                Toast.makeText(
+                                    this@MainActivity,
+                                    "Code mismatch, reject on the server and try one more time",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                                pairButton.isEnabled = true
+                            }
+                            binding.pairButtons.isVisible = false
+                        }
                     } else {
                         Toast.makeText(
                             this@MainActivity,
-                            error,
+                            result.first,
                             Toast.LENGTH_LONG
                         ).show()
                         pairButton.isEnabled = true
                     }
+
                 }
             }
 

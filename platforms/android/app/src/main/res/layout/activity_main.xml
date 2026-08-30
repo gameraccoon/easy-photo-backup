@@ -40,13 +40,29 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="See journal" />
-
-    <LinearLayout
+        <LinearLayout
         android:id="@+id/serverContainer"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical" />
 
+        <LinearLayout
+            android:id="@+id/pairButtons"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+            <EditText
+                android:id="@+id/sasNumberEditText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="number" />
+            <Button
+                android:id="@+id/pairConfirmButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Confirm" />
+        </LinearLayout>
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
