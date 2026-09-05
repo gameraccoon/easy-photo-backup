@@ -5,20 +5,26 @@ import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.unnamed.easyphotobackup.databinding.ActivityJournalBinding
-import kotlin.math.max
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class JournalActivity : AppCompatActivity() {
-
     private lateinit var sentFilesStorage: ClientSentFilesStorage
     private lateinit var adapter: JournalAdapter
     private lateinit var binding: ActivityJournalBinding
 
-    private val recordsPerPage = 8
+    private val recordsPerPage = 16
 
-    private var newestLoadedRecordIndex = 0
+    // should be big enough to always overflow the screen, on the largest device possible
+    private val slidingWindowSize = recordsPerPage * 5
+    private val preloadingThreshold = recordsPerPage / 2
+
+    private var newestLoadedRecordExclusive = 0
     private var oldestLoadedRecordIndex = 0
 
     private var isLoadingOlder = false
@@ -26,10 +32,10 @@ class JournalActivity : AppCompatActivity() {
 
     // can also be true if our last page managed to end on the last record
     private var hasMoreOlderRecords = true
+    private var hasMoreNewerRecords = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         enableEdgeToEdge()
 
         binding = ActivityJournalBinding.inflate(layoutInflater)
@@ -39,11 +45,14 @@ class JournalActivity : AppCompatActivity() {
 
         ViewCompat.setOnApplyWindowInsetsListener(binding.root) { _, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            binding.root.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
+            binding.root.setPadding(
+                systemBars.left, systemBars.top, systemBars.right, systemBars.bottom
+            )
             insets
         }
 
         adapter = JournalAdapter()
+        binding.rvJournal.layoutManager = LinearLayoutManager(this)
         binding.rvJournal.adapter = adapter
 
         setupInfiniteScroll()
@@ -51,164 +60,227 @@ class JournalActivity : AppCompatActivity() {
     }
 
     private fun setupInfiniteScroll() {
-        binding.rvJournal.addOnScrollListener(
-            object : RecyclerView.OnScrollListener() {
-                override fun onScrolled(
-                    recyclerView: RecyclerView,
-                    dx: Int,
-                    dy: Int
-                ) {
-                    super.onScrolled(recyclerView, dx, dy)
+        binding.rvJournal.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+                super.onScrolled(recyclerView, dx, dy)
 
-                    if (dy <= 0) return
-                    if (isLoadingOlder || !hasMoreOlderRecords) return
+                val layoutManager = recyclerView.layoutManager as LinearLayoutManager
 
-                    val layoutManager = recyclerView.layoutManager as LinearLayoutManager
-
+                if (dy > 0) {
                     val lastVisible = layoutManager.findLastVisibleItemPosition()
-
-                    if (lastVisible >= adapter.itemCount - 3) {
-                        requestLoadMoreOlder()
+                    if (lastVisible >= adapter.itemCount - preloadingThreshold) {
+                        requestLoadOlder()
                     }
-                }
-
-                override fun onScrollStateChanged(
-                    recyclerView: RecyclerView,
-                    newState: Int
-                ) {
-                    super.onScrollStateChanged(recyclerView, newState)
-
-                    if (newState == RecyclerView.SCROLL_STATE_IDLE) {
-                        processLoadingOlder()
+                } else if (dy < 0) {
+                    val firstVisible = layoutManager.findFirstVisibleItemPosition()
+                    if (firstVisible <= preloadingThreshold) {
+                        requestLoadNewer()
                     }
                 }
             }
-        )
+
+            override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
+                super.onScrollStateChanged(recyclerView, newState)
+                if (newState == RecyclerView.SCROLL_STATE_IDLE) {
+                    checkBoundaries()
+                }
+            }
+        })
 
         binding.swipeRefresh.setOnRefreshListener {
-            loadNewerRecords()
+            loadInitialRecords()
         }
     }
 
     private fun loadInitialRecords() {
-        isLoadingNewer = true
-
-        try {
-            val (records, cursor) =
-                sentFilesStorage.getLastActivityJournalRecords(recordsPerPage)
-
-            val stringRecords = records
-                .map { it.asString() }
-                .reversed()
-
-            adapter.setData(stringRecords)
-
-            newestLoadedRecordIndex = cursor
-            oldestLoadedRecordIndex = cursor - records.size
-            hasMoreOlderRecords = records.size == recordsPerPage
-
-        } finally {
-            isLoadingNewer = false
+        if (isLoadingNewer || isLoadingOlder) {
+            binding.swipeRefresh.isRefreshing = false
+            return
         }
 
-        binding.rvJournal.post {
-            processLoadingOlder()
+        isLoadingNewer = true
+        binding.swipeRefresh.isRefreshing = true
+
+        lifecycleScope.launch {
+            try {
+                val (records, cursor) = withContext(Dispatchers.IO) {
+                    sentFilesStorage.getLastActivityJournalRecords(slidingWindowSize)
+                }
+
+                val stringRecords = records.map { it.asString() }.reversed()
+                adapter.setData(stringRecords)
+
+                newestLoadedRecordExclusive = cursor
+                oldestLoadedRecordIndex = cursor - records.size
+                hasMoreOlderRecords = (records.size == slidingWindowSize)
+                hasMoreNewerRecords = false
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                isLoadingNewer = false
+                binding.swipeRefresh.isRefreshing = false
+                binding.rvJournal.post {
+                    checkBoundaries()
+                }
+            }
         }
     }
 
-    // check if we need to load more older records and start loading them if needed
-    private fun processLoadingOlder() {
-        if (isLoadingOlder || !hasMoreOlderRecords) {
+    private fun checkBoundaries() {
+        if (adapter.itemCount == 0) {
+            return
+        }
+
+        val layoutManager = binding.rvJournal.layoutManager as LinearLayoutManager
+        if (layoutManager.childCount == 0) {
             return
         }
 
         if (!binding.rvJournal.canScrollVertically(1)) {
-            requestLoadMoreOlder()
+            requestLoadOlder()
+        }
+        if (hasMoreNewerRecords && !binding.rvJournal.canScrollVertically(-1)) {
+            requestLoadNewer()
         }
     }
 
-    private fun requestLoadMoreOlder() {
-        if (isLoadingOlder || !hasMoreOlderRecords) {
+    private fun requestLoadOlder() {
+        if (isLoadingOlder || isLoadingNewer || !hasMoreOlderRecords) {
             return
         }
-
-        binding.rvJournal.post {
-            if (isLoadingOlder || !hasMoreOlderRecords) {
-                return@post
-            }
-
-            loadMoreOlderRecords()
-        }
+        loadOlderRecords()
     }
 
-    private fun loadMoreOlderRecords() {
-        if (isLoadingOlder || !hasMoreOlderRecords) {
+    private fun requestLoadNewer() {
+        if (isLoadingNewer || isLoadingOlder) {
             return
         }
+        loadNewerRecords()
+    }
 
+    private fun loadOlderRecords() {
         isLoadingOlder = true
 
-        try {
-            val endIdx = oldestLoadedRecordIndex
-            val beginIdx = max(endIdx - recordsPerPage, 0)
+        lifecycleScope.launch {
+            try {
+                val endIdx = oldestLoadedRecordIndex
+                val beginIdx = maxOf(0, endIdx - recordsPerPage)
 
-            val records = sentFilesStorage.getActivityJournalRecords(beginIdx, endIdx)
+                if (beginIdx >= endIdx) {
+                    hasMoreOlderRecords = false
+                    return@launch
+                }
 
-            val stringRecords = records
-                .map { it.asString() }
-                .reversed()
+                val records = withContext(Dispatchers.IO) {
+                    sentFilesStorage.getActivityJournalRecords(beginIdx, endIdx)
+                }
 
-            if (stringRecords.isNotEmpty()) {
-                adapter.addRecords(stringRecords)
-                oldestLoadedRecordIndex = endIdx - records.size
+                val stringRecords = records.map { it.asString() }.reversed()
+
+                if (stringRecords.isEmpty()) {
+                    hasMoreOlderRecords = false
+                    return@launch
+                }
+
+                val layoutManager = binding.rvJournal.layoutManager as LinearLayoutManager
+                val anchorPosition = layoutManager.findFirstVisibleItemPosition()
+                val anchorView = if (anchorPosition != RecyclerView.NO_POSITION) {
+                    layoutManager.findViewByPosition(anchorPosition)
+                } else {
+                    null
+                }
+                val anchorOffset = anchorView?.let {
+                    layoutManager.getDecoratedTop(it) - binding.rvJournal.paddingTop
+                }
+
+                adapter.addRecordsAtBottom(stringRecords)
+                oldestLoadedRecordIndex = beginIdx
+
+                if (beginIdx == 0 || records.size < recordsPerPage) {
+                    hasMoreOlderRecords = false
+                }
+
+                val overflow = adapter.itemCount - slidingWindowSize
+
+                if (overflow > 0) {
+                    adapter.removeRecordsFromTop(overflow)
+                    newestLoadedRecordExclusive -= overflow
+                    hasMoreNewerRecords = true
+
+                    if (anchorPosition != RecyclerView.NO_POSITION && anchorPosition >= overflow && anchorOffset != null) {
+                        layoutManager.scrollToPositionWithOffset(
+                            anchorPosition - overflow, anchorOffset
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                isLoadingOlder = false
+                binding.rvJournal.post {
+                    checkBoundaries()
+                }
             }
-
-            hasMoreOlderRecords = records.size == recordsPerPage
-
-        } finally {
-            isLoadingOlder = false
-        }
-
-        binding.rvJournal.post {
-            processLoadingOlder()
         }
     }
 
     private fun loadNewerRecords() {
-        if (isLoadingNewer) {
-            binding.swipeRefresh.isRefreshing = false
-            return
-        }
-
         isLoadingNewer = true
 
-        try {
-            // ToDo: this is wasteful, maybe we should add some API to support this as one call
-            val (_, latestCursor) =
-                sentFilesStorage.getLastActivityJournalRecords(recordsPerPage)
+        lifecycleScope.launch {
+            try {
+                val beginIdx = newestLoadedRecordExclusive
+                val endIdx = beginIdx + recordsPerPage
 
-            if (latestCursor <= newestLoadedRecordIndex) {
-                return
+                val records = withContext(Dispatchers.IO) {
+                    sentFilesStorage.getActivityJournalRecords(beginIdx, endIdx)
+                }
+
+                val stringRecords = records.map { it.asString() }.reversed()
+
+                if (stringRecords.isEmpty()) {
+                    return@launch
+                }
+
+                val layoutManager = binding.rvJournal.layoutManager as LinearLayoutManager
+                val anchorPosition = layoutManager.findFirstVisibleItemPosition()
+                val anchorView = if (anchorPosition != RecyclerView.NO_POSITION) {
+                    layoutManager.findViewByPosition(anchorPosition)
+                } else {
+                    null
+                }
+                val anchorOffset = anchorView?.let {
+                    layoutManager.getDecoratedTop(it) - binding.rvJournal.paddingTop
+                }
+
+                adapter.addRecordsAtTop(stringRecords)
+
+                newestLoadedRecordExclusive += records.size
+
+                val overflow = adapter.itemCount - slidingWindowSize
+
+                hasMoreNewerRecords = (records.size == recordsPerPage)
+
+                if (overflow > 0) {
+                    adapter.removeRecordsFromBottom(overflow)
+                    oldestLoadedRecordIndex += overflow
+                    hasMoreOlderRecords = true
+                }
+
+                if (anchorPosition != RecyclerView.NO_POSITION && anchorOffset != null) {
+                    layoutManager.scrollToPositionWithOffset(
+                        anchorPosition + stringRecords.size, anchorOffset
+                    )
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                isLoadingNewer = false
+                binding.rvJournal.post {
+                    checkBoundaries()
+                }
             }
-
-            val newRecords =
-                sentFilesStorage.getActivityJournalRecords(newestLoadedRecordIndex, latestCursor)
-                    .map { it.asString() }
-                    .reversed()
-
-            if (newRecords.isNotEmpty()) {
-                adapter.addRecordsAtTop(newRecords)
-                binding.rvJournal.scrollToPosition(0)
-            }
-
-            newestLoadedRecordIndex = latestCursor
-
-        } catch (e: Exception) {
-            e.printStackTrace()
-
-        } finally {
-            isLoadingNewer = false
-            binding.swipeRefresh.isRefreshing = false
         }
     }
 }
+
