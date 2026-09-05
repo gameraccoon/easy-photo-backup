@@ -38,7 +38,8 @@ namespace ClientStorageInternal
 			return result;
 		}
 
-		const std::array<std::byte, 4> key = std::bit_cast<std::array<std::byte, 4>>(beginIdx);
+		std::array<std::byte, 4> key{};
+		Serialization::writeUint32(key, beginIdx);
 		Lmdb::ReturnCode returnCode = cursor.jumpToKeyOrNext(key);
 		if (returnCode != Lmdb::ReturnCode::Success)
 		{
@@ -57,7 +58,7 @@ namespace ClientStorageInternal
 			reportReleaseError("The key size in activity journal table was not 4 byte long. size: {}", view->key.size());
 			return result;
 		}
-		std::memcpy(&keyInt, view->key.data(), sizeof(keyInt));
+		keyInt = Serialization::readUint32(view->key);
 
 		size_t index = static_cast<size_t>(keyInt);
 
@@ -821,14 +822,14 @@ bool ClientSentFilesStorage::addActivityJournalRecord(ActivityJournalRecord&& ne
 		return false;
 	}
 
-	std::vector<std::byte> value;
-	value.resize(ClientStorageInternal::ActivityRecordValueStaticDataSize + newRecord.additionalInfo.size());
-	Serialization::GenericSerializationWrapper serializer{ value };
-
 	if (newRecord.additionalInfo.size() > 255)
 	{
 		newRecord.additionalInfo.resize(255);
 	}
+
+	std::vector<std::byte> value;
+	value.resize(ClientStorageInternal::ActivityRecordValueStaticDataSize + newRecord.additionalInfo.size());
+	Serialization::GenericSerializationWrapper serializer{ value };
 
 	if (!serializer.writeUint64(newRecord.timestampMs, "timestampMs")) { return false; }
 	if (!serializer.writeUint64(newRecord.bytesTransferred, "bytesTransferred")) { return false; }
@@ -863,11 +864,11 @@ bool ClientSentFilesStorage::addActivityJournalRecord(ActivityJournalRecord&& ne
 			return false;
 		}
 
-		std::memcpy(&newKey, view->key.data(), sizeof(newKey));
-		newKey += 1;
+		newKey = Serialization::readUint32(view->key) + 1;
 	}
 
-	std::array<std::byte, 4> key = std::bit_cast<std::array<std::byte, 4>>(newKey);
+	std::array<std::byte, 4> key{};
+	Serialization::writeUint32(key, newKey);
 
 	returnCode = wrapper->database.put(key, value);
 	if (returnCode != Lmdb::ReturnCode::Success) [[unlikely]]
@@ -921,8 +922,8 @@ std::vector<ClientSentFilesStorage::ActivityJournalRecord> ClientSentFilesStorag
 		outEndIdx = 0;
 		return {};
 	}
-	std::memcpy(&endIdx, view->key.data(), sizeof(endIdx));
-	endIdx += 1;
+
+	endIdx = Serialization::readUint32(view->key) + 1;
 	const uint32_t beginIdx = endIdx >= recordsCount ? endIdx - recordsCount : 0;
 
 	outEndIdx = endIdx;

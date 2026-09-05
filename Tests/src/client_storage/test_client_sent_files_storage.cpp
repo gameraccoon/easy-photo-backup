@@ -414,8 +414,9 @@ TEST_F(ClientSentFilesStorageTest, StorageWithRecords_GetLastWithSmallerPageSize
 {
 	std::optional<ClientSentFilesStorage> storage = ClientSentFilesStorage::openStorage(TEST_DATA_PATH);
 	ASSERT_TRUE(storage.has_value());
+	constexpr int recordsCount = 20;
 
-	for (int i = 0; i < 20; ++i)
+	for (int i = 0; i < recordsCount; ++i)
 	{
 		EXPECT_TRUE(storage->addActivityJournalRecord(ClientSentFilesStorage::ActivityJournalRecord{
 			.timestampMs = uint64_t(1000 + i),
@@ -432,7 +433,7 @@ TEST_F(ClientSentFilesStorageTest, StorageWithRecords_GetLastWithSmallerPageSize
 	EXPECT_EQ(endIdx, uint32_t(20));
 
 	constexpr int firstIdx = 15;
-	for (int i = firstIdx; i < 20; ++i)
+	for (int i = firstIdx; i < recordsCount; ++i)
 	{
 		EXPECT_EQ(records[i - firstIdx].timestampMs, uint64_t(1000 + i));
 		EXPECT_EQ(records[i - firstIdx].filesCount, uint32_t(20 + i));
@@ -475,8 +476,9 @@ TEST_F(ClientSentFilesStorageTest, StorageWithRecords_TruncateAndGetLast_Returns
 {
 	std::optional<ClientSentFilesStorage> storage = ClientSentFilesStorage::openStorage(TEST_DATA_PATH);
 	ASSERT_TRUE(storage.has_value());
+	constexpr int recordsCount = 20;
 
-	for (int i = 0; i < 20; ++i)
+	for (int i = 0; i < recordsCount; ++i)
 	{
 		EXPECT_TRUE(storage->addActivityJournalRecord(ClientSentFilesStorage::ActivityJournalRecord{
 			.timestampMs = uint64_t(1000 + i),
@@ -495,7 +497,7 @@ TEST_F(ClientSentFilesStorageTest, StorageWithRecords_TruncateAndGetLast_Returns
 	EXPECT_EQ(endIdx, uint32_t(20));
 
 	constexpr int firstIdx = 9;
-	for (int i = firstIdx; i < 20; ++i)
+	for (int i = firstIdx; i < recordsCount; ++i)
 	{
 		EXPECT_EQ(records[i - firstIdx].timestampMs, uint64_t(1000 + i));
 		EXPECT_EQ(records[i - firstIdx].bytesTransferred, uint64_t(30 * i));
@@ -613,6 +615,38 @@ TEST_F(ClientSentFilesStorageTest, StorageWithRecords_GetRecordsWithPagesBackwar
 			.type = ClientSentFilesStorage::ActivityJournalRecord::Type::Start,
 			.additionalInfo = {},
 		}));
+	}
+}
+
+TEST_F(ClientSentFilesStorageTest, Storage_Add10000RecordsGetLatest_ReturnsLastRecords)
+{
+	std::optional<ClientSentFilesStorage> storage = ClientSentFilesStorage::openStorage(TEST_DATA_PATH);
+	ASSERT_TRUE(storage.has_value());
+
+	constexpr int recordsCount = 10000;
+	for (int i = 0; i < recordsCount; ++i)
+	{
+		EXPECT_TRUE(storage->addActivityJournalRecord(ClientSentFilesStorage::ActivityJournalRecord{
+			.timestampMs = uint64_t(1000 + i),
+			.bytesTransferred = uint64_t(30 * i),
+			.filesCount = uint32_t(20 + i),
+			.type = ClientSentFilesStorage::ActivityJournalRecord::Type::Start,
+			.additionalInfo = {},
+		}));
+	}
+
+	uint32_t endIdx = 0;
+	std::vector<ClientSentFilesStorage::ActivityJournalRecord> records = storage->getLastActivityJournalRecords(10, endIdx);
+	ASSERT_EQ(records.size(), size_t(10));
+	EXPECT_EQ(endIdx, uint32_t(10000));
+
+	constexpr int firstIdx = 9990;
+	for (int i = firstIdx; i < recordsCount; ++i)
+	{
+		EXPECT_EQ(records[i - firstIdx].timestampMs, uint64_t(1000 + i));
+		EXPECT_EQ(records[i - firstIdx].bytesTransferred, uint64_t(30 * i));
+		EXPECT_EQ(records[i - firstIdx].filesCount, uint32_t(20 + i));
+		EXPECT_EQ(records[i - firstIdx].type, ClientSentFilesStorage::ActivityJournalRecord::Type::Start);
 	}
 }
 
