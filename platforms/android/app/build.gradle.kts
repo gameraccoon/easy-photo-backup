@@ -74,6 +74,7 @@ dependencies {
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.material)
     implementation(libs.androidx.constraintlayout)
+    implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.2.0")
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

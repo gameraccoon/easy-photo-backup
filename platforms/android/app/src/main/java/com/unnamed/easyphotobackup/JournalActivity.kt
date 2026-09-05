@@ -5,19 +5,27 @@ import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.unnamed.easyphotobackup.databinding.ActivityJournalBinding
+import kotlin.math.max
 
 class JournalActivity : AppCompatActivity() {
+
     private lateinit var sentFilesStorage: ClientSentFilesStorage
     private lateinit var adapter: JournalAdapter
-
     private lateinit var binding: ActivityJournalBinding
 
-    private var lastFetchedRecord: Int = 0
-    private var lastScreenRecord: Int = 0
-    private var thisScreenRecordsCount = 0
-
     private val recordsPerPage = 8
+
+    private var newestLoadedRecordIndex = 0
+    private var oldestLoadedRecordIndex = 0
+
+    private var isLoadingOlder = false
+    private var isLoadingNewer = false
+
+    // can also be true if our last page managed to end on the last record
+    private var hasMoreOlderRecords = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -35,60 +43,172 @@ class JournalActivity : AppCompatActivity() {
             insets
         }
 
-        adapter = JournalAdapter(emptyList())
+        adapter = JournalAdapter()
         binding.rvJournal.adapter = adapter
 
-        getLastRecords()
+        setupInfiniteScroll()
+        loadInitialRecords()
+    }
 
-        binding.btnPrev.setOnClickListener {
-            if (lastScreenRecord >= lastFetchedRecord)
-            {
-                getLastRecords()
-                return@setOnClickListener
+    private fun setupInfiniteScroll() {
+        binding.rvJournal.addOnScrollListener(
+            object : RecyclerView.OnScrollListener() {
+                override fun onScrolled(
+                    recyclerView: RecyclerView,
+                    dx: Int,
+                    dy: Int
+                ) {
+                    super.onScrolled(recyclerView, dx, dy)
+
+                    if (dy <= 0) return
+                    if (isLoadingOlder || !hasMoreOlderRecords) return
+
+                    val layoutManager = recyclerView.layoutManager as LinearLayoutManager
+
+                    val lastVisible = layoutManager.findLastVisibleItemPosition()
+
+                    if (lastVisible >= adapter.itemCount - 3) {
+                        requestLoadMoreOlder()
+                    }
+                }
+
+                override fun onScrollStateChanged(
+                    recyclerView: RecyclerView,
+                    newState: Int
+                ) {
+                    super.onScrollStateChanged(recyclerView, newState)
+
+                    if (newState == RecyclerView.SCROLL_STATE_IDLE) {
+                        processLoadingOlder()
+                    }
+                }
+            }
+        )
+
+        binding.swipeRefresh.setOnRefreshListener {
+            loadNewerRecords()
+        }
+    }
+
+    private fun loadInitialRecords() {
+        isLoadingNewer = true
+
+        try {
+            val (records, cursor) =
+                sentFilesStorage.getLastActivityJournalRecords(recordsPerPage)
+
+            val stringRecords = records
+                .map { it.asString() }
+                .reversed()
+
+            adapter.setData(stringRecords)
+
+            newestLoadedRecordIndex = cursor
+            oldestLoadedRecordIndex = cursor - records.size
+            hasMoreOlderRecords = records.size == recordsPerPage
+
+        } finally {
+            isLoadingNewer = false
+        }
+
+        binding.rvJournal.post {
+            processLoadingOlder()
+        }
+    }
+
+    // check if we need to load more older records and start loading them if needed
+    private fun processLoadingOlder() {
+        if (isLoadingOlder || !hasMoreOlderRecords) {
+            return
+        }
+
+        if (!binding.rvJournal.canScrollVertically(1)) {
+            requestLoadMoreOlder()
+        }
+    }
+
+    private fun requestLoadMoreOlder() {
+        if (isLoadingOlder || !hasMoreOlderRecords) {
+            return
+        }
+
+        binding.rvJournal.post {
+            if (isLoadingOlder || !hasMoreOlderRecords) {
+                return@post
             }
 
-            lastScreenRecord += recordsPerPage
-            getRecords(lastScreenRecord - recordsPerPage, lastScreenRecord)
+            loadMoreOlderRecords()
+        }
+    }
+
+    private fun loadMoreOlderRecords() {
+        if (isLoadingOlder || !hasMoreOlderRecords) {
+            return
         }
 
-        binding.btnNext.setOnClickListener {
-            if (lastScreenRecord >= recordsPerPage * 2) {
-                lastScreenRecord -= recordsPerPage
-                getRecords(lastScreenRecord - recordsPerPage, lastScreenRecord)
+        isLoadingOlder = true
+
+        try {
+            val endIdx = oldestLoadedRecordIndex
+            val beginIdx = max(endIdx - recordsPerPage, 0)
+
+            val records = sentFilesStorage.getActivityJournalRecords(beginIdx, endIdx)
+
+            val stringRecords = records
+                .map { it.asString() }
+                .reversed()
+
+            if (stringRecords.isNotEmpty()) {
+                adapter.addRecords(stringRecords)
+                oldestLoadedRecordIndex = endIdx - records.size
             }
+
+            hasMoreOlderRecords = records.size == recordsPerPage
+
+        } finally {
+            isLoadingOlder = false
+        }
+
+        binding.rvJournal.post {
+            processLoadingOlder()
         }
     }
 
-    fun getLastRecords()
-    {
-        val pair = sentFilesStorage.getLastActivityJournalRecords(recordsPerPage)
-        lastScreenRecord = pair.second
-        lastFetchedRecord = pair.second
-        val stringRecords = pair.first.map { it.asString() }.reversed()
-        thisScreenRecordsCount = stringRecords.size
-        adapter.updateData(stringRecords)
-
-        updateBtnNames()
-    }
-
-    fun getRecords(beginIdx: Int, endIdx: Int)
-    {
-        val newRecords = sentFilesStorage.getActivityJournalRecords(beginIdx, endIdx).map { it.asString() }.reversed()
-        thisScreenRecordsCount = newRecords.size
-        adapter.updateData(newRecords)
-
-        updateBtnNames()
-    }
-
-    fun updateBtnNames()
-    {
-        if (lastScreenRecord >= lastFetchedRecord)
-        {
-            binding.btnPrev.setText("Update")
+    private fun loadNewerRecords() {
+        if (isLoadingNewer) {
+            binding.swipeRefresh.isRefreshing = false
+            return
         }
-        else
-        {
-            binding.btnPrev.setText("Prev")
+
+        isLoadingNewer = true
+
+        try {
+            // ToDo: this is wasteful, maybe we should add some API to support this as one call
+            val (_, latestCursor) =
+                sentFilesStorage.getLastActivityJournalRecords(recordsPerPage)
+
+            if (latestCursor <= newestLoadedRecordIndex) {
+                return
+            }
+
+            val newRecords =
+                sentFilesStorage.getActivityJournalRecords(newestLoadedRecordIndex, latestCursor)
+                    .map { it.asString() }
+                    .reversed()
+
+            if (newRecords.isNotEmpty()) {
+                adapter.addRecordsAtTop(newRecords)
+                binding.rvJournal.scrollToPosition(0)
+            }
+
+            newestLoadedRecordIndex = latestCursor
+
+        } catch (e: Exception) {
+            e.printStackTrace()
+
+        } finally {
+            isLoadingNewer = false
+            binding.swipeRefresh.isRefreshing = false
         }
     }
 }
