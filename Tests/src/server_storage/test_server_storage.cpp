@@ -51,23 +51,164 @@ TEST_F(ServerStorageTest, Storage_AddConfirmedServerAndGetIt_ReturnsTheBinding)
 	ServerConfigStorage::ConnectionId id{};
 	Cryptography::fillWithRandomBytes(id);
 
-	ServerConfigStorage::ClientBinding binding;
-	binding.clientName = "asdf";
-	Cryptography::fillWithRandomBytes(binding.remoteStaticKey);
-	Cryptography::fillWithRandomBytes(binding.staticKeys.publicKey);
-	Cryptography::fillWithRandomBytes(binding.staticKeys.secretKey);
+	std::string clientName = "asdf";
+	Cryptography::PublicKey remoteStaticKey;
+	Cryptography::Keypair staticKeys;
+	Cryptography::fillWithRandomBytes(remoteStaticKey);
+	Cryptography::fillWithRandomBytes(staticKeys.publicKey);
+	Cryptography::fillWithRandomBytes(staticKeys.secretKey);
+	ServerConfigStorage::ClientBinding binding{
+		.clientName = clientName,
+		.remoteStaticKey = remoteStaticKey.clone(),
+		.staticKeys = staticKeys.clone(),
+	};
 
-	configStorage->addConfirmedClientBinding(id, binding);
+	configStorage->addConfirmedClientBinding(id, std::move(binding));
 
 	EXPECT_TRUE(configStorage->hasConfirmedClientBinding(id));
 
 	std::optional<ServerConfigStorage::ClientBinding> result = configStorage->getConfirmedClientBinding(id);
 	ASSERT_TRUE(result.has_value());
 
-	EXPECT_EQ(result->clientName, binding.clientName);
-	EXPECT_EQ(result->remoteStaticKey, binding.remoteStaticKey);
-	EXPECT_EQ(result->staticKeys.publicKey, binding.staticKeys.publicKey);
-	EXPECT_EQ(result->staticKeys.secretKey, binding.staticKeys.secretKey);
+	EXPECT_EQ(result->clientName, clientName);
+	EXPECT_EQ(result->remoteStaticKey, remoteStaticKey);
+	EXPECT_EQ(result->staticKeys.publicKey, staticKeys.publicKey);
+	EXPECT_EQ(result->staticKeys.secretKey, staticKeys.secretKey);
+}
+
+TEST_F(ServerStorageTest, Storage_AddConfirmedServerWithNameConflictAndGetIt_ReturnsServerWithUniqueName)
+{
+	std::optional<ServerConfigStorage> configStorage = ServerConfigStorage::openStorage(TEST_DATA_PATH);
+	ASSERT_TRUE(configStorage.has_value());
+
+	for (size_t i = 0; i < 5; ++i)
+	{
+		ServerConfigStorage::ConnectionId id{};
+		Cryptography::fillWithRandomBytes(id);
+
+		ServerConfigStorage::ClientBinding binding;
+		binding.clientName = "asdf";
+		Cryptography::fillWithRandomBytes(binding.remoteStaticKey);
+		Cryptography::fillWithRandomBytes(binding.staticKeys.publicKey);
+		Cryptography::fillWithRandomBytes(binding.staticKeys.secretKey);
+		configStorage->addConfirmedClientBinding(id, std::move(binding));
+	}
+
+	ServerConfigStorage::ConnectionId id{};
+	Cryptography::fillWithRandomBytes(id);
+	std::string clientName = "asdf";
+	Cryptography::PublicKey remoteStaticKey;
+	Cryptography::Keypair staticKeys;
+	Cryptography::fillWithRandomBytes(remoteStaticKey);
+	Cryptography::fillWithRandomBytes(staticKeys.publicKey);
+	Cryptography::fillWithRandomBytes(staticKeys.secretKey);
+	ServerConfigStorage::ClientBinding binding{
+		.clientName = clientName,
+		.remoteStaticKey = remoteStaticKey.clone(),
+		.staticKeys = staticKeys.clone(),
+	};
+	configStorage->addConfirmedClientBinding(id, std::move(binding));
+
+	EXPECT_TRUE(configStorage->hasConfirmedClientBinding(id));
+
+	std::optional<ServerConfigStorage::ClientBinding> result = configStorage->getConfirmedClientBinding(id);
+	ASSERT_TRUE(result.has_value());
+
+	EXPECT_EQ(result->clientName, "asdf_5");
+	EXPECT_EQ(result->remoteStaticKey, remoteStaticKey);
+	EXPECT_EQ(result->staticKeys.publicKey, staticKeys.publicKey);
+	EXPECT_EQ(result->staticKeys.secretKey, staticKeys.secretKey);
+}
+
+TEST_F(ServerStorageTest, Storage_AddConfirmedServerWithComplexNameConflictAndGetIt_ReturnsServerWithUniqueName)
+{
+	std::optional<ServerConfigStorage> configStorage = ServerConfigStorage::openStorage(TEST_DATA_PATH);
+	ASSERT_TRUE(configStorage.has_value());
+
+	{
+		ServerConfigStorage::ConnectionId id{};
+		Cryptography::fillWithRandomBytes(id);
+
+		ServerConfigStorage::ClientBinding binding;
+		binding.clientName = "asdf";
+		Cryptography::fillWithRandomBytes(binding.remoteStaticKey);
+		Cryptography::fillWithRandomBytes(binding.staticKeys.publicKey);
+		Cryptography::fillWithRandomBytes(binding.staticKeys.secretKey);
+		configStorage->addConfirmedClientBinding(id, std::move(binding));
+	}
+
+	{
+		ServerConfigStorage::ConnectionId id{};
+		Cryptography::fillWithRandomBytes(id);
+
+		ServerConfigStorage::ClientBinding binding;
+		binding.clientName = "asdf_1";
+		Cryptography::fillWithRandomBytes(binding.remoteStaticKey);
+		Cryptography::fillWithRandomBytes(binding.staticKeys.publicKey);
+		Cryptography::fillWithRandomBytes(binding.staticKeys.secretKey);
+		configStorage->addConfirmedClientBinding(id, std::move(binding));
+	}
+
+	{
+		ServerConfigStorage::ConnectionId id{};
+		Cryptography::fillWithRandomBytes(id);
+
+		ServerConfigStorage::ClientBinding binding;
+		binding.clientName = "asdf_1000";
+		Cryptography::fillWithRandomBytes(binding.remoteStaticKey);
+		Cryptography::fillWithRandomBytes(binding.staticKeys.publicKey);
+		Cryptography::fillWithRandomBytes(binding.staticKeys.secretKey);
+		configStorage->addConfirmedClientBinding(id, std::move(binding));
+	}
+
+	{
+		ServerConfigStorage::ConnectionId id{};
+		Cryptography::fillWithRandomBytes(id);
+
+		ServerConfigStorage::ClientBinding binding;
+		binding.clientName = "asdf2";
+		Cryptography::fillWithRandomBytes(binding.remoteStaticKey);
+		Cryptography::fillWithRandomBytes(binding.staticKeys.publicKey);
+		Cryptography::fillWithRandomBytes(binding.staticKeys.secretKey);
+		configStorage->addConfirmedClientBinding(id, std::move(binding));
+	}
+
+	{
+		ServerConfigStorage::ConnectionId id{};
+		Cryptography::fillWithRandomBytes(id);
+
+		ServerConfigStorage::ClientBinding binding;
+		binding.clientName = "asdf_3";
+		Cryptography::fillWithRandomBytes(binding.remoteStaticKey);
+		Cryptography::fillWithRandomBytes(binding.staticKeys.publicKey);
+		Cryptography::fillWithRandomBytes(binding.staticKeys.secretKey);
+		configStorage->addConfirmedClientBinding(id, std::move(binding));
+	}
+
+	ServerConfigStorage::ConnectionId id{};
+	Cryptography::fillWithRandomBytes(id);
+	std::string clientName = "asdf";
+	Cryptography::PublicKey remoteStaticKey;
+	Cryptography::Keypair staticKeys;
+	Cryptography::fillWithRandomBytes(remoteStaticKey);
+	Cryptography::fillWithRandomBytes(staticKeys.publicKey);
+	Cryptography::fillWithRandomBytes(staticKeys.secretKey);
+	ServerConfigStorage::ClientBinding binding{
+		.clientName = clientName,
+		.remoteStaticKey = remoteStaticKey.clone(),
+		.staticKeys = staticKeys.clone(),
+	};
+	configStorage->addConfirmedClientBinding(id, std::move(binding));
+
+	EXPECT_TRUE(configStorage->hasConfirmedClientBinding(id));
+
+	std::optional<ServerConfigStorage::ClientBinding> result = configStorage->getConfirmedClientBinding(id);
+	ASSERT_TRUE(result.has_value());
+
+	EXPECT_EQ(result->clientName, "asdf_2");
+	EXPECT_EQ(result->remoteStaticKey, remoteStaticKey);
+	EXPECT_EQ(result->staticKeys.publicKey, staticKeys.publicKey);
+	EXPECT_EQ(result->staticKeys.secretKey, staticKeys.secretKey);
 }
 
 TEST_F(ServerStorageTest, Storage_RemoveExistingConfirmedBindingAndGetIt_ReturnsNone)
@@ -84,7 +225,7 @@ TEST_F(ServerStorageTest, Storage_RemoveExistingConfirmedBindingAndGetIt_Returns
 	Cryptography::fillWithRandomBytes(binding.staticKeys.publicKey);
 	Cryptography::fillWithRandomBytes(binding.staticKeys.secretKey);
 
-	configStorage->addConfirmedClientBinding(id, binding);
+	configStorage->addConfirmedClientBinding(id, std::move(binding));
 
 	EXPECT_TRUE(configStorage->removeConfirmedClientBinding(id));
 

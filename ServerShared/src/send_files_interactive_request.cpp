@@ -18,20 +18,13 @@ namespace Requests
 	constexpr const int FileTransferMessagesTimeoutSeconds = 20;
 	constexpr const int FileTransferMessagesTimeoutMicroseconds = 0;
 
-	bool processKkHandshake(const Cryptography::HashResult& connectionId, std::span<const std::byte> firstMessage, const Network::RawSocket socket, ServerConfigStorage& configStorage, Noise::CipherStateSending& outSendingCipherState, Noise::CipherStateReceiving& outReceivingCipherState)
+	static bool processKkHandshake(std::span<const std::byte> firstMessage, const Network::RawSocket socket, const ServerConfigStorage::ClientBinding& clientBinding, Noise::CipherStateSending& outSendingCipherState, Noise::CipherStateReceiving& outReceivingCipherState)
 	{
 		using namespace Noise;
 
 		constexpr size_t SecondMessagePreludeSize = sizeof(Protocol::RequestAnswerId);
 
-		std::optional<ServerConfigStorage::ClientBinding> clientBinding = configStorage.getConfirmedClientBinding(connectionId);
-
-		if (!clientBinding.has_value())
-		{
-			return false;
-		}
-
-		ResponderHandshakeState handshakeState = NoiseKK::initializeResponder(clientBinding->staticKeys, clientBinding->remoteStaticKey);
+		ResponderHandshakeState handshakeState = NoiseKK::initializeResponder(clientBinding.staticKeys, clientBinding.remoteStaticKey);
 
 		{
 			if (firstMessage.size() != NoiseKK::Message1ExpectedSize)
@@ -115,7 +108,15 @@ namespace Requests
 	{
 		Noise::CipherStateSending sendingCipherState;
 		Noise::CipherStateReceiving receivingCipherState;
-		if (!processKkHandshake(connectionId, firstMessage, socket, configStorage, sendingCipherState, receivingCipherState))
+
+		std::optional<ServerConfigStorage::ClientBinding> clientBinding = configStorage.getConfirmedClientBinding(connectionId);
+
+		if (!clientBinding.has_value())
+		{
+			return;
+		}
+
+		if (!processKkHandshake(firstMessage, socket, *clientBinding, sendingCipherState, receivingCipherState))
 		{
 			reportDebugError("Could not process KK handshake");
 			return;
@@ -135,7 +136,7 @@ namespace Requests
 		}
 
 		Debug::Log::printDebug("Start receiving files");
-		FileTransferReceiveLogic::receiveFiles(fileTargetRoot / "server_target_directory", socket, sendingCipherState, receivingCipherState);
+		FileTransferReceiveLogic::receiveFiles(fileTargetRoot / "server_target_directory" / clientBinding->clientName, socket, sendingCipherState, receivingCipherState);
 
 		Debug::Log::printDebug("Finished receiving files");
 	}

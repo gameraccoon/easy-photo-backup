@@ -14,6 +14,7 @@ class ServerConfigStorage
 public:
 	struct ClientBinding
 	{
+		// can be changed on insertion if conflicts with other record names
 		std::string clientName;
 		Cryptography::PublicKey remoteStaticKey;
 		Cryptography::Keypair staticKeys;
@@ -27,7 +28,7 @@ public:
 
 	[[nodiscard]] static std::optional<ServerConfigStorage> openStorage(const std::filesystem::path& storageRootPath) noexcept;
 
-	void addConfirmedClientBinding(const ConnectionId& connectionId, const ClientBinding& binding) noexcept;
+	void addConfirmedClientBinding(const ConnectionId& connectionId, ClientBinding&& binding) noexcept;
 	bool removeConfirmedClientBinding(const ConnectionId& connectionId) noexcept;
 	[[nodiscard]] std::optional<ClientBinding> getConfirmedClientBinding(const ConnectionId& connectionId) noexcept;
 	[[nodiscard]] bool hasConfirmedClientBinding(const ConnectionId& connectionId) noexcept;
