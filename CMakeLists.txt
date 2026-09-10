@@ -24,6 +24,7 @@ include(${MAIN_ROOT}/CommonShared/CMakeLists.txt)
 include(${MAIN_ROOT}/ClientShared/CMakeLists.txt)
 include(${MAIN_ROOT}/ServerShared/CMakeLists.txt)
 include(${MAIN_ROOT}/ClientCli/CMakeLists.txt)
+include(${MAIN_ROOT}/ServerService/CMakeLists.txt)
 include(${MAIN_ROOT}/ServerCli/CMakeLists.txt)
 
 if(WITH_TESTS)
