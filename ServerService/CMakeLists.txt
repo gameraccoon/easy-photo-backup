@@ -32,3 +32,18 @@ target_link_libraries(ServerService
 		ServerShared
 		CommonShared
 )
+
+if(MSVC)
+    set_target_properties(ServerService PROPERTIES
+        VS_DEBUGGER_COMMAND_ARGUMENTS "--pairingApp \"powershell.exe -ExecutionPolicy Bypass -File $(SolutionDir)\\..\\ServerPairing\\pairing_windows_cli.ps1\""
+    )
+elseif(UNIX)
+    set(LINUX_SCRIPT_PATH "${MAIN_ROOT}/ServerPairing/pairing_linux_cli_bash.sh")
+
+    add_custom_target(run_ServerService
+        COMMAND ServerService --pairingApp "${LINUX_SCRIPT_PATH}"
+        DEPENDS ServerService
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+        USES_TERMINAL
+    )
+endif()
