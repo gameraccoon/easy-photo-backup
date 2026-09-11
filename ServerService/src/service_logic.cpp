@@ -4,15 +4,20 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <cstdio>
+#include <filesystem>
 #include <format>
 #include <thread>
-#include <filesystem>
 
 #ifdef _WIN32
 #include <io.h>
 #endif
 
+#include "server_service/arguments_parser.h"
+#include "server_service/service_logic.h"
+
 #include "common_shared/cryptography/utils/connection_id_utils.h"
+#include "common_shared/cryptography/utils/short_authentification_string_utils.h"
 #include "common_shared/debug/log.h"
 #include "common_shared/network/utils.h"
 #include "common_shared/nsd/nsd_server.h"
@@ -20,11 +25,48 @@
 #include "server_shared/server_storage.h"
 #include "server_shared/tcp_server.h"
 
-#include "server_service/arguments_parser.h"
-#include "server_service/service_logic.h"
-
 namespace ServiceLogic
 {
+	static std::optional<std::string> launchProcessAndReadOutput(const char* command, size_t outputSizeLimit)
+	{
+		std::optional<std::string> output;
+		FILE* pipe = popen(command, "r");
+		if (pipe)
+		{
+			char buffer[256];
+			output = std::string();
+			while (fgets(buffer, sizeof(buffer), pipe) != nullptr)
+			{
+				*output += buffer;
+				if (output->size() >= outputSizeLimit)
+				{
+					output->resize(outputSizeLimit);
+					break;
+				}
+			}
+
+			int status = pclose(pipe);
+			if (status == -1)
+			{
+				output = std::nullopt;
+			}
+
+			if (WIFEXITED(status))
+			{
+				int returnCode = WEXITSTATUS(status);
+				if (returnCode != 0)
+				{
+					output = std::nullopt;
+				}
+			}
+		}
+
+		if (output.has_value() && output->ends_with('\n'))
+		{
+			output->pop_back();
+		}
+		return output;
+	}
 
 	void startService(const AppArguments& arguments)
 	{
@@ -77,25 +119,27 @@ namespace ServiceLogic
 			}
 
 			pairingWindowIsOpen.store(true, std::memory_order_relaxed);
-			int returnCode = std::system(command.c_str());
-			switch (returnCode)
+
+			std::optional<std::string> clientName = launchProcessAndReadOutput(std::string(command + " " + Cryptography::generateSas(pendingClientBinding.handshakeHash, 6)).c_str(), 255);
+			if (clientName.has_value())
 			{
-			case 122: // success
-			{
+				if (clientName->empty())
+				{
+					clientName = "unnamed";
+				}
+				else
+				{
+					// ToDo: sanitize the client name to be useful as native fs folder name
+				}
+
 				configStorage->addConfirmedClientBinding(
 					Cryptography::generateConnectionId(pendingClientBinding.remoteStaticKey, pendingClientBinding.staticKeys.publicKey),
 					ServerConfigStorage::ClientBinding{
-						.clientName = "test_client",
+						.clientName = std::move(*clientName),
 						.remoteStaticKey = std::move(pendingClientBinding.remoteStaticKey),
 						.staticKeys = std::move(pendingClientBinding.staticKeys),
 					}
 				);
-			}
-			break;
-			case 111: // rejected
-				break;
-			default: // failed to launch
-				break;
 			}
 			pairingWindowIsOpen.store(false, std::memory_order_relaxed);
 		};
@@ -148,4 +192,4 @@ namespace ServiceLogic
 
 		Network::shutdownSocketLib();
 	}
-}
+} // namespace ServiceLogic
