@@ -1,11 +1,7 @@
 // Copyright (C) Pavel Grebnev 2026
 // Distributed under the MIT License (license terms are at http://opensource.org/licenses/MIT).
 
-#include <algorithm>
-#include <array>
-#include <atomic>
 #include <format>
-#include <thread>
 #include <iostream>
 
 #ifdef _WIN32
@@ -13,8 +9,6 @@
 #endif
 
 #include "common_shared/debug/log.h"
-#include "common_shared/network/utils.h"
-#include "common_shared/nsd/nsd_server.h"
 
 #include "server_shared/server_storage.h"
 #include "server_shared/tcp_server.h"
