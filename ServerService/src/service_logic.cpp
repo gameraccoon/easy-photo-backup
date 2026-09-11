@@ -25,12 +25,20 @@
 #include "server_shared/server_storage.h"
 #include "server_shared/tcp_server.h"
 
+#ifdef _WIN32
+#define POPEN _popen
+#define PCLOSE _pclose
+#else
+#define POPEN popen
+#define PCLOSE pclose
+#endif
+
 namespace ServiceLogic
 {
 	static std::optional<std::string> launchProcessAndReadOutput(const char* command, size_t outputSizeLimit)
 	{
 		std::optional<std::string> output;
-		FILE* pipe = popen(command, "r");
+		FILE* pipe = POPEN(command, "r");
 		if (pipe)
 		{
 			char buffer[256];
@@ -45,19 +53,28 @@ namespace ServiceLogic
 				}
 			}
 
-			int status = pclose(pipe);
+			int status = PCLOSE(pipe);
 			if (status == -1)
 			{
 				output = std::nullopt;
 			}
-
-			if (WIFEXITED(status))
+			else
 			{
-				int returnCode = WEXITSTATUS(status);
-				if (returnCode != 0)
+#ifdef _WIN32
+				if (status != 0)
 				{
 					output = std::nullopt;
 				}
+#else
+				if (WIFEXITED(status))
+				{
+					int returnCode = WEXITSTATUS(status);
+					if (returnCode != 0)
+					{
+						output = std::nullopt;
+					}
+				}
+#endif
 			}
 		}
 

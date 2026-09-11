@@ -26,6 +26,7 @@ bool AppArguments::parse(int argc, char** argv, AppArguments& outAppArguments)
 			break;
 		case Command::PairingApp:
 			outAppArguments.pairingAppCommand = arg;
+			command = Command::None;
 		}
 	}
 	return true;
