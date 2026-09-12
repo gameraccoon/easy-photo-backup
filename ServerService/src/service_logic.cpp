@@ -89,7 +89,10 @@ namespace ServiceLogic
 	{
 		Network::initSocketLib();
 
-		std::optional<ServerConfigStorage> configStorage = ServerConfigStorage::openStorage(".");
+		std::filesystem::path workingDir = arguments.workingDir.empty() ? "." : arguments.workingDir;
+		std::filesystem::create_directories(workingDir);
+
+		std::optional<ServerConfigStorage> configStorage = ServerConfigStorage::openStorage(workingDir);
 
 		if (!configStorage.has_value())
 		{
@@ -161,8 +164,10 @@ namespace ServiceLogic
 			pairingWindowIsOpen.store(false, std::memory_order_relaxed);
 		};
 
-		auto serverThread = std::thread([&configStorage, &portPromise, &onPairingRequestReceivedLambda] {
-			TcpServer::runServer(*configStorage, "0.0.0.0", Network::AddressType::IpV4, portPromise, onPairingRequestReceivedLambda);
+		std::filesystem::path targetDir = arguments.targetDir.empty() ? "./server_target_directory" : arguments.targetDir;
+		std::filesystem::create_directories(targetDir);
+		auto serverThread = std::thread([&configStorage, &portPromise, targetDir = std::move(targetDir), &onPairingRequestReceivedLambda] {
+			TcpServer::runServer(*configStorage, "0.0.0.0", Network::AddressType::IpV4, targetDir, portPromise, onPairingRequestReceivedLambda);
 		});
 
 		if (auto status = portFuture.wait_for(std::chrono::seconds(3)); status != std::future_status::ready)

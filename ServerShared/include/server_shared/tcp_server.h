@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <filesystem>
 #include <functional>
 #include <future>
 #include <optional>
@@ -16,5 +17,5 @@ class ServerConfigStorage;
 
 namespace TcpServer
 {
-	std::optional<std::string> runServer(ServerConfigStorage& storage, const char* interfaceAddressStr, Network::AddressType addressType, std::promise<uint16_t>& portPromise, const std::function<void(Requests::PendingClientBinding&& pendingClientBinding)>& pairingFn);
+	std::optional<std::string> runServer(ServerConfigStorage& storage, const char* interfaceAddressStr, Network::AddressType addressType, const std::filesystem::path& targetDir, std::promise<uint16_t>& portPromise, const std::function<void(Requests::PendingClientBinding&& pendingClientBinding)>& pairingFn);
 }

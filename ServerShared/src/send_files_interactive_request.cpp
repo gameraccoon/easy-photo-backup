@@ -136,7 +136,7 @@ namespace Requests
 		}
 
 		Debug::Log::printDebug("Start receiving files");
-		FileTransferReceiveLogic::receiveFiles(fileTargetRoot / "server_target_directory" / clientBinding->clientName, socket, sendingCipherState, receivingCipherState);
+		FileTransferReceiveLogic::receiveFiles(fileTargetRoot / clientBinding->clientName, socket, sendingCipherState, receivingCipherState);
 
 		Debug::Log::printDebug("Finished receiving files");
 	}

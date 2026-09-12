@@ -8,6 +8,8 @@
 struct AppArguments
 {
 	std::string pairingAppCommand;
+	std::string workingDir;
+	std::string targetDir;
 
 	static bool parse(int argc, char** argv, AppArguments& outAppArguments);
 };

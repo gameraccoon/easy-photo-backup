@@ -2,12 +2,15 @@
 
 !define APP_NAME "EasyPhotoBackupServer"
 !define EXEC_NAME "EasyPhotoBackupServer.exe"
-!define TASK_NAME "EasyPhotoBackupServerTask"
+
+; TODO: ask user for a directory path
+!define TARGET_DIR "$DOCUMENTS\EasyPhotoBackup\Backups"
 
 !define PAIRING_APP "pairing_windows_cli.ps1"
+!define PAIRING_APP_WRAPPER "pairing_windows_cli_wrapper.cmd"
 
 !define RUN_REG_KEY "Software\Microsoft\Windows\CurrentVersion\Run"
-!define RUN_WRAPPER "${APP_NAME}.bat"
+!define RUN_WRAPPER "${APP_NAME}.ps1"
 
 !define UNINSTALL_REG_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}"
 
@@ -40,6 +43,7 @@ Section "Install"
   ; copy the executable
   File /oname=${EXEC_NAME} "..\..\..\build\Release\ServerService.exe"
   File "..\..\..\ServerPairing\${PAIRING_APP}"
+  File "..\..\..\ServerPairing\${PAIRING_APP_WRAPPER}"
 
   WriteUninstaller "$INSTDIR\Uninstall.exe"
 
@@ -53,18 +57,16 @@ Section "Install"
   WriteRegDWORD HKCU "${UNINSTALL_REG_KEY}" "NoModify" 1
   WriteRegDWORD HKCU "${UNINSTALL_REG_KEY}" "NoRepair" 1
 
-  ; schedule to be run on startup (use batch script to wrap the arguments)
-  ClearErrors
+  ; create a wrapper file to hide launch arguments
   FileOpen $0 "$INSTDIR\${RUN_WRAPPER}" w
-  IfErrors +4
-  FileWrite $0 '@echo off$\r$\n'
-  FileWrite $0 '"$INSTDIR\${EXEC_NAME}" --pairingApp "powershell.exe -ExecutionPolicy Bypass -File \"$INSTDIR\${PAIRING_APP}\""$\r$\n'
+  FileWrite $0 'Start-Process -FilePath "$INSTDIR\${EXEC_NAME}" -ArgumentList "--pairingApp `"$INSTDIR\${PAIRING_APP_WRAPPER}`" --workingDir `"$INSTDIR`" --targetDir `"${TARGET_DIR}`"" -WindowStyle Hidden$\r$\n'
   FileClose $0
-  WriteRegStr HKCU "${RUN_REG_KEY}" "${APP_NAME}" '"$INSTDIR\${RUN_WRAPPER}"'
 
-  ; run the server
-  nsExec::Exec 'powershell -WindowStyle Hidden -Command "Start-Process \"$INSTDIR\${RUN_WRAPPER}\" -WindowStyle Hidden"'
-  ;nsExec::Exec 'powershell -WindowStyle Hidden -Command "Start-Process \"$INSTDIR\${EXEC_NAME}\" -ArgumentList \"--pairingApp `\"powershell.exe -ExecutionPolicy Bypass -File $INSTDIR\pairing_windows_cli.ps1`\"\" -WindowStyle Hidden"'
+  ; schedule to be run on startup
+  WriteRegStr HKCU "${RUN_REG_KEY}" "${APP_NAME}" 'powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "$INSTDIR\${RUN_WRAPPER}"'
+
+  ; run the server right away
+  nsExec::Exec 'powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "$INSTDIR\${RUN_WRAPPER}"'
 SectionEnd
 
 Section "Uninstall"

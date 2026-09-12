@@ -8,6 +8,8 @@ bool AppArguments::parse(int argc, char** argv, AppArguments& outAppArguments)
 	enum class Command
 	{
 		None,
+		WorkingDir,
+		TargetDir,
 		PairingApp,
 	};
 
@@ -23,10 +25,27 @@ bool AppArguments::parse(int argc, char** argv, AppArguments& outAppArguments)
 			{
 				command = Command::PairingApp;
 			}
+			else if (arg == "--workingDir")
+			{
+				command = Command::WorkingDir;
+			}
+			else if (arg == "--targetDir")
+			{
+				command = Command::TargetDir;
+			}
+			break;
+		case Command::WorkingDir:
+			outAppArguments.workingDir = arg;
+			command = Command::None;
+			break;
+		case Command::TargetDir:
+			outAppArguments.targetDir = arg;
+			command = Command::None;
 			break;
 		case Command::PairingApp:
 			outAppArguments.pairingAppCommand = arg;
 			command = Command::None;
+			break;
 		}
 	}
 	return true;
