@@ -14,7 +14,9 @@
 namespace Protocol
 {
 	// increase the version every time the protocol changes
-	constexpr uint16_t NetworkProtocolVersion = 0;
+	// 0 - first stable version
+	// 1 - change in file sending protocol, allow to send multiple file headers
+	constexpr uint16_t NetworkProtocolVersion = 1;
 
 	enum class RequestId : uint8_t
 	{

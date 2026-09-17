@@ -26,8 +26,7 @@ static constexpr size_t ChunkSize = Protocol::FileExchange::ChunkSize;
 static constexpr size_t TransportChunkSize = ChunkSize + Cryptography::CipherAuthDataSize;
 static constexpr size_t BytesBetweenAnswers = ChunkSize * Protocol::FileExchange::ChunksBetweenAnswers;
 static constexpr size_t TransportBytesBetweenAnswers = TransportChunkSize * Protocol::FileExchange::ChunksBetweenAnswers;
-static constexpr size_t StaticHeaderSize = 2 + 8;
-static constexpr size_t StaticHeaderSizeBigFile = StaticHeaderSize;
+static constexpr size_t StaticHeaderSize = 1 + 2 + 8;
 static constexpr size_t StaticHeaderSizePartial = StaticHeaderSize + sizeof(uint64_t);
 
 // a simple test implementation of a message pipe (can be slow, but should be simple to review)
@@ -840,7 +839,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_BigFilesPartiallySentAndThenContinued_Only
 	filesToReceiveFirstChunk.push_back(filesToSend[3]);
 	filesToReceiveFirstChunk.push_back(filesToSend[4]);
 	filesToReceiveFirstChunk[4].path += ".part";
-	filesToReceiveFirstChunk[4].data.resize(1732);
+	filesToReceiveFirstChunk[4].data.resize(1727);
 	std::vector<TestFileExchangeFile> filesToConfirmFirstChunk;
 	filesToConfirmFirstChunk.push_back(filesToSend[0]);
 	filesToConfirmFirstChunk.push_back(filesToSend[1]);
@@ -860,7 +859,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_BigFilesPartiallySentAndThenContinued_Only
 	);
 	AssertHelper::enableAsserts();
 
-	const size_t expectedLastConfirmedByte = 708;
+	const size_t expectedLastConfirmedByte = 703;
 	runFileExchangeTest(
 		clientStorage,
 		filesToSend, // we try to send all files
@@ -885,7 +884,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_BigFilePartiallySentFourTimesAndThenSentFu
 		.path = "file",
 		.data = generateTestFileData(800000, seed),
 	};
-	constexpr size_t FileHeaderSizeStart = StaticHeaderSizeBigFile + 4;
+	constexpr size_t FileHeaderSizeStart = StaticHeaderSize + 4;
 	constexpr size_t FileHeaderSizePartial = StaticHeaderSizePartial + 4;
 
 	// send one between-answer chunks worth of file
@@ -1065,4 +1064,28 @@ TEST_F(FileSendReceiveTest, Roundtrip_SendAndReceiveOneTinyFile_LoggedBeginAndEn
 	EXPECT_EQ(records[1].bytesTransferred, uint64_t(1 * Protocol::FileExchange::ChunkSize));
 	EXPECT_EQ(records[1].filesCount, uint32_t(1));
 	EXPECT_EQ(records[1].type, ClientSentFilesStorage::ActivityJournalRecord::Type::EndSuccessfully);
+}
+
+TEST_F(FileSendReceiveTest, Roundtrip_FileTransferEndsRightBeforeAnswer_TransmissionSuccessful)
+{
+	ClientSentFilesStorage clientStorage = *ClientSentFilesStorage::openStorage(TEST_DATA_PATH);
+	std::vector<TestFileExchangeFile> filesToSend;
+	filesToSend.push_back(TestFileExchangeFile{
+		.path = "file",
+		.data = generateTestFileData(BytesBetweenAnswers - StaticHeaderSize - 4 - 1, getRandomSeed()),
+	});
+
+	runFileExchangeTest(clientStorage, filesToSend, filesToSend, filesToSend);
+}
+
+TEST_F(FileSendReceiveTest, Roundtrip_FileTransferEndsRightAfterAnswer_TransmissionSuccessful)
+{
+	ClientSentFilesStorage clientStorage = *ClientSentFilesStorage::openStorage(TEST_DATA_PATH);
+	std::vector<TestFileExchangeFile> filesToSend;
+	filesToSend.push_back(TestFileExchangeFile{
+		.path = "file",
+		.data = generateTestFileData(BytesBetweenAnswers - StaticHeaderSize - 4, getRandomSeed()),
+	});
+
+	runFileExchangeTest(clientStorage, filesToSend, filesToSend, filesToSend);
 }

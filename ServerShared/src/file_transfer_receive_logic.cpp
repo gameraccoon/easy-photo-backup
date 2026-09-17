@@ -8,7 +8,6 @@
 
 #include "common_shared/cryptography/noise/cipher_utils.h"
 #include "common_shared/debug/assert.h"
-#include "common_shared/debug/debug_print_helpers.h"
 #include "common_shared/files/file_utils.h"
 #include "common_shared/network/protocol.h"
 #include "common_shared/network/utils.h"
@@ -36,6 +35,7 @@ namespace FileTransferReceiveLogic
 		enum class DebugState
 		{
 			StartChunk,
+			FilesCount,
 			FileSize,
 			FilePathSize,
 			FilePath,
@@ -59,6 +59,9 @@ namespace FileTransferReceiveLogic
 				{
 				case DebugState::StartChunk:
 					Debug::Log::printDebug("Receive:\t\t\t  /---------------\\\nReceive:\t\t\t / #{:03}            \\", chunksReceived - 1);
+					break;
+				case DebugState::FilesCount:
+					Debug::Log::printDebug("Receive:\t\t\t |   files count    |");
 					break;
 				case DebugState::FileSize:
 					Debug::Log::printDebug("Receive:\t\t\t |    file size     |");
@@ -103,34 +106,42 @@ namespace FileTransferReceiveLogic
 #endif // DEBUG_CHECKS
 		}
 
+		struct OneFileHeader
+		{
+			std::u8string filePathStr;
+			uint64_t fileSizeBytes;
+		};
+
 #ifdef WITH_TESTS
 		Mocks mocks;
 #endif
 		Cryptography::ByteSequence<Cryptography::ByteSequenceTag::TempInternalBuffer, ChunkSize + Cryptography::CipherAuthDataSize> buffer;
 		std::ofstream file;
 		std::filesystem::path rootPath;
-		std::u8string filePathStr;
-		std::filesystem::path filePath;
+		OneFileHeader currentFileHeader;
+		OneFileHeader nextFileHeader;
+		uint16_t nextFilePathSize = 0;
+		size_t nextFileMetadataRead = 0;
+		std::filesystem::path currentFilePath;
+		uint8_t filesToReceive = 0;
 		size_t bytesReadInChunk = ChunkSize;
 		size_t chunksReceived = 0;
-		size_t fileMetadataRead = 0;
-		uint64_t fileSizeBytes = 0;
-		uint16_t filePathSize = 0;
 		uint64_t bytesWrittenToFile = 0;
 		uint64_t previousFileSize = 0;
 		size_t currentFileIndex = std::numeric_limits<size_t>::max();
 		bool isPartial = false;
+		std::vector<OneFileHeader> nextFilesToReceive;
 		std::vector<Protocol::FileExchange::FileReceiveStatus> lastFileStatuses;
 
 		[[nodiscard]] size_t getMetadataLen() const noexcept
 		{
-			return static_cast<size_t>(8 + 2) + filePathSize + (isPartial ? sizeof(uint64_t) : 0);
+			return static_cast<size_t>(1 + 8 + 2) + nextFilePathSize + (isPartial ? sizeof(uint64_t) : 0);
 		}
 
 		[[nodiscard]] bool isMetadataFullyRead() const noexcept
 		{
-			assertFatalRelease(fileMetadataRead <= getMetadataLen(), "Logical error, we can't read more metadata than available");
-			return fileMetadataRead == getMetadataLen();
+			assertFatalRelease(nextFileMetadataRead <= getMetadataLen(), "Logical error, we can't read more metadata than available");
+			return isEndOfTransmission() || nextFileMetadataRead == getMetadataLen();
 		}
 
 		[[nodiscard]] bool isBufferFullyRead() const noexcept
@@ -140,7 +151,7 @@ namespace FileTransferReceiveLogic
 
 		[[nodiscard]] bool hasFileFinished() const noexcept
 		{
-			return isMetadataFullyRead() && bytesWrittenToFile == fileSizeBytes;
+			return isMetadataFullyRead() && bytesWrittenToFile == currentFileHeader.fileSizeBytes;
 		}
 
 		[[nodiscard]] bool haveUnconfirmedFiles() const noexcept
@@ -277,7 +288,7 @@ namespace FileTransferReceiveLogic
 
 		bool isEndOfTransmission() const noexcept
 		{
-			return fileMetadataRead == static_cast<size_t>(8 + 2) && filePathSize == 0 && fileSizeBytes == 0;
+			return nextFileMetadataRead == static_cast<size_t>(1) && filesToReceive == 0;
 		}
 
 		void newFile() noexcept
@@ -289,12 +300,14 @@ namespace FileTransferReceiveLogic
 
 			bytesWrittenToFile = 0;
 			previousFileSize = 0;
-			fileMetadataRead = 0;
-			filePathSize = 0;
-			fileSizeBytes = 0;
+			nextFileMetadataRead = 0;
+			nextFilePathSize = 0;
+			nextFileHeader.fileSizeBytes = 0;
+			nextFileHeader.filePathStr.clear();
+			currentFileHeader.fileSizeBytes = 0;
+			currentFileHeader.filePathStr.clear();
+			currentFilePath.clear();
 			isPartial = false;
-			filePathStr.clear();
-			filePath.clear();
 			// set the default status to update later
 			lastFileStatuses.push_back(Protocol::FileExchange::FileReceiveStatus::Success);
 			debugPrintState(DebugState::NewFile);
@@ -303,16 +316,16 @@ namespace FileTransferReceiveLogic
 
 		void readData(size_t offset, size_t size, DebugState debugState, auto readData, auto onFullyRead)
 		{
-			if (fileMetadataRead >= offset && fileMetadataRead < offset + size && !isBufferFullyRead())
+			if (nextFileMetadataRead >= offset && nextFileMetadataRead < offset + size && !isBufferFullyRead())
 			{
 				debugPrintState(debugState);
 				auto readFn = [this, offset](std::span<std::byte> data) {
-					fileMetadataRead += partiallyReadDataFromChunk(data, fileMetadataRead - offset);
+					nextFileMetadataRead += partiallyReadDataFromChunk(data, nextFileMetadataRead - offset);
 				};
 
 				readData(readFn);
 
-				if (fileMetadataRead >= offset + size)
+				if (nextFileMetadataRead >= offset + size)
 				{
 					onFullyRead();
 				}
@@ -324,42 +337,14 @@ namespace FileTransferReceiveLogic
 			if (!isMetadataFullyRead())
 			{
 				readData(
-					0, 8,
-					DebugState::FileSize,
+					0, 1,
+					DebugState::FilesCount,
 					[this](auto readFn) {
-						Cryptography::ByteSequence<Cryptography::ByteSequenceTag::TempInternalBuffer, 8> data;
-						if (fileMetadataRead != 0)
-						{
-							Serialization::writeUint64(data, fileSizeBytes);
-						}
+						Cryptography::ByteSequence<Cryptography::ByteSequenceTag::TempInternalBuffer, 1> data;
 						readFn(data);
-						fileSizeBytes = Serialization::readUint64(data);
+						filesToReceive = static_cast<uint8_t>(data.raw[0]);
 					},
-					[this] {
-						if (fileMetadataRead >= 8)
-						{
-							const size_t partialBit = static_cast<size_t>(0b1) << (sizeof(size_t) * 8 - 1);
-							isPartial = ((fileSizeBytes & partialBit) != 0);
-							fileSizeBytes &= ~partialBit;
-						}
-					}
-				);
-
-				readData(
-					8, 2,
-					DebugState::FilePathSize,
-					[this](auto readFn) {
-						Cryptography::ByteSequence<Cryptography::ByteSequenceTag::TempInternalBuffer, 2> data;
-						if (fileMetadataRead != 8)
-						{
-							Serialization::writeUint16(data.raw[0], data.raw[1], filePathSize);
-						}
-						readFn(data);
-						filePathSize = Serialization::readUint16(data.raw[0], data.raw[1]);
-					},
-					[this] {
-						filePathStr.resize(filePathSize);
-					}
+					[] {}
 				);
 
 				if (isEndOfTransmission())
@@ -368,25 +353,64 @@ namespace FileTransferReceiveLogic
 				}
 
 				readData(
-					8 + 2, static_cast<size_t>(filePathSize),
-					DebugState::FilePath,
+					1, 8,
+					DebugState::FileSize,
 					[this](auto readFn) {
-						readFn(std::as_writable_bytes(std::span(filePathStr)));
+						Cryptography::ByteSequence<Cryptography::ByteSequenceTag::TempInternalBuffer, 8> data;
+						if (nextFileMetadataRead != 0)
+						{
+							Serialization::writeUint64(data, nextFileHeader.fileSizeBytes);
+						}
+						readFn(data);
+						nextFileHeader.fileSizeBytes = Serialization::readUint64(data);
 					},
 					[this] {
-						filePath = filePathStr;
-						filePath.make_preferred();
+						if (nextFileMetadataRead >= 8)
+						{
+							const size_t partialBit = static_cast<size_t>(0b1) << (sizeof(size_t) * 8 - 1);
+							isPartial = ((nextFileHeader.fileSizeBytes & partialBit) != 0);
+							nextFileHeader.fileSizeBytes &= ~partialBit;
+						}
+					}
+				);
+
+				readData(
+					1 + 8, 2,
+					DebugState::FilePathSize,
+					[this](auto readFn) {
+						Cryptography::ByteSequence<Cryptography::ByteSequenceTag::TempInternalBuffer, 2> data;
+						if (nextFileMetadataRead != 8)
+						{
+							Serialization::writeUint16(data.raw[0], data.raw[1], nextFilePathSize);
+						}
+						readFn(data);
+						nextFilePathSize = Serialization::readUint16(data.raw[0], data.raw[1]);
+					},
+					[this] {
+						nextFileHeader.filePathStr.resize(nextFilePathSize);
+					}
+				);
+
+				readData(
+					1 + 8 + 2, static_cast<size_t>(nextFilePathSize),
+					DebugState::FilePath,
+					[this](auto readFn) {
+						readFn(std::as_writable_bytes(std::span(nextFileHeader.filePathStr)));
+					},
+					[this] {
+						currentFilePath = nextFileHeader.filePathStr;
+						currentFilePath.make_preferred();
 					}
 				);
 
 				if (isPartial)
 				{
 					readData(
-						8 + 2 + static_cast<size_t>(filePathSize), 8,
+						1 + 8 + 2 + static_cast<size_t>(nextFilePathSize), 8,
 						DebugState::FileAlreadySentSize,
 						[this](auto readFn) {
 							Cryptography::ByteSequence<Cryptography::ByteSequenceTag::TempInternalBuffer, 8> data;
-							if (fileMetadataRead != 0)
+							if (nextFileMetadataRead != 0)
 							{
 								Serialization::writeUint64(data, previousFileSize);
 							}
@@ -406,10 +430,12 @@ namespace FileTransferReceiveLogic
 			assertFatalRelease(isMetadataFullyRead(), "Logical error, we should not get here before we finish reading metadata");
 			if (isMetadataFullyRead() && bytesWrittenToFile == 0)
 			{
-				if (Files::isFilePathAcceptable(filePath))
+				currentFileHeader = nextFileHeader;
+
+				if (Files::isFilePathAcceptable(currentFilePath))
 				{
-					std::filesystem::path fullPath = rootPath / filePath;
-					std::filesystem::path filePartPath = filePath;
+					std::filesystem::path fullPath = rootPath / currentFilePath;
+					std::filesystem::path filePartPath = currentFilePath;
 					filePartPath += ".part";
 					std::filesystem::path fullFilePartPath = rootPath / filePartPath;
 
@@ -437,7 +463,7 @@ namespace FileTransferReceiveLogic
 
 						if (!isFileOpen(file))
 						{
-							reportDebugError("Could not open file for writing {}.part", filePath.string());
+							reportDebugError("Could not open file for writing {}.part", currentFilePath.string());
 							recordFileError(Protocol::FileExchange::FileReceiveStatus::CouldNotCreate);
 						}
 					}
@@ -448,12 +474,12 @@ namespace FileTransferReceiveLogic
 				}
 			}
 
-			if (bytesWrittenToFile == fileSizeBytes)
+			if (bytesWrittenToFile == currentFileHeader.fileSizeBytes)
 			{
 				return;
 			}
 
-			const size_t bytesToWrite = std::min(fileSizeBytes - bytesWrittenToFile, ChunkSize - bytesReadInChunk);
+			const size_t bytesToWrite = std::min(currentFileHeader.fileSizeBytes - bytesWrittenToFile, ChunkSize - bytesReadInChunk);
 			if (currentFileHasNoErrors())
 			{
 				debugPrintState(DebugState::FileContent);
@@ -465,7 +491,7 @@ namespace FileTransferReceiveLogic
 			}
 			bytesWrittenToFile += bytesToWrite;
 			bytesReadInChunk += bytesToWrite;
-			assertFatalRelease(bytesWrittenToFile <= fileSizeBytes, "File read size bigger than file size, this should never happen");
+			assertFatalRelease(bytesWrittenToFile <= currentFileHeader.fileSizeBytes, "File read size bigger than file size, this should never happen");
 		}
 
 		[[nodiscard]] bool receiveChunk(Network::RawSocket socket, Noise::CipherStateReceiving& receivingCipherstate) noexcept
@@ -676,7 +702,7 @@ namespace FileTransferReceiveLogic
 
 					if (receivingState.currentFileHasNoErrors())
 					{
-						std::filesystem::path fullPath = receivingState.rootPath / receivingState.filePath;
+						std::filesystem::path fullPath = receivingState.rootPath / receivingState.currentFilePath;
 						std::filesystem::path partFilePath = fullPath;
 						partFilePath += ".part";
 
@@ -685,7 +711,7 @@ namespace FileTransferReceiveLogic
 					}
 					else
 					{
-						std::filesystem::path partFilePath = receivingState.rootPath / receivingState.filePath;
+						std::filesystem::path partFilePath = receivingState.rootPath / receivingState.currentFilePath;
 						partFilePath += ".part";
 
 						receivingState.removeFile(partFilePath);

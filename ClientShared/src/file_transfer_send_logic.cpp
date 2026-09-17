@@ -36,6 +36,7 @@ namespace FileTransferSendLogic
 		enum class DebugState
 		{
 			StartChunk,
+			FilesCount,
 			FileSize,
 			FilePathSize,
 			FilePath,
@@ -68,6 +69,9 @@ namespace FileTransferSendLogic
 				{
 				case DebugState::StartChunk:
 					Debug::Log::printDebug("Send:  /---------------\\\nSend: / #{:03}            \\", stats.chunksSent);
+					break;
+				case DebugState::FilesCount:
+					Debug::Log::printDebug("Send: |   files count    |");
 					break;
 				case DebugState::FileSize:
 					Debug::Log::printDebug("Send: |    file size     |");
@@ -249,7 +253,7 @@ namespace FileTransferSendLogic
 			fileMetadataWritten = 0;
 			filePathSize = static_cast<uint16_t>(filePath.size());
 			isPartial = startBytePos > 0;
-			fileMetadataBytes = 8 + 2 + filePathSize + (isPartial ? sizeof(uint64_t) : 0);
+			fileMetadataBytes = 1 + 8 + 2 + filePathSize + (isPartial ? sizeof(uint64_t) : 0);
 			filesAwaitingConfirmation.push_back(path);
 			++fileIndex;
 			debugPrintState(DebugState::NewFile);
@@ -268,26 +272,32 @@ namespace FileTransferSendLogic
 		{
 			if (!hasMetadataBeenFullyWritten())
 			{
-				writeData(0, 8, DebugState::FileSize, [this] {
+				writeData(0, 1, DebugState::FilesCount, [/*this*/] {
+					std::array<std::byte, 1> data;
+					data[0] = static_cast<std::byte>(1);
+					return data;
+				});
+
+				writeData(1, 8, DebugState::FileSize, [this] {
 					std::array<std::byte, 8> data;
 					constexpr uint64_t partialBit = static_cast<size_t>(0b1) << (sizeof(size_t) * 8 - 1);
 					Serialization::writeUint64(data, fileSizeBytes | (isPartial ? partialBit : 0));
 					return data;
 				});
 
-				writeData(8, 2, DebugState::FilePathSize, [this] {
+				writeData(1 + 8, 2, DebugState::FilePathSize, [this] {
 					std::array<std::byte, 2> data;
 					Serialization::writeUint16(data[0], data[1], filePathSize);
 					return data;
 				});
 
-				writeData(8 + 2, filePathSize, DebugState::FilePath, [this] {
+				writeData(1 + 8 + 2, filePathSize, DebugState::FilePath, [this] {
 					return std::as_bytes(std::span(filePath));
 				});
 
 				if (isPartial)
 				{
-					writeData(8 + 2 + filePathSize, 8, DebugState::FileAlreadySentSize, [this] {
+					writeData(1 + 8 + 2 + filePathSize, 8, DebugState::FileAlreadySentSize, [this] {
 						std::array<std::byte, 8> data;
 						Serialization::writeUint64(data, bytesReadFromFile);
 						return data;
@@ -700,13 +710,11 @@ namespace FileTransferSendLogic
 				}
 			}
 
-			// append 10 zero bytes (empty file with empty path) to signal about the transmission end
+			// append a zero byte to signify the end of the transmission
 			{
-				sendingState.debugPrintState(FileSendingState::DebugState::FileSize);
-				sendingState.debugPrintState(FileSendingState::DebugState::FilePathSize);
-				sendingState.debugPrintState(FileSendingState::DebugState::EndTransmission);
+				sendingState.debugPrintState(FileSendingState::DebugState::FilesCount);
 				size_t endingBytesWritten = 0;
-				std::array<std::byte, 10> endingBytes = {};
+				std::array<std::byte, 1> endingBytes = {};
 				while (endingBytesWritten < endingBytes.size())
 				{
 					endingBytesWritten += sendingState.partiallyWriteDataToChunk(endingBytes, endingBytesWritten);
