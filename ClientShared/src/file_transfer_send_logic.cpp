@@ -51,15 +51,6 @@ namespace FileTransferSendLogic
 			AnswerExtraChunk,
 		};
 
-		struct Stats
-		{
-			uint32_t filesSent = 0;
-			uint32_t chunksSent = 0;
-
-			std::chrono::system_clock::time_point lastStatsRecordingTime{};
-			constexpr static std::chrono::system_clock::duration timeBetweenActivitySend = std::chrono::seconds(10);
-		};
-
 		void debugPrintState([[maybe_unused]] DebugState state)
 		{
 #ifdef DEBUG_CHECKS
@@ -116,24 +107,55 @@ namespace FileTransferSendLogic
 #endif // DEBUG_CHECKS
 		}
 
+		struct Stats
+		{
+			uint32_t filesSent = 0;
+			uint32_t chunksSent = 0;
+
+			std::chrono::system_clock::time_point lastStatsRecordingTime{};
+			constexpr static std::chrono::system_clock::duration timeBetweenActivitySend = std::chrono::seconds(10);
+		};
+
+		struct TransferData
+		{
+			size_t currentFileIndex = 0;
+
+			std::vector<std::filesystem::path> filesAwaitingConfirmation;
+			uint64_t firstAwaitingFileBytesConfirmed = 0;
+			std::vector<std::filesystem::path> confirmedFilesCache;
+			std::vector<std::filesystem::path> rejectedPartialFiles;
+		};
+
+		struct BatchData
+		{
+			// uint64_t metadataSizeBytes = 1 + 2;
+			// std::vector<std::string> networkPaths;
+			// std::vector<std::filesystem::path> nativePaths;
+		};
+
+		struct CurrentFileData
+		{
+			uint64_t metadataSizeBytes = 8;
+			uint64_t metadataWrittenBytes = 0;
+			uint64_t fileSizeBytes = 0;
+			uint64_t bytesReadFromFile = 0;
+			bool isPartial = false;
+		};
+
 #ifdef WITH_TESTS
 		Mocks mocks;
 #endif
 		Cryptography::ByteSequence<Cryptography::ByteSequenceTag::TempInternalBuffer, ChunkSize + Cryptography::CipherAuthDataSize> buffer;
+		size_t bytesFilledInChunk = 0;
+
+		CurrentFileData currentFileData;
+		BatchData batchData;
+		TransferData transferData;
+
 		std::filesystem::path filePathNative;
 		std::string filePath;
-		size_t bytesFilledInChunk = 0;
-		size_t fileMetadataBytes = 0; // 8 bytes of size + 2 bytes of path + name
-		size_t fileMetadataWritten = 0;
-		uint64_t fileSizeBytes = 0;
 		uint16_t filePathSize = 0;
-		uint64_t bytesReadFromFile = 0;
-		size_t fileIndex = 0;
-		bool isPartial = false;
-		std::vector<std::filesystem::path> filesAwaitingConfirmation;
-		uint64_t firstAwaitingFileBytesConfirmed = 0;
-		std::vector<std::filesystem::path> confirmedFilesCache;
-		std::vector<std::filesystem::path> rejectedPartialFiles;
+
 		uint8_t serverIdx = 0;
 		Stats stats;
 
@@ -149,18 +171,18 @@ namespace FileTransferSendLogic
 
 		[[nodiscard]] bool hasMetadataBeenFullyWritten() const noexcept
 		{
-			assertFatalRelease(fileMetadataWritten <= fileMetadataBytes, "Logical error, we can't write more metadata than exists");
-			return fileMetadataWritten == fileMetadataBytes;
+			assertFatalRelease(currentFileData.metadataWrittenBytes <= currentFileData.metadataSizeBytes, "Logical error, we can't write more metadata than exists");
+			return currentFileData.metadataWrittenBytes == currentFileData.metadataSizeBytes;
 		}
 
 		[[nodiscard]] bool isFileFullyRead() const noexcept
 		{
-			return hasMetadataBeenFullyWritten() && bytesReadFromFile == fileSizeBytes;
+			return hasMetadataBeenFullyWritten() && currentFileData.bytesReadFromFile == currentFileData.fileSizeBytes;
 		}
 
 		[[nodiscard]] bool haveUnconfirmedFiles() const noexcept
 		{
-			return !filesAwaitingConfirmation.empty();
+			return !transferData.filesAwaitingConfirmation.empty();
 		}
 
 		void openFile(std::ifstream& stream, const std::filesystem::path& path)
@@ -248,23 +270,23 @@ namespace FileTransferSendLogic
 #ifdef WIN32
 			std::replace(filePath.begin(), filePath.end(), '\\', '/');
 #endif // WIN32
-			fileSizeBytes = size;
-			bytesReadFromFile = startBytePos;
-			fileMetadataWritten = 0;
+			currentFileData.fileSizeBytes = size;
+			currentFileData.bytesReadFromFile = startBytePos;
+			currentFileData.metadataWrittenBytes = 0;
 			filePathSize = static_cast<uint16_t>(filePath.size());
-			isPartial = startBytePos > 0;
-			fileMetadataBytes = 1 + 8 + 2 + filePathSize + (isPartial ? sizeof(uint64_t) : 0);
-			filesAwaitingConfirmation.push_back(path);
-			++fileIndex;
+			currentFileData.isPartial = startBytePos > 0;
+			currentFileData.metadataSizeBytes = 1 + 8 + 2 + filePathSize + (currentFileData.isPartial ? sizeof(uint64_t) : 0);
+			transferData.filesAwaitingConfirmation.push_back(path);
+			++transferData.currentFileIndex;
 			debugPrintState(DebugState::NewFile);
 		}
 
 		void writeData(size_t offset, size_t size, DebugState debugState, auto getData)
 		{
-			if (fileMetadataWritten >= offset && fileMetadataWritten < offset + size && !isBufferFull())
+			if (currentFileData.metadataWrittenBytes >= offset && currentFileData.metadataWrittenBytes < offset + size && !isBufferFull())
 			{
 				debugPrintState(debugState);
-				fileMetadataWritten += partiallyWriteDataToChunk(getData(), fileMetadataWritten - offset);
+				currentFileData.metadataWrittenBytes += partiallyWriteDataToChunk(getData(), currentFileData.metadataWrittenBytes - offset);
 			}
 		}
 
@@ -281,7 +303,7 @@ namespace FileTransferSendLogic
 				writeData(1, 8, DebugState::FileSize, [this] {
 					std::array<std::byte, 8> data;
 					constexpr uint64_t partialBit = static_cast<size_t>(0b1) << (sizeof(size_t) * 8 - 1);
-					Serialization::writeUint64(data, fileSizeBytes | (isPartial ? partialBit : 0));
+					Serialization::writeUint64(data, currentFileData.fileSizeBytes | (currentFileData.isPartial ? partialBit : 0));
 					return data;
 				});
 
@@ -295,11 +317,11 @@ namespace FileTransferSendLogic
 					return std::as_bytes(std::span(filePath));
 				});
 
-				if (isPartial)
+				if (currentFileData.isPartial)
 				{
 					writeData(1 + 8 + 2 + filePathSize, 8, DebugState::FileAlreadySentSize, [this] {
 						std::array<std::byte, 8> data;
-						Serialization::writeUint64(data, bytesReadFromFile);
+						Serialization::writeUint64(data, currentFileData.bytesReadFromFile);
 						return data;
 					});
 				}
@@ -312,11 +334,11 @@ namespace FileTransferSendLogic
 
 			assertFatalRelease(hasMetadataBeenFullyWritten(), "Logical error, we should not get here before we finish writing metadata");
 			debugPrintState(DebugState::FileContent);
-			const size_t bytesToRead = std::min(fileSizeBytes - bytesReadFromFile, static_cast<uint64_t>(ChunkSize - bytesFilledInChunk));
+			const size_t bytesToRead = std::min(currentFileData.fileSizeBytes - currentFileData.bytesReadFromFile, static_cast<uint64_t>(ChunkSize - bytesFilledInChunk));
 			readFileStreamIntoSpan(file, std::span(buffer.raw.data() + bytesFilledInChunk, bytesToRead));
-			bytesReadFromFile += bytesToRead;
+			currentFileData.bytesReadFromFile += bytesToRead;
 			bytesFilledInChunk += bytesToRead;
-			assertFatalRelease(bytesReadFromFile <= fileSizeBytes, "File read size bigger than file size, this should never happen");
+			assertFatalRelease(currentFileData.bytesReadFromFile <= currentFileData.fileSizeBytes, "File read size bigger than file size, this should never happen");
 		}
 
 		[[nodiscard]] bool sendChunk(Network::RawSocket socket, Noise::CipherStateSending& sendingCipherstate) noexcept
@@ -362,7 +384,7 @@ namespace FileTransferSendLogic
 		void recordAndClearConfirmations(const std::vector<size_t>& errorIndexes, const std::vector<size_t>& skipFileIndexes) noexcept
 		{
 			const bool shouldRecordLast = isFileFullyRead();
-			const size_t count = filesAwaitingConfirmation.size() + (shouldRecordLast ? 0 : -1);
+			const size_t count = transferData.filesAwaitingConfirmation.size() + (shouldRecordLast ? 0 : -1);
 			size_t indexPos = 0;
 			size_t skipFileIndexPos = 0;
 			const size_t indexesSize = errorIndexes.size();
@@ -381,20 +403,20 @@ namespace FileTransferSendLogic
 					}
 				}
 
-				confirmedFilesCache.push_back(std::move(filesAwaitingConfirmation[i]));
+				transferData.confirmedFilesCache.push_back(std::move(transferData.filesAwaitingConfirmation[i]));
 				++stats.filesSent;
 			}
 
 			if (shouldRecordLast)
 			{
-				filesAwaitingConfirmation.clear();
-				firstAwaitingFileBytesConfirmed = 0;
+				transferData.filesAwaitingConfirmation.clear();
+				transferData.firstAwaitingFileBytesConfirmed = 0;
 			}
-			else if (!filesAwaitingConfirmation.empty())
+			else if (!transferData.filesAwaitingConfirmation.empty())
 			{
-				filesAwaitingConfirmation.erase(filesAwaitingConfirmation.begin(), filesAwaitingConfirmation.begin() + (filesAwaitingConfirmation.size() - 1));
+				transferData.filesAwaitingConfirmation.erase(transferData.filesAwaitingConfirmation.begin(), transferData.filesAwaitingConfirmation.begin() + (transferData.filesAwaitingConfirmation.size() - 1));
 				// right now we read answers synchronously, so we can be sure that all the bytes we wrote are confirmed
-				firstAwaitingFileBytesConfirmed = bytesReadFromFile;
+				transferData.firstAwaitingFileBytesConfirmed = currentFileData.bytesReadFromFile;
 			}
 		}
 
@@ -406,7 +428,7 @@ namespace FileTransferSendLogic
 
 			debugPrintState(DebugState::Answer);
 
-			if (filesAwaitingConfirmation.empty()) [[unlikely]]
+			if (transferData.filesAwaitingConfirmation.empty()) [[unlikely]]
 			{
 				reportDebugError("Reading confirmation when have no files needing to confirm");
 				return false;
@@ -449,7 +471,7 @@ namespace FileTransferSendLogic
 			static_assert(AnswerChunkSize >= 3, "This code doesn't expect answer chunk size less than 3 bytes");
 			static_assert(ChunksBetweenAnswers * ChunkSize > 2 + 8, "We can't have less data sent between answers than the size of the static metadata + 1");
 
-			debugAssert(statusesToRead == filesAwaitingConfirmation.size() + (isMidSendingEndState ? 1 : 0), "Received unexpected number of file statuses expected {} got {}", filesAwaitingConfirmation.size() + (isMidSendingEndState ? 1 : 0), statusesToRead);
+			debugAssert(statusesToRead == transferData.filesAwaitingConfirmation.size() + (isMidSendingEndState ? 1 : 0), "Received unexpected number of file statuses expected {} got {}", transferData.filesAwaitingConfirmation.size() + (isMidSendingEndState ? 1 : 0), statusesToRead);
 
 			const size_t bytesInBitset = (statusesToRead + 7) / 8;
 
@@ -525,7 +547,7 @@ namespace FileTransferSendLogic
 						// ToDo: log an error
 						break;
 					case static_cast<uint8_t>(Protocol::FileExchange::FileReceiveStatus::PartMissing):
-						rejectedPartialFiles.push_back(filesAwaitingConfirmation[fileIdx]);
+						transferData.rejectedPartialFiles.push_back(transferData.filesAwaitingConfirmation[fileIdx]);
 						break;
 					case static_cast<uint8_t>(Protocol::FileExchange::FileReceiveStatus::AlreadyExists):
 						skipFileIndexes.push_back(fileIdx);
@@ -535,15 +557,15 @@ namespace FileTransferSendLogic
 						return false;
 					}
 
-					if (hasFileInProgress && fileIdx + 1 == filesAwaitingConfirmation.size())
+					if (hasFileInProgress && fileIdx + 1 == transferData.filesAwaitingConfirmation.size())
 					{
 						// current file was rejected, stop reading it
-						bytesReadFromFile = fileSizeBytes;
-						fileMetadataWritten = fileMetadataBytes;
+						currentFileData.bytesReadFromFile = currentFileData.fileSizeBytes;
+						currentFileData.metadataWrittenBytes = currentFileData.metadataSizeBytes;
 					}
-					else if (fileIdx >= filesAwaitingConfirmation.size()) [[unlikely]]
+					else if (fileIdx >= transferData.filesAwaitingConfirmation.size()) [[unlikely]]
 					{
-						reportDebugError("File confirmation index out of bounds {} of {}", fileIdx, filesAwaitingConfirmation.size());
+						reportDebugError("File confirmation index out of bounds {} of {}", fileIdx, transferData.filesAwaitingConfirmation.size());
 						return false;
 					}
 				}
@@ -610,11 +632,11 @@ namespace FileTransferSendLogic
 	{
 		if (activityType != ActivityType::Continue || sendingState.shouldSaveState())
 		{
-			const bool isSuccess = storage.addSentFiles(sendingState.serverIdx, sendingState.confirmedFilesCache, sendingState.filePathNative, sendingState.firstAwaitingFileBytesConfirmed, sendingState.rejectedPartialFiles);
+			const bool isSuccess = storage.addSentFiles(sendingState.serverIdx, sendingState.transferData.confirmedFilesCache, sendingState.filePathNative, sendingState.transferData.firstAwaitingFileBytesConfirmed, sendingState.transferData.rejectedPartialFiles);
 			if (isSuccess)
 			{
-				sendingState.confirmedFilesCache.clear();
-				sendingState.rejectedPartialFiles.clear();
+				sendingState.transferData.confirmedFilesCache.clear();
+				sendingState.transferData.rejectedPartialFiles.clear();
 			}
 		}
 
@@ -671,7 +693,7 @@ namespace FileTransferSendLogic
 
 				sendingState.newFile(relativePath, fileLength, partialSendStartByte);
 
-				if (sendingState.isPartial)
+				if (sendingState.currentFileData.isPartial)
 				{
 					sendingState.seek(file, partialSendStartByte);
 				}
@@ -760,7 +782,7 @@ namespace FileTransferSendLogic
 				}
 			}
 
-			assertRelease(sendingState.filesAwaitingConfirmation.empty(), "Did not expect to have non-empty array of files awaiting confirmation at the end of successful transmission {}", sendingState.filesAwaitingConfirmation.size());
+			assertRelease(sendingState.transferData.filesAwaitingConfirmation.empty(), "Did not expect to have non-empty array of files awaiting confirmation at the end of successful transmission {}", sendingState.transferData.filesAwaitingConfirmation.size());
 		}
 		catch (std::exception& e)
 		{
