@@ -115,13 +115,13 @@ namespace FileTransferReceiveLogic
 
 		struct BatchData
 		{
-			uint8_t filesToReceive = 0;
+			uint8_t chunkSize = 0;
+			std::u8string filePathNetwork;
+			std::filesystem::path filePathNative;
 		};
 
 		struct CurrentFileData
 		{
-			std::u8string filePathNetwork;
-			std::filesystem::path filePathNative;
 			uint64_t fileSizeBytes;
 			uint64_t previousFileSize = 0;
 			uint64_t bytesWrittenToFile = 0;
@@ -297,7 +297,7 @@ namespace FileTransferReceiveLogic
 
 		bool isEndOfTransmission() const noexcept
 		{
-			return currentFileData.fileMetadataRead == static_cast<size_t>(1) && batchData.filesToReceive == 0;
+			return currentFileData.fileMetadataRead == static_cast<size_t>(1) && batchData.chunkSize == 0;
 		}
 
 		void newFile(std::ofstream& file) noexcept
@@ -312,8 +312,8 @@ namespace FileTransferReceiveLogic
 			currentFileData.fileMetadataRead = 0;
 			currentFileData.filePathSize = 0;
 			currentFileData.fileSizeBytes = 0;
-			currentFileData.filePathNetwork.clear();
-			currentFileData.filePathNative.clear();
+			batchData.filePathNetwork.clear();
+			batchData.filePathNative.clear();
 			currentFileData.isPartial = false;
 			// set the default status to update later
 			transferData.lastFileStatuses.push_back(Protocol::FileExchange::FileReceiveStatus::Success);
@@ -349,7 +349,7 @@ namespace FileTransferReceiveLogic
 					[this](auto readFn) {
 						Cryptography::ByteSequence<Cryptography::ByteSequenceTag::TempInternalBuffer, 1> data;
 						readFn(data);
-						batchData.filesToReceive = static_cast<uint8_t>(data.raw[0]);
+						batchData.chunkSize = static_cast<uint8_t>(data.raw[0]);
 					},
 					[] {}
 				);
@@ -394,7 +394,7 @@ namespace FileTransferReceiveLogic
 						currentFileData.filePathSize = Serialization::readUint16(data.raw[0], data.raw[1]);
 					},
 					[this] {
-						currentFileData.filePathNetwork.resize(currentFileData.filePathSize);
+						batchData.filePathNetwork.resize(currentFileData.filePathSize);
 					}
 				);
 
@@ -402,11 +402,11 @@ namespace FileTransferReceiveLogic
 					1 + 8 + 2, static_cast<size_t>(currentFileData.filePathSize),
 					DebugState::FilePath,
 					[this](auto readFn) {
-						readFn(std::as_writable_bytes(std::span(currentFileData.filePathNetwork)));
+						readFn(std::as_writable_bytes(std::span(batchData.filePathNetwork)));
 					},
 					[this] {
-						currentFileData.filePathNative = currentFileData.filePathNetwork;
-						currentFileData.filePathNative.make_preferred();
+						batchData.filePathNative = batchData.filePathNetwork;
+						batchData.filePathNative.make_preferred();
 					}
 				);
 
@@ -437,10 +437,10 @@ namespace FileTransferReceiveLogic
 			assertFatalRelease(isMetadataFullyRead(), "Logical error, we should not get here before we finish reading metadata");
 			if (isMetadataFullyRead() && currentFileData.bytesWrittenToFile == 0)
 			{
-				if (Files::isFilePathAcceptable(currentFileData.filePathNative))
+				if (Files::isFilePathAcceptable(batchData.filePathNative))
 				{
-					std::filesystem::path fullPath = rootPath / currentFileData.filePathNative;
-					std::filesystem::path filePartPath = currentFileData.filePathNative;
+					std::filesystem::path fullPath = rootPath / batchData.filePathNative;
+					std::filesystem::path filePartPath = batchData.filePathNative;
 					filePartPath += ".part";
 					std::filesystem::path fullFilePartPath = rootPath / filePartPath;
 
@@ -468,7 +468,7 @@ namespace FileTransferReceiveLogic
 
 						if (!isFileOpen(file))
 						{
-							reportDebugError("Could not open file for writing {}.part", currentFileData.filePathNative.string());
+							reportDebugError("Could not open file for writing {}.part", batchData.filePathNative.string());
 							recordFileError(Protocol::FileExchange::FileReceiveStatus::CouldNotCreate);
 						}
 					}
@@ -708,7 +708,7 @@ namespace FileTransferReceiveLogic
 
 					if (receivingState.currentFileHasNoErrors())
 					{
-						std::filesystem::path fullPath = receivingState.rootPath / receivingState.currentFileData.filePathNative;
+						std::filesystem::path fullPath = receivingState.rootPath / receivingState.batchData.filePathNative;
 						std::filesystem::path partFilePath = fullPath;
 						partFilePath += ".part";
 
@@ -717,7 +717,7 @@ namespace FileTransferReceiveLogic
 					}
 					else
 					{
-						std::filesystem::path partFilePath = receivingState.rootPath / receivingState.currentFileData.filePathNative;
+						std::filesystem::path partFilePath = receivingState.rootPath / receivingState.batchData.filePathNative;
 						partFilePath += ".part";
 
 						receivingState.removeFile(partFilePath);
