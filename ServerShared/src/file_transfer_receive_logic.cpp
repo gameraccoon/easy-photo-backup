@@ -115,9 +115,10 @@ namespace FileTransferReceiveLogic
 
 		struct BatchData
 		{
-			uint8_t chunkSize = 0;
-			std::u8string filePathNetwork;
+			uint8_t batchSize = 0;
 			std::filesystem::path filePathNative;
+			std::u8string currentFileNetworkPath;
+			uint16_t currentFileNetworkPathSize = 0;
 		};
 
 		struct CurrentFileData
@@ -125,7 +126,6 @@ namespace FileTransferReceiveLogic
 			uint64_t fileSizeBytes;
 			uint64_t previousFileSize = 0;
 			uint64_t bytesWrittenToFile = 0;
-			uint16_t filePathSize = 0;
 			size_t fileMetadataRead = 0;
 			bool isPartial = false;
 		};
@@ -144,7 +144,7 @@ namespace FileTransferReceiveLogic
 
 		[[nodiscard]] size_t getMetadataLen() const noexcept
 		{
-			return static_cast<size_t>(1 + 2 + 8) + currentFileData.filePathSize + (currentFileData.isPartial ? sizeof(uint64_t) : 0);
+			return static_cast<size_t>(1 + 2 + 8) + batchData.currentFileNetworkPathSize + (currentFileData.isPartial ? sizeof(uint64_t) : 0);
 		}
 
 		[[nodiscard]] bool isMetadataFullyRead() const noexcept
@@ -297,7 +297,7 @@ namespace FileTransferReceiveLogic
 
 		bool isEndOfTransmission() const noexcept
 		{
-			return currentFileData.fileMetadataRead == static_cast<size_t>(1) && batchData.chunkSize == 0;
+			return currentFileData.fileMetadataRead == static_cast<size_t>(1) && batchData.batchSize == 0;
 		}
 
 		void newFile(std::ofstream& file) noexcept
@@ -310,9 +310,9 @@ namespace FileTransferReceiveLogic
 			currentFileData.bytesWrittenToFile = 0;
 			currentFileData.previousFileSize = 0;
 			currentFileData.fileMetadataRead = 0;
-			currentFileData.filePathSize = 0;
 			currentFileData.fileSizeBytes = 0;
-			batchData.filePathNetwork.clear();
+			batchData.currentFileNetworkPath.clear();
+			batchData.currentFileNetworkPathSize = 0;
 			batchData.filePathNative.clear();
 			currentFileData.isPartial = false;
 			// set the default status to update later
@@ -349,7 +349,7 @@ namespace FileTransferReceiveLogic
 					[this](auto readFn) {
 						Cryptography::ByteSequence<Cryptography::ByteSequenceTag::TempInternalBuffer, 1> data;
 						readFn(data);
-						batchData.chunkSize = static_cast<uint8_t>(data.raw[0]);
+						batchData.batchSize = static_cast<uint8_t>(data.raw[0]);
 					},
 					[] {}
 				);
@@ -366,30 +366,30 @@ namespace FileTransferReceiveLogic
 						Cryptography::ByteSequence<Cryptography::ByteSequenceTag::TempInternalBuffer, 2> data;
 						if (currentFileData.fileMetadataRead != 8)
 						{
-							Serialization::writeUint16(data.raw[0], data.raw[1], currentFileData.filePathSize);
+							Serialization::writeUint16(data.raw[0], data.raw[1], batchData.currentFileNetworkPathSize);
 						}
 						readFn(data);
-						currentFileData.filePathSize = Serialization::readUint16(data.raw[0], data.raw[1]);
+						batchData.currentFileNetworkPathSize = Serialization::readUint16(data.raw[0], data.raw[1]);
 					},
 					[this] {
-						batchData.filePathNetwork.resize(currentFileData.filePathSize);
+						batchData.currentFileNetworkPath.resize(batchData.currentFileNetworkPathSize);
 					}
 				);
 
 				readData(
-					1 + 2, static_cast<size_t>(currentFileData.filePathSize),
+					1 + 2, static_cast<size_t>(batchData.currentFileNetworkPathSize),
 					DebugState::FilePath,
 					[this](auto readFn) {
-						readFn(std::as_writable_bytes(std::span(batchData.filePathNetwork)));
+						readFn(std::as_writable_bytes(std::span(batchData.currentFileNetworkPath)));
 					},
 					[this] {
-						batchData.filePathNative = batchData.filePathNetwork;
+						batchData.filePathNative = batchData.currentFileNetworkPath;
 						batchData.filePathNative.make_preferred();
 					}
 				);
 
 				readData(
-					1 + 2 + static_cast<size_t>(currentFileData.filePathSize), 8,
+					1 + 2 + static_cast<size_t>(batchData.currentFileNetworkPathSize), 8,
 					DebugState::FileSize,
 					[this](auto readFn) {
 						Cryptography::ByteSequence<Cryptography::ByteSequenceTag::TempInternalBuffer, 8> data;
@@ -413,7 +413,7 @@ namespace FileTransferReceiveLogic
 				if (currentFileData.isPartial)
 				{
 					readData(
-						1 + 2 + static_cast<size_t>(currentFileData.filePathSize) + 8, 8,
+						1 + 2 + static_cast<size_t>(batchData.currentFileNetworkPathSize) + 8, 8,
 						DebugState::FileAlreadySentSize,
 						[this](auto readFn) {
 							Cryptography::ByteSequence<Cryptography::ByteSequenceTag::TempInternalBuffer, 8> data;

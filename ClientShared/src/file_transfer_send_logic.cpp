@@ -130,10 +130,10 @@ namespace FileTransferSendLogic
 		struct BatchData
 		{
 			// size_t firstFileIdx = 0;
-			// size_t batchSize = 0;
-			// uint64_t metadataSizeBytes = 1 + 2;
+			uint8_t batchSize = 1;
 			// cache so we don't need to recalculate it if split between chunks
-			std::string currentNetworkFilePath;
+			std::string currentFileNetworkPath;
+			uint16_t currentFileNetworkPathSize = 0;
 		};
 
 		struct CurrentFileData
@@ -156,7 +156,6 @@ namespace FileTransferSendLogic
 		TransferData transferData;
 
 		std::filesystem::path filePathNative;
-		uint16_t filePathSize = 0;
 
 		uint8_t serverIdx = 0;
 		Stats stats;
@@ -268,16 +267,16 @@ namespace FileTransferSendLogic
 		{
 			filePathNative = path;
 			auto utf8PathStr = path.u8string();
-			batchData.currentNetworkFilePath = std::string(reinterpret_cast<const char*>(utf8PathStr.data()), utf8PathStr.size());
+			batchData.currentFileNetworkPath = std::string(reinterpret_cast<const char*>(utf8PathStr.data()), utf8PathStr.size());
 #ifdef WIN32
 			std::replace(batchData.currentNetworkFilePath.begin(), batchData.currentNetworkFilePath.end(), '\\', '/');
 #endif // WIN32
 			currentFileData.fileSizeBytes = size;
 			currentFileData.bytesReadFromFile = startBytePos;
 			currentFileData.metadataWrittenBytes = 0;
-			filePathSize = static_cast<uint16_t>(batchData.currentNetworkFilePath.size());
+			batchData.currentFileNetworkPathSize = static_cast<uint16_t>(batchData.currentFileNetworkPath.size());
 			currentFileData.isPartial = startBytePos > 0;
-			currentFileData.metadataSizeBytes = 1 + 2 + filePathSize + 8 + (currentFileData.isPartial ? sizeof(uint64_t) : 0);
+			currentFileData.metadataSizeBytes = 1 + 2 + batchData.currentFileNetworkPathSize + 8 + (currentFileData.isPartial ? sizeof(uint64_t) : 0);
 			transferData.filesAwaitingConfirmation.push_back(path);
 			++transferData.currentFileIndex;
 			debugPrintState(DebugState::NewFile);
@@ -296,23 +295,23 @@ namespace FileTransferSendLogic
 		{
 			if (!hasMetadataBeenFullyWritten())
 			{
-				writeData(0, 1, DebugState::FilesCount, [/*this*/] {
+				writeData(0, 1, DebugState::FilesCount, [this] {
 					std::array<std::byte, 1> data;
-					data[0] = static_cast<std::byte>(1);
+					data[0] = static_cast<std::byte>(batchData.batchSize);
 					return data;
 				});
 
 				writeData(1, 2, DebugState::FilePathSize, [this] {
 					std::array<std::byte, 2> data;
-					Serialization::writeUint16(data[0], data[1], filePathSize);
+					Serialization::writeUint16(data[0], data[1], batchData.currentFileNetworkPathSize);
 					return data;
 				});
 
-				writeData(1 + 2, filePathSize, DebugState::FilePath, [this] {
-					return std::as_bytes(std::span(batchData.currentNetworkFilePath));
+				writeData(1 + 2, batchData.currentFileNetworkPathSize, DebugState::FilePath, [this] {
+					return std::as_bytes(std::span(batchData.currentFileNetworkPath));
 				});
 
-				writeData(1 + 2 + filePathSize, 8, DebugState::FileSize, [this] {
+				writeData(1 + 2 + batchData.currentFileNetworkPathSize, 8, DebugState::FileSize, [this] {
 					std::array<std::byte, 8> data;
 					constexpr uint64_t partialBit = static_cast<size_t>(0b1) << (sizeof(size_t) * 8 - 1);
 					Serialization::writeUint64(data, currentFileData.fileSizeBytes | (currentFileData.isPartial ? partialBit : 0));
@@ -321,7 +320,7 @@ namespace FileTransferSendLogic
 
 				if (currentFileData.isPartial)
 				{
-					writeData(1 + 2 + filePathSize + 8, 8, DebugState::FileAlreadySentSize, [this] {
+					writeData(1 + 2 + batchData.currentFileNetworkPathSize + 8, 8, DebugState::FileAlreadySentSize, [this] {
 						std::array<std::byte, 8> data;
 						Serialization::writeUint64(data, currentFileData.bytesReadFromFile);
 						return data;
