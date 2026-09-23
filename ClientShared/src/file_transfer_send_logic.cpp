@@ -277,7 +277,7 @@ namespace FileTransferSendLogic
 			currentFileData.metadataWrittenBytes = 0;
 			filePathSize = static_cast<uint16_t>(batchData.currentNetworkFilePath.size());
 			currentFileData.isPartial = startBytePos > 0;
-			currentFileData.metadataSizeBytes = 1 + 8 + 2 + filePathSize + (currentFileData.isPartial ? sizeof(uint64_t) : 0);
+			currentFileData.metadataSizeBytes = 1 + 2 + filePathSize + 8 + (currentFileData.isPartial ? sizeof(uint64_t) : 0);
 			transferData.filesAwaitingConfirmation.push_back(path);
 			++transferData.currentFileIndex;
 			debugPrintState(DebugState::NewFile);
@@ -302,26 +302,26 @@ namespace FileTransferSendLogic
 					return data;
 				});
 
-				writeData(1, 8, DebugState::FileSize, [this] {
+				writeData(1, 2, DebugState::FilePathSize, [this] {
+					std::array<std::byte, 2> data;
+					Serialization::writeUint16(data[0], data[1], filePathSize);
+					return data;
+				});
+
+				writeData(1 + 2, filePathSize, DebugState::FilePath, [this] {
+					return std::as_bytes(std::span(batchData.currentNetworkFilePath));
+				});
+
+				writeData(1 + 2 + filePathSize, 8, DebugState::FileSize, [this] {
 					std::array<std::byte, 8> data;
 					constexpr uint64_t partialBit = static_cast<size_t>(0b1) << (sizeof(size_t) * 8 - 1);
 					Serialization::writeUint64(data, currentFileData.fileSizeBytes | (currentFileData.isPartial ? partialBit : 0));
 					return data;
 				});
 
-				writeData(1 + 8, 2, DebugState::FilePathSize, [this] {
-					std::array<std::byte, 2> data;
-					Serialization::writeUint16(data[0], data[1], filePathSize);
-					return data;
-				});
-
-				writeData(1 + 8 + 2, filePathSize, DebugState::FilePath, [this] {
-					return std::as_bytes(std::span(batchData.currentNetworkFilePath));
-				});
-
 				if (currentFileData.isPartial)
 				{
-					writeData(1 + 8 + 2 + filePathSize, 8, DebugState::FileAlreadySentSize, [this] {
+					writeData(1 + 2 + filePathSize + 8, 8, DebugState::FileAlreadySentSize, [this] {
 						std::array<std::byte, 8> data;
 						Serialization::writeUint64(data, currentFileData.bytesReadFromFile);
 						return data;
