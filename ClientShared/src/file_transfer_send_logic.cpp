@@ -120,8 +120,9 @@ namespace FileTransferSendLogic
 		{
 			size_t currentFileIndex = 0;
 
+			// we move out paths from here, but keep indexes stable
 			std::vector<std::filesystem::path> nativePaths;
-			std::vector<std::filesystem::path> filesAwaitingConfirmation;
+			std::vector<size_t> filesAwaitingConfirmation;
 			uint64_t firstAwaitingFileBytesConfirmed = 0;
 			std::vector<std::filesystem::path> confirmedFilesCache;
 			std::vector<std::filesystem::path> rejectedPartialFiles;
@@ -155,8 +156,6 @@ namespace FileTransferSendLogic
 		BatchData batchData;
 		TransferData transferData;
 
-		std::filesystem::path filePathNative;
-
 		uint8_t serverIdx = 0;
 		Stats stats;
 
@@ -184,6 +183,20 @@ namespace FileTransferSendLogic
 		[[nodiscard]] bool haveUnconfirmedFiles() const noexcept
 		{
 			return !transferData.filesAwaitingConfirmation.empty();
+		}
+
+		[[nodiscard]] const std::filesystem::path& getFileNativeFilePath(size_t fileIndex) const noexcept
+		{
+			assertFatalRelease(fileIndex < transferData.nativePaths.size(), "Logical error: file index beyond files count");
+			debugAssert(!transferData.nativePaths[fileIndex].empty(), "Logical error: trying to use path after moved?");
+			return transferData.nativePaths[fileIndex];
+		}
+
+		[[nodiscard]] std::filesystem::path consumeFileNativeFilePath(size_t fileIndex) noexcept
+		{
+			assertFatalRelease(fileIndex < transferData.nativePaths.size(), "Logical error: file index beyond files count");
+			debugAssert(!transferData.nativePaths[fileIndex].empty(), "Logical error: trying to move path twice?");
+			return std::move(transferData.nativePaths[fileIndex]);
 		}
 
 		void openFile(std::ifstream& stream, const std::filesystem::path& path)
@@ -263,9 +276,10 @@ namespace FileTransferSendLogic
 			return bytesToCopy;
 		}
 
-		void newFile(const std::filesystem::path& path, uint64_t size, uint64_t startBytePos) noexcept
+		void newFile(size_t fileIdx, uint64_t size, uint64_t startBytePos) noexcept
 		{
-			filePathNative = path;
+			transferData.currentFileIndex = fileIdx;
+			const std::filesystem::path& path = getFileNativeFilePath(fileIdx);
 			auto utf8PathStr = path.u8string();
 			batchData.currentFileNetworkPath = std::string(reinterpret_cast<const char*>(utf8PathStr.data()), utf8PathStr.size());
 #ifdef WIN32
@@ -277,8 +291,7 @@ namespace FileTransferSendLogic
 			batchData.currentFileNetworkPathSize = static_cast<uint16_t>(batchData.currentFileNetworkPath.size());
 			currentFileData.isPartial = startBytePos > 0;
 			currentFileData.metadataSizeBytes = 1 + 2 + batchData.currentFileNetworkPathSize + 8 + (currentFileData.isPartial ? sizeof(uint64_t) : 0);
-			transferData.filesAwaitingConfirmation.push_back(path);
-			++transferData.currentFileIndex;
+			transferData.filesAwaitingConfirmation.push_back(fileIdx);
 			debugPrintState(DebugState::NewFile);
 		}
 
@@ -404,7 +417,7 @@ namespace FileTransferSendLogic
 					}
 				}
 
-				transferData.confirmedFilesCache.push_back(std::move(transferData.filesAwaitingConfirmation[i]));
+				transferData.confirmedFilesCache.push_back(consumeFileNativeFilePath(transferData.filesAwaitingConfirmation[i]));
 				++stats.filesSent;
 			}
 
@@ -548,7 +561,7 @@ namespace FileTransferSendLogic
 						// ToDo: log an error
 						break;
 					case static_cast<uint8_t>(Protocol::FileExchange::FileReceiveStatus::PartMissing):
-						transferData.rejectedPartialFiles.push_back(transferData.filesAwaitingConfirmation[fileIdx]);
+						transferData.rejectedPartialFiles.push_back(getFileNativeFilePath(transferData.filesAwaitingConfirmation[fileIdx]));
 						break;
 					case static_cast<uint8_t>(Protocol::FileExchange::FileReceiveStatus::AlreadyExists):
 						skipFileIndexes.push_back(fileIdx);
@@ -633,7 +646,13 @@ namespace FileTransferSendLogic
 	{
 		if (activityType != ActivityType::Continue || sendingState.shouldSaveState())
 		{
-			const bool isSuccess = storage.addSentFiles(sendingState.serverIdx, sendingState.transferData.confirmedFilesCache, sendingState.filePathNative, sendingState.transferData.firstAwaitingFileBytesConfirmed, sendingState.transferData.rejectedPartialFiles);
+			std::filesystem::path partiallySentFile;
+			const size_t partiallySentFileSentBytes = sendingState.transferData.firstAwaitingFileBytesConfirmed;
+			if (partiallySentFileSentBytes > 0)
+			{
+				partiallySentFile = sendingState.getFileNativeFilePath(sendingState.transferData.currentFileIndex);
+			}
+			const bool isSuccess = storage.addSentFiles(sendingState.serverIdx, sendingState.transferData.confirmedFilesCache, partiallySentFile, partiallySentFileSentBytes, sendingState.transferData.rejectedPartialFiles);
 			if (isSuccess)
 			{
 				sendingState.transferData.confirmedFilesCache.clear();
@@ -693,7 +712,7 @@ namespace FileTransferSendLogic
 					partialSendStartByte = 0;
 				}
 
-				sendingState.newFile(relativePath, fileLength, partialSendStartByte);
+				sendingState.newFile(fileIdx, fileLength, partialSendStartByte);
 
 				if (sendingState.currentFileData.isPartial)
 				{
