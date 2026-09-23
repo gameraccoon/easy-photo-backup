@@ -325,7 +325,7 @@ static FileExchangeTestResult runFileExchangeTest(ClientSentFilesStorage& client
 
 			std::vector<uint64_t> previouslySentBytes;
 			clientStorage.filterOutSentFiles(serverIdx, filePathsToSend, previouslySentBytes);
-			FileTransferSendLogic::sendFiles(filePathsToSend, previouslySentBytes, clientRootFolder, senderSocket, clientStorage, serverIdx, cipherStateSending, cipherStateReceiving, sendMocks);
+			FileTransferSendLogic::sendFiles(std::move(filePathsToSend), previouslySentBytes, clientRootFolder, senderSocket, clientStorage, serverIdx, cipherStateSending, cipherStateReceiving, sendMocks);
 		}
 
 		// validate confirmed files

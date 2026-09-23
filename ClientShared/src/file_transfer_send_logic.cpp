@@ -120,6 +120,7 @@ namespace FileTransferSendLogic
 		{
 			size_t currentFileIndex = 0;
 
+			std::vector<std::filesystem::path> nativePaths;
 			std::vector<std::filesystem::path> filesAwaitingConfirmation;
 			uint64_t firstAwaitingFileBytesConfirmed = 0;
 			std::vector<std::filesystem::path> confirmedFilesCache;
@@ -128,9 +129,11 @@ namespace FileTransferSendLogic
 
 		struct BatchData
 		{
+			// size_t firstFileIdx = 0;
+			// size_t batchSize = 0;
 			// uint64_t metadataSizeBytes = 1 + 2;
-			// std::vector<std::string> networkPaths;
-			// std::vector<std::filesystem::path> nativePaths;
+			// cache so we don't need to recalculate it if split between chunks
+			std::string currentNetworkFilePath;
 		};
 
 		struct CurrentFileData
@@ -153,7 +156,6 @@ namespace FileTransferSendLogic
 		TransferData transferData;
 
 		std::filesystem::path filePathNative;
-		std::string filePath;
 		uint16_t filePathSize = 0;
 
 		uint8_t serverIdx = 0;
@@ -266,14 +268,14 @@ namespace FileTransferSendLogic
 		{
 			filePathNative = path;
 			auto utf8PathStr = path.u8string();
-			filePath = std::string(reinterpret_cast<const char*>(utf8PathStr.data()), utf8PathStr.size());
+			batchData.currentNetworkFilePath = std::string(reinterpret_cast<const char*>(utf8PathStr.data()), utf8PathStr.size());
 #ifdef WIN32
-			std::replace(filePath.begin(), filePath.end(), '\\', '/');
+			std::replace(batchData.currentNetworkFilePath.begin(), batchData.currentNetworkFilePath.end(), '\\', '/');
 #endif // WIN32
 			currentFileData.fileSizeBytes = size;
 			currentFileData.bytesReadFromFile = startBytePos;
 			currentFileData.metadataWrittenBytes = 0;
-			filePathSize = static_cast<uint16_t>(filePath.size());
+			filePathSize = static_cast<uint16_t>(batchData.currentNetworkFilePath.size());
 			currentFileData.isPartial = startBytePos > 0;
 			currentFileData.metadataSizeBytes = 1 + 8 + 2 + filePathSize + (currentFileData.isPartial ? sizeof(uint64_t) : 0);
 			transferData.filesAwaitingConfirmation.push_back(path);
@@ -314,7 +316,7 @@ namespace FileTransferSendLogic
 				});
 
 				writeData(1 + 8 + 2, filePathSize, DebugState::FilePath, [this] {
-					return std::as_bytes(std::span(filePath));
+					return std::as_bytes(std::span(batchData.currentNetworkFilePath));
 				});
 
 				if (currentFileData.isPartial)
@@ -648,16 +650,17 @@ namespace FileTransferSendLogic
 		recordActivity(sendingState, storage, activityType, std::move(error));
 	}
 
-	void sendFiles(const std::vector<std::filesystem::path>& files, const std::vector<uint64_t>& previouslySentBytes, const std::filesystem::path& commonRoot, Network::RawSocket socket, ClientSentFilesStorage& storage, uint8_t serverIdx, Noise::CipherStateSending& sendingCipherstate, Noise::CipherStateReceiving& receivingCipherState, [[maybe_unused]] Mocks mocks) noexcept
+	void sendFiles(std::vector<std::filesystem::path>&& files, const std::vector<uint64_t>& previouslySentBytes, const std::filesystem::path& commonRoot, Network::RawSocket socket, ClientSentFilesStorage& storage, uint8_t serverIdx, Noise::CipherStateSending& sendingCipherstate, Noise::CipherStateReceiving& receivingCipherState, [[maybe_unused]] Mocks mocks) noexcept
 	{
 		FileSendingState sendingState;
 		sendingState.serverIdx = serverIdx;
+		sendingState.transferData.nativePaths = std::move(files);
 
 		{
 			const auto now = std::chrono::system_clock::now();
 			storage.addActivityJournalRecord(ClientSentFilesStorage::ActivityJournalRecord{
 				.timestampMs = ClientSentFilesStorage::ActivityJournalRecord::convertTimeToMs(now),
-				.filesCount = static_cast<uint32_t>(files.size()),
+				.filesCount = static_cast<uint32_t>(sendingState.transferData.nativePaths.size()),
 				.type = ClientSentFilesStorage::ActivityJournalRecord::Type::Start,
 			});
 			sendingState.stats.lastStatsRecordingTime = now;
@@ -671,9 +674,9 @@ namespace FileTransferSendLogic
 
 		try
 		{
-			for (size_t fileIdx = 0; fileIdx < files.size(); ++fileIdx)
+			for (size_t fileIdx = 0; fileIdx < sendingState.transferData.nativePaths.size(); ++fileIdx)
 			{
-				const std::filesystem::path& relativePath = files[fileIdx];
+				const std::filesystem::path& relativePath = sendingState.transferData.nativePaths[fileIdx];
 				uint64_t partialSendStartByte = fileIdx < previouslySentBytes.size() ? previouslySentBytes[fileIdx] : 0;
 
 				std::ifstream file;
