@@ -119,6 +119,7 @@ namespace FileTransferReceiveLogic
 			std::filesystem::path filePathNative;
 			std::u8string currentFileNetworkPath;
 			uint16_t currentFileNetworkPathSize = 0;
+			size_t batchMetadataRead = 0;
 		};
 
 		struct CurrentFileData
@@ -142,15 +143,26 @@ namespace FileTransferReceiveLogic
 
 		std::filesystem::path rootPath;
 
-		[[nodiscard]] size_t getMetadataLen() const noexcept
+		[[nodiscard]] size_t getBatchMetadataLen() const noexcept
 		{
-			return static_cast<size_t>(1 + 2 + 8) + batchData.currentFileNetworkPathSize + (currentFileData.isPartial ? sizeof(uint64_t) : 0);
+			return static_cast<size_t>(1 + 2) + batchData.currentFileNetworkPathSize;
 		}
 
-		[[nodiscard]] bool isMetadataFullyRead() const noexcept
+		[[nodiscard]] size_t getFileMetadataLen() const noexcept
 		{
-			assertFatalRelease(currentFileData.fileMetadataRead <= getMetadataLen(), "Logical error, we can't read more metadata than available");
-			return isEndOfTransmission() || currentFileData.fileMetadataRead == getMetadataLen();
+			return static_cast<size_t>(8) + (currentFileData.isPartial ? sizeof(uint64_t) : 0);
+		}
+
+		[[nodiscard]] bool isBatchMetadataFullyRead() const noexcept
+		{
+			assertFatalRelease(batchData.batchMetadataRead <= getBatchMetadataLen(), "Logical error, we can't read more batch metadata than available: available {}, read {}", getBatchMetadataLen(), batchData.batchMetadataRead);
+			return isEndOfTransmission() || batchData.batchMetadataRead == getBatchMetadataLen();
+		}
+
+		[[nodiscard]] bool isFileMetadataFullyRead() const noexcept
+		{
+			assertFatalRelease(currentFileData.fileMetadataRead <= getFileMetadataLen(), "Logical error, we can't read more file metadata than available: available {}, read {}", getBatchMetadataLen(), currentFileData.fileMetadataRead);
+			return isEndOfTransmission() || currentFileData.fileMetadataRead == getFileMetadataLen();
 		}
 
 		[[nodiscard]] bool isBufferFullyRead() const noexcept
@@ -160,7 +172,7 @@ namespace FileTransferReceiveLogic
 
 		[[nodiscard]] bool hasFileFinished() const noexcept
 		{
-			return isMetadataFullyRead() && currentFileData.bytesWrittenToFile == currentFileData.fileSizeBytes;
+			return isBatchMetadataFullyRead() && isFileMetadataFullyRead() && currentFileData.bytesWrittenToFile == currentFileData.fileSizeBytes;
 		}
 
 		[[nodiscard]] bool haveUnconfirmedFiles() const noexcept
@@ -297,7 +309,7 @@ namespace FileTransferReceiveLogic
 
 		bool isEndOfTransmission() const noexcept
 		{
-			return currentFileData.fileMetadataRead == static_cast<size_t>(1) && batchData.batchSize == 0;
+			return batchData.batchMetadataRead == static_cast<size_t>(1) && batchData.batchSize == 0;
 		}
 
 		void newFile(std::ofstream& file) noexcept
@@ -307,43 +319,56 @@ namespace FileTransferReceiveLogic
 				file.close();
 			}
 
+			++transferData.currentFileIndex;
+
+			batchData.currentFileNetworkPath.clear();
+			batchData.currentFileNetworkPathSize = 0;
+			batchData.filePathNative.clear();
+			batchData.batchMetadataRead = 0;
+
 			currentFileData.bytesWrittenToFile = 0;
 			currentFileData.previousFileSize = 0;
 			currentFileData.fileMetadataRead = 0;
 			currentFileData.fileSizeBytes = 0;
-			batchData.currentFileNetworkPath.clear();
-			batchData.currentFileNetworkPathSize = 0;
-			batchData.filePathNative.clear();
 			currentFileData.isPartial = false;
 			// set the default status to update later
 			transferData.lastFileStatuses.push_back(Protocol::FileExchange::FileReceiveStatus::Success);
 			debugPrintState(DebugState::NewFile);
-			++transferData.currentFileIndex;
 		}
 
-		void readData(size_t offset, size_t size, DebugState debugState, auto readData, auto onFullyRead)
+		void reaMetadata(size_t offset, size_t size, size_t& metadataRead, DebugState debugState, const auto& readData, auto onFullyRead)
 		{
-			if (currentFileData.fileMetadataRead >= offset && currentFileData.fileMetadataRead < offset + size && !isBufferFullyRead())
+			if (metadataRead >= offset && metadataRead < offset + size && !isBufferFullyRead())
 			{
 				debugPrintState(debugState);
-				auto readFn = [this, offset](std::span<std::byte> data) {
-					currentFileData.fileMetadataRead += partiallyReadDataFromChunk(data, currentFileData.fileMetadataRead - offset);
+				auto readFn = [&metadataRead, offset, this](std::span<std::byte> data) {
+					metadataRead += partiallyReadDataFromChunk(data, metadataRead - offset);
 				};
 
 				readData(readFn);
 
-				if (currentFileData.fileMetadataRead >= offset + size)
+				if (metadataRead >= offset + size)
 				{
 					onFullyRead();
 				}
 			}
 		}
 
+		void readBatchMetadata(size_t offset, size_t size, DebugState debugState, const auto& readData, const auto& onFullyRead)
+		{
+			reaMetadata(offset, size, batchData.batchMetadataRead, debugState, readData, onFullyRead);
+		}
+
+		void readFileMetadata(size_t offset, size_t size, DebugState debugState, const auto& readData, const auto& onFullyRead)
+		{
+			reaMetadata(offset, size, currentFileData.fileMetadataRead, debugState, readData, onFullyRead);
+		}
+
 		void writeFileToDiskFromBuffer(std::ofstream& file)
 		{
-			if (!isMetadataFullyRead())
+			if (!isBatchMetadataFullyRead())
 			{
-				readData(
+				readBatchMetadata(
 					0, 1,
 					DebugState::FilesCount,
 					[this](auto readFn) {
@@ -359,7 +384,7 @@ namespace FileTransferReceiveLogic
 					return;
 				}
 
-				readData(
+				readBatchMetadata(
 					1, 2,
 					DebugState::FilePathSize,
 					[this](auto readFn) {
@@ -376,7 +401,7 @@ namespace FileTransferReceiveLogic
 					}
 				);
 
-				readData(
+				readBatchMetadata(
 					1 + 2, static_cast<size_t>(batchData.currentFileNetworkPathSize),
 					DebugState::FilePath,
 					[this](auto readFn) {
@@ -388,8 +413,16 @@ namespace FileTransferReceiveLogic
 					}
 				);
 
-				readData(
-					1 + 2 + static_cast<size_t>(batchData.currentFileNetworkPathSize), 8,
+				if (isBufferFullyRead())
+				{
+					return;
+				}
+			}
+
+			if (!isFileMetadataFullyRead())
+			{
+				readFileMetadata(
+					0, 8,
 					DebugState::FileSize,
 					[this](auto readFn) {
 						Cryptography::ByteSequence<Cryptography::ByteSequenceTag::TempInternalBuffer, 8> data;
@@ -412,8 +445,8 @@ namespace FileTransferReceiveLogic
 
 				if (currentFileData.isPartial)
 				{
-					readData(
-						1 + 2 + static_cast<size_t>(batchData.currentFileNetworkPathSize) + 8, 8,
+					readFileMetadata(
+						8, 8,
 						DebugState::FileAlreadySentSize,
 						[this](auto readFn) {
 							Cryptography::ByteSequence<Cryptography::ByteSequenceTag::TempInternalBuffer, 8> data;
@@ -428,14 +461,15 @@ namespace FileTransferReceiveLogic
 					);
 				}
 
-				if (isBufferFullyRead() && !isMetadataFullyRead())
+				// if we just finished reading file metadata, continue to the block below before returning
+				if (isBufferFullyRead() && !isFileMetadataFullyRead())
 				{
 					return;
 				}
 			}
 
-			assertFatalRelease(isMetadataFullyRead(), "Logical error, we should not get here before we finish reading metadata");
-			if (isMetadataFullyRead() && currentFileData.bytesWrittenToFile == 0)
+			assertFatalRelease(isBatchMetadataFullyRead() && isFileMetadataFullyRead(), "Logical error, we should not get here before we finish reading metadata");
+			if (isBatchMetadataFullyRead() && isFileMetadataFullyRead() && currentFileData.bytesWrittenToFile == 0)
 			{
 				if (Files::isFilePathAcceptable(batchData.filePathNative))
 				{

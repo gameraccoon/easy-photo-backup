@@ -132,6 +132,10 @@ namespace FileTransferSendLogic
 		{
 			// size_t firstFileIdx = 0;
 			uint8_t batchSize = 1;
+
+			uint64_t batchMetadataSizeBytes = 1;
+			uint64_t batchMetadataWrittenBytes = 0;
+
 			// cache so we don't need to recalculate it if split between chunks
 			std::string currentFileNetworkPath;
 			uint16_t currentFileNetworkPathSize = 0;
@@ -139,8 +143,8 @@ namespace FileTransferSendLogic
 
 		struct CurrentFileData
 		{
-			uint64_t metadataSizeBytes = 8;
-			uint64_t metadataWrittenBytes = 0;
+			uint64_t fileMetadataSizeBytes = 8;
+			uint64_t fileMetadataWrittenBytes = 0;
 			uint64_t fileSizeBytes = 0;
 			uint64_t bytesReadFromFile = 0;
 			bool isPartial = false;
@@ -169,15 +173,21 @@ namespace FileTransferSendLogic
 			return bytesFilledInChunk == ChunkSize;
 		}
 
-		[[nodiscard]] bool hasMetadataBeenFullyWritten() const noexcept
+		[[nodiscard]] bool hasBatchMetadataBeenFullyWritten() const noexcept
 		{
-			assertFatalRelease(currentFileData.metadataWrittenBytes <= currentFileData.metadataSizeBytes, "Logical error, we can't write more metadata than exists");
-			return currentFileData.metadataWrittenBytes == currentFileData.metadataSizeBytes;
+			assertFatalRelease(batchData.batchMetadataWrittenBytes <= batchData.batchMetadataSizeBytes, "Logical error, we wrote more batch metadata than available. available: {}, written {}", batchData.batchMetadataSizeBytes, batchData.batchMetadataWrittenBytes);
+			return batchData.batchMetadataWrittenBytes == batchData.batchMetadataSizeBytes;
+		}
+
+		[[nodiscard]] bool hasFileMetadataBeenFullyWritten() const noexcept
+		{
+			assertFatalRelease(currentFileData.fileMetadataWrittenBytes <= currentFileData.fileMetadataSizeBytes, "Logical error, we wrote more file metadata than available. available: {}, written {}", currentFileData.fileMetadataSizeBytes, currentFileData.fileMetadataWrittenBytes);
+			return currentFileData.fileMetadataWrittenBytes == currentFileData.fileMetadataSizeBytes;
 		}
 
 		[[nodiscard]] bool isFileFullyRead() const noexcept
 		{
-			return hasMetadataBeenFullyWritten() && currentFileData.bytesReadFromFile == currentFileData.fileSizeBytes;
+			return hasBatchMetadataBeenFullyWritten() && hasFileMetadataBeenFullyWritten() && currentFileData.bytesReadFromFile == currentFileData.fileSizeBytes;
 		}
 
 		[[nodiscard]] bool haveUnconfirmedFiles() const noexcept
@@ -279,52 +289,76 @@ namespace FileTransferSendLogic
 		void newFile(size_t fileIdx, uint64_t size, uint64_t startBytePos) noexcept
 		{
 			transferData.currentFileIndex = fileIdx;
+			transferData.filesAwaitingConfirmation.push_back(fileIdx);
+
 			const std::filesystem::path& path = getFileNativeFilePath(fileIdx);
 			auto utf8PathStr = path.u8string();
 			batchData.currentFileNetworkPath = std::string(reinterpret_cast<const char*>(utf8PathStr.data()), utf8PathStr.size());
 #ifdef WIN32
 			std::replace(batchData.currentNetworkFilePath.begin(), batchData.currentNetworkFilePath.end(), '\\', '/');
 #endif // WIN32
+
+			batchData.batchSize = 1;
+			batchData.currentFileNetworkPathSize = static_cast<uint16_t>(batchData.currentFileNetworkPath.size());
+			batchData.batchMetadataSizeBytes = 1 + (2 + static_cast<uint64_t>(batchData.currentFileNetworkPath.size()));
+			batchData.batchMetadataWrittenBytes = 0;
+
 			currentFileData.fileSizeBytes = size;
 			currentFileData.bytesReadFromFile = startBytePos;
-			currentFileData.metadataWrittenBytes = 0;
-			batchData.currentFileNetworkPathSize = static_cast<uint16_t>(batchData.currentFileNetworkPath.size());
 			currentFileData.isPartial = startBytePos > 0;
-			currentFileData.metadataSizeBytes = 1 + 2 + batchData.currentFileNetworkPathSize + 8 + (currentFileData.isPartial ? sizeof(uint64_t) : 0);
-			transferData.filesAwaitingConfirmation.push_back(fileIdx);
+			currentFileData.fileMetadataSizeBytes = 8 + (currentFileData.isPartial ? sizeof(uint64_t) : 0);
+			currentFileData.fileMetadataWrittenBytes = 0;
 			debugPrintState(DebugState::NewFile);
 		}
 
-		void writeData(size_t offset, size_t size, DebugState debugState, auto getData)
+		void writeMetadata(size_t offset, size_t size, size_t& metadataWritten, DebugState debugState, const auto& getData)
 		{
-			if (currentFileData.metadataWrittenBytes >= offset && currentFileData.metadataWrittenBytes < offset + size && !isBufferFull())
+			if (metadataWritten >= offset && metadataWritten < offset + size && !isBufferFull())
 			{
 				debugPrintState(debugState);
-				currentFileData.metadataWrittenBytes += partiallyWriteDataToChunk(getData(), currentFileData.metadataWrittenBytes - offset);
+				metadataWritten += partiallyWriteDataToChunk(getData(), metadataWritten - offset);
 			}
+		}
+
+		void writeBatchMetadata(size_t offset, size_t size, DebugState debugState, const auto& getData)
+		{
+			writeMetadata(offset, size, batchData.batchMetadataWrittenBytes, debugState, getData);
+		}
+
+		void writeFileMetadata(size_t offset, size_t size, DebugState debugState, const auto& getData)
+		{
+			writeMetadata(offset, size, currentFileData.fileMetadataWrittenBytes, debugState, getData);
 		}
 
 		void readFileIntoBuffer(std::ifstream& file) noexcept
 		{
-			if (!hasMetadataBeenFullyWritten())
+			if (!hasBatchMetadataBeenFullyWritten())
 			{
-				writeData(0, 1, DebugState::FilesCount, [this] {
+				writeBatchMetadata(0, 1, DebugState::FilesCount, [this] {
 					std::array<std::byte, 1> data;
 					data[0] = static_cast<std::byte>(batchData.batchSize);
 					return data;
 				});
 
-				writeData(1, 2, DebugState::FilePathSize, [this] {
+				writeBatchMetadata(1, 2, DebugState::FilePathSize, [this] {
 					std::array<std::byte, 2> data;
 					Serialization::writeUint16(data[0], data[1], batchData.currentFileNetworkPathSize);
 					return data;
 				});
 
-				writeData(1 + 2, batchData.currentFileNetworkPathSize, DebugState::FilePath, [this] {
+				writeBatchMetadata(1 + 2, batchData.currentFileNetworkPathSize, DebugState::FilePath, [this] {
 					return std::as_bytes(std::span(batchData.currentFileNetworkPath));
 				});
 
-				writeData(1 + 2 + batchData.currentFileNetworkPathSize, 8, DebugState::FileSize, [this] {
+				if (isBufferFull())
+				{
+					return;
+				}
+			}
+
+			if (!hasFileMetadataBeenFullyWritten())
+			{
+				writeFileMetadata(0, 8, DebugState::FileSize, [this] {
 					std::array<std::byte, 8> data;
 					constexpr uint64_t partialBit = static_cast<size_t>(0b1) << (sizeof(size_t) * 8 - 1);
 					Serialization::writeUint64(data, currentFileData.fileSizeBytes | (currentFileData.isPartial ? partialBit : 0));
@@ -333,7 +367,7 @@ namespace FileTransferSendLogic
 
 				if (currentFileData.isPartial)
 				{
-					writeData(1 + 2 + batchData.currentFileNetworkPathSize + 8, 8, DebugState::FileAlreadySentSize, [this] {
+					writeFileMetadata(8, 8, DebugState::FileAlreadySentSize, [this] {
 						std::array<std::byte, 8> data;
 						Serialization::writeUint64(data, currentFileData.bytesReadFromFile);
 						return data;
@@ -346,7 +380,7 @@ namespace FileTransferSendLogic
 				}
 			}
 
-			assertFatalRelease(hasMetadataBeenFullyWritten(), "Logical error, we should not get here before we finish writing metadata");
+			assertFatalRelease(hasBatchMetadataBeenFullyWritten() && hasFileMetadataBeenFullyWritten(), "Logical error, we should not get here before we finish writing metadata");
 			debugPrintState(DebugState::FileContent);
 			const size_t bytesToRead = std::min(currentFileData.fileSizeBytes - currentFileData.bytesReadFromFile, static_cast<uint64_t>(ChunkSize - bytesFilledInChunk));
 			readFileStreamIntoSpan(file, std::span(buffer.raw.data() + bytesFilledInChunk, bytesToRead));
@@ -575,7 +609,7 @@ namespace FileTransferSendLogic
 					{
 						// current file was rejected, stop reading it
 						currentFileData.bytesReadFromFile = currentFileData.fileSizeBytes;
-						currentFileData.metadataWrittenBytes = currentFileData.metadataSizeBytes;
+						currentFileData.fileMetadataWrittenBytes = currentFileData.fileMetadataSizeBytes;
 					}
 					else if (fileIdx >= transferData.filesAwaitingConfirmation.size()) [[unlikely]]
 					{
