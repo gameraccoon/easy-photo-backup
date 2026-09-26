@@ -308,6 +308,7 @@ namespace FileTransferSendLogic
 			currentFileData.isPartial = startBytePos > 0;
 			currentFileData.fileMetadataSizeBytes = 8 + (currentFileData.isPartial ? sizeof(uint64_t) : 0);
 			currentFileData.fileMetadataWrittenBytes = 0;
+
 			debugPrintState(DebugState::NewFile);
 		}
 

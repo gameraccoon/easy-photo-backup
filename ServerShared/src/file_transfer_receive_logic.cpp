@@ -331,6 +331,7 @@ namespace FileTransferReceiveLogic
 			currentFileData.fileMetadataRead = 0;
 			currentFileData.fileSizeBytes = 0;
 			currentFileData.isPartial = false;
+
 			// set the default status to update later
 			transferData.lastFileStatuses.push_back(Protocol::FileExchange::FileReceiveStatus::Success);
 			debugPrintState(DebugState::NewFile);
@@ -514,6 +515,11 @@ namespace FileTransferReceiveLogic
 			}
 
 			if (currentFileData.bytesWrittenToFile == currentFileData.fileSizeBytes)
+			{
+				return;
+			}
+
+			if (isBufferFullyRead())
 			{
 				return;
 			}
