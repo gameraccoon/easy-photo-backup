@@ -127,6 +127,7 @@ namespace FileTransferReceiveLogic
 			std::filesystem::path filePathNative; // ToDo: probably should be a vector of paths
 			std::u8string currentFileNetworkPath;
 			uint16_t currentFileNetworkPathSize = 0;
+			bool isBatchMetadataValidated = false;
 		};
 
 		struct CurrentFileData
@@ -193,7 +194,7 @@ namespace FileTransferReceiveLogic
 			return !transferData.lastFileStatuses.empty() && transferData.lastFileStatuses.back() == Protocol::FileExchange::FileReceiveStatus::Success;
 		}
 
-		void recordFileError(Protocol::FileExchange::FileReceiveStatus error)
+		void recordCurrentFileError(Protocol::FileExchange::FileReceiveStatus error)
 		{
 			debugAssert(!transferData.lastFileStatuses.empty(), "last file statuses is not expected to be empty");
 			if (!transferData.lastFileStatuses.empty())
@@ -337,6 +338,7 @@ namespace FileTransferReceiveLogic
 			batchData.metadataNextPathReadingOffset = 1;
 			batchData.metadataReadPaths = 0;
 			batchData.batchMetadataSizeBytes = 1;
+			batchData.isBatchMetadataValidated = false;
 
 			currentFileData.bytesWrittenToFile = 0;
 			currentFileData.previousFileSize = 0;
@@ -435,10 +437,7 @@ namespace FileTransferReceiveLogic
 							[this](auto readFn) {
 								readFn(std::as_writable_bytes(std::span(batchData.currentFileNetworkPath)));
 							},
-							[this] {
-								batchData.filePathNative = batchData.currentFileNetworkPath;
-								batchData.filePathNative.make_preferred();
-							}
+							[] {}
 						))
 					{
 						return;
@@ -449,9 +448,36 @@ namespace FileTransferReceiveLogic
 
 					if (isBufferFullyRead())
 					{
-						return;
+						break;
 					}
 				}
+
+				// if we just finished reading batch metadata, continue to the block below before returning
+				if (isBufferFullyRead() && !isBatchMetadataFullyRead())
+				{
+					return;
+				}
+			}
+
+			if (isBatchMetadataFullyRead() && !batchData.isBatchMetadataValidated)
+			{
+				batchData.filePathNative = batchData.currentFileNetworkPath;
+				batchData.filePathNative.make_preferred();
+
+				// ToDo: we need to test all files, not only the first one in the batch
+				if (Files::isFilePathAcceptable(batchData.filePathNative))
+				{
+					if (isFileExist(rootPath / batchData.filePathNative))
+					{
+						recordCurrentFileError(Protocol::FileExchange::FileReceiveStatus::AlreadyExists);
+					}
+				}
+				else
+				{
+					recordCurrentFileError(Protocol::FileExchange::FileReceiveStatus::BadFilePath);
+				}
+
+				batchData.isBatchMetadataValidated = true;
 			}
 
 			if (!isFileMetadataFullyRead())
@@ -506,27 +532,20 @@ namespace FileTransferReceiveLogic
 			assertFatalRelease(isBatchMetadataFullyRead() && isFileMetadataFullyRead(), "Logical error, we should not get here before we finish reading metadata");
 			if (isBatchMetadataFullyRead() && isFileMetadataFullyRead() && currentFileData.bytesWrittenToFile == 0)
 			{
-				if (Files::isFilePathAcceptable(batchData.filePathNative))
+				if (currentFileHasNoErrors())
 				{
-					std::filesystem::path fullPath = rootPath / batchData.filePathNative;
 					std::filesystem::path filePartPath = batchData.filePathNative;
 					filePartPath += ".part";
 					std::filesystem::path fullFilePartPath = rootPath / filePartPath;
 
 					bool shouldSkip = false;
-					if (isFileExist(fullPath))
-					{
-						recordFileError(Protocol::FileExchange::FileReceiveStatus::AlreadyExists);
-						shouldSkip = true;
-					}
-
 					if (currentFileData.isPartial)
 					{
 						currentFileData.bytesWrittenToFile = currentFileData.previousFileSize;
 
 						if (!isFileExist(fullFilePartPath))
 						{
-							recordFileError(Protocol::FileExchange::FileReceiveStatus::PartMissing);
+							recordCurrentFileError(Protocol::FileExchange::FileReceiveStatus::PartMissing);
 							shouldSkip = true;
 						}
 					}
@@ -538,16 +557,13 @@ namespace FileTransferReceiveLogic
 						if (!isFileOpen(file))
 						{
 							reportDebugError("Could not open file for writing {}.part", batchData.filePathNative.string());
-							recordFileError(Protocol::FileExchange::FileReceiveStatus::CouldNotCreate);
+							recordCurrentFileError(Protocol::FileExchange::FileReceiveStatus::CouldNotCreate);
 						}
 					}
 				}
-				else
-				{
-					recordFileError(Protocol::FileExchange::FileReceiveStatus::BadFilePath);
-				}
 			}
 
+			debugAssert(currentFileData.bytesWrittenToFile <= currentFileData.fileSizeBytes, "Logical error: more bytes written to file than the file size");
 			if (currentFileData.bytesWrittenToFile == currentFileData.fileSizeBytes)
 			{
 				return;
