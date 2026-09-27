@@ -293,7 +293,7 @@ namespace FileTransferSendLogic
 			auto utf8PathStr = path.u8string();
 			batchData.currentFileNetworkPath = std::string(reinterpret_cast<const char*>(utf8PathStr.data()), utf8PathStr.size());
 #ifdef WIN32
-			std::replace(batchData.currentNetworkFilePath.begin(), batchData.currentNetworkFilePath.end(), '\\', '/');
+			std::replace(batchData.currentFileNetworkPath.begin(), batchData.currentFileNetworkPath.end(), '\\', '/');
 #endif // WIN32
 
 			batchData.batchMetadataSizeBytes += 2 + static_cast<uint64_t>(batchData.currentFileNetworkPath.size());
