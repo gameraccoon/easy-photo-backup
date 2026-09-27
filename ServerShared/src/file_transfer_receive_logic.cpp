@@ -115,11 +115,18 @@ namespace FileTransferReceiveLogic
 
 		struct BatchData
 		{
+			size_t firstFileIdx = 0;
 			uint8_t batchSize = 0;
-			std::filesystem::path filePathNative;
+
+			uint64_t batchMetadataSizeBytes = 1;
+			size_t batchMetadataReadBytes = 0;
+
+			size_t metadataNextPathReadingOffset = 1;
+			uint8_t metadataReadPaths = 0;
+
+			std::filesystem::path filePathNative; // ToDo: probably should be a vector of paths
 			std::u8string currentFileNetworkPath;
 			uint16_t currentFileNetworkPathSize = 0;
-			size_t batchMetadataRead = 0;
 		};
 
 		struct CurrentFileData
@@ -145,7 +152,7 @@ namespace FileTransferReceiveLogic
 
 		[[nodiscard]] size_t getBatchMetadataLen() const noexcept
 		{
-			return static_cast<size_t>(1 + 2) + batchData.currentFileNetworkPathSize;
+			return batchData.batchMetadataSizeBytes;
 		}
 
 		[[nodiscard]] size_t getFileMetadataLen() const noexcept
@@ -155,8 +162,8 @@ namespace FileTransferReceiveLogic
 
 		[[nodiscard]] bool isBatchMetadataFullyRead() const noexcept
 		{
-			assertFatalRelease(batchData.batchMetadataRead <= getBatchMetadataLen(), "Logical error, we can't read more batch metadata than available: available {}, read {}", getBatchMetadataLen(), batchData.batchMetadataRead);
-			return isEndOfTransmission() || batchData.batchMetadataRead == getBatchMetadataLen();
+			assertFatalRelease(batchData.batchMetadataReadBytes <= getBatchMetadataLen(), "Logical error, we can't read more batch metadata than available: available {}, read {}", getBatchMetadataLen(), batchData.batchMetadataReadBytes);
+			return isEndOfTransmission() || batchData.batchMetadataReadBytes == getBatchMetadataLen();
 		}
 
 		[[nodiscard]] bool isFileMetadataFullyRead() const noexcept
@@ -309,7 +316,7 @@ namespace FileTransferReceiveLogic
 
 		bool isEndOfTransmission() const noexcept
 		{
-			return batchData.batchMetadataRead == static_cast<size_t>(1) && batchData.batchSize == 0;
+			return batchData.batchMetadataReadBytes == static_cast<size_t>(1) && batchData.batchSize == 0;
 		}
 
 		void newFile(std::ofstream& file) noexcept
@@ -321,10 +328,15 @@ namespace FileTransferReceiveLogic
 
 			++transferData.currentFileIndex;
 
+			batchData.batchSize = 1;
+			batchData.firstFileIdx = transferData.currentFileIndex;
 			batchData.currentFileNetworkPath.clear();
 			batchData.currentFileNetworkPathSize = 0;
 			batchData.filePathNative.clear();
-			batchData.batchMetadataRead = 0;
+			batchData.batchMetadataReadBytes = 0;
+			batchData.metadataNextPathReadingOffset = 1;
+			batchData.metadataReadPaths = 0;
+			batchData.batchMetadataSizeBytes = 1;
 
 			currentFileData.bytesWrittenToFile = 0;
 			currentFileData.previousFileSize = 0;
@@ -337,32 +349,36 @@ namespace FileTransferReceiveLogic
 			debugPrintState(DebugState::NewFile);
 		}
 
-		void reaMetadata(size_t offset, size_t size, size_t& metadataRead, DebugState debugState, const auto& readData, auto onFullyRead)
+		bool readMetadata(size_t offset, size_t size, size_t& metadataRead, DebugState debugState, const auto& readData, auto onFullyRead) noexcept
 		{
 			if (metadataRead >= offset && metadataRead < offset + size && !isBufferFullyRead())
 			{
 				debugPrintState(debugState);
-				auto readFn = [&metadataRead, offset, this](std::span<std::byte> data) {
+				auto readFn = [&metadataRead, offset, this](std::span<std::byte> data) noexcept {
 					metadataRead += partiallyReadDataFromChunk(data, metadataRead - offset);
 				};
 
 				readData(readFn);
 
-				if (metadataRead >= offset + size)
+				debugAssert(metadataRead <= offset + size, "Have read more metadata than possible");
+				if (metadataRead == offset + size)
 				{
 					onFullyRead();
+					return true;
 				}
 			}
+
+			return metadataRead >= offset + size;
 		}
 
-		void readBatchMetadata(size_t offset, size_t size, DebugState debugState, const auto& readData, const auto& onFullyRead)
+		bool readBatchMetadata(size_t offset, size_t size, DebugState debugState, const auto& readData, const auto& onFullyRead) noexcept
 		{
-			reaMetadata(offset, size, batchData.batchMetadataRead, debugState, readData, onFullyRead);
+			return readMetadata(offset, size, batchData.batchMetadataReadBytes, debugState, readData, onFullyRead);
 		}
 
-		void readFileMetadata(size_t offset, size_t size, DebugState debugState, const auto& readData, const auto& onFullyRead)
+		bool readFileMetadata(size_t offset, size_t size, DebugState debugState, const auto& readData, const auto& onFullyRead) noexcept
 		{
-			reaMetadata(offset, size, currentFileData.fileMetadataRead, debugState, readData, onFullyRead);
+			return readMetadata(offset, size, currentFileData.fileMetadataRead, debugState, readData, onFullyRead);
 		}
 
 		void writeFileToDiskFromBuffer(std::ofstream& file)
@@ -377,7 +393,12 @@ namespace FileTransferReceiveLogic
 						readFn(data);
 						batchData.batchSize = static_cast<uint8_t>(data.raw[0]);
 					},
-					[] {}
+					[this] {
+						if (batchData.batchSize > 0)
+						{
+							batchData.batchMetadataSizeBytes += 2 * batchData.batchSize;
+						}
+					}
 				);
 
 				if (isEndOfTransmission())
@@ -385,38 +406,51 @@ namespace FileTransferReceiveLogic
 					return;
 				}
 
-				readBatchMetadata(
-					1, 2,
-					DebugState::FilePathSize,
-					[this](auto readFn) {
-						Cryptography::ByteSequence<Cryptography::ByteSequenceTag::TempInternalBuffer, 2> data;
-						if (currentFileData.fileMetadataRead != 8)
-						{
-							Serialization::writeUint16(data.raw[0], data.raw[1], batchData.currentFileNetworkPathSize);
-						}
-						readFn(data);
-						batchData.currentFileNetworkPathSize = Serialization::readUint16(data.raw[0], data.raw[1]);
-					},
-					[this] {
-						batchData.currentFileNetworkPath.resize(batchData.currentFileNetworkPathSize);
-					}
-				);
-
-				readBatchMetadata(
-					1 + 2, static_cast<size_t>(batchData.currentFileNetworkPathSize),
-					DebugState::FilePath,
-					[this](auto readFn) {
-						readFn(std::as_writable_bytes(std::span(batchData.currentFileNetworkPath)));
-					},
-					[this] {
-						batchData.filePathNative = batchData.currentFileNetworkPath;
-						batchData.filePathNative.make_preferred();
-					}
-				);
-
-				if (isBufferFullyRead())
+				for (uint8_t i = batchData.metadataReadPaths; i < batchData.batchSize; ++i)
 				{
-					return;
+					if (!readBatchMetadata(
+							batchData.metadataNextPathReadingOffset, 2,
+							DebugState::FilePathSize,
+							[this](auto readFn) {
+								Cryptography::ByteSequence<Cryptography::ByteSequenceTag::TempInternalBuffer, 2> data;
+								if (currentFileData.fileMetadataRead != 8)
+								{
+									Serialization::writeUint16(data.raw[0], data.raw[1], batchData.currentFileNetworkPathSize);
+								}
+								readFn(data);
+								batchData.currentFileNetworkPathSize = Serialization::readUint16(data.raw[0], data.raw[1]);
+							},
+							[this] {
+								batchData.currentFileNetworkPath.resize(batchData.currentFileNetworkPathSize);
+								batchData.batchMetadataSizeBytes += batchData.currentFileNetworkPathSize;
+							}
+						))
+					{
+						return;
+					}
+
+					if (!readBatchMetadata(
+							batchData.metadataNextPathReadingOffset + 2, static_cast<size_t>(batchData.currentFileNetworkPathSize),
+							DebugState::FilePath,
+							[this](auto readFn) {
+								readFn(std::as_writable_bytes(std::span(batchData.currentFileNetworkPath)));
+							},
+							[this] {
+								batchData.filePathNative = batchData.currentFileNetworkPath;
+								batchData.filePathNative.make_preferred();
+							}
+						))
+					{
+						return;
+					}
+
+					batchData.metadataNextPathReadingOffset += 2 + batchData.currentFileNetworkPath.size();
+					++batchData.metadataReadPaths;
+
+					if (isBufferFullyRead())
+					{
+						return;
+					}
 				}
 			}
 
