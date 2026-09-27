@@ -321,7 +321,7 @@ namespace FileTransferSendLogic
 			debugPrintState(DebugState::NewFile);
 		}
 
-		bool writeMetadata(size_t offset, size_t size, size_t& metadataWritten, DebugState debugState, const auto& getData) noexcept
+		bool writeMetadata(size_t offset, size_t size, uint64_t& metadataWritten, DebugState debugState, const auto& getData) noexcept
 		{
 			if (metadataWritten >= offset && metadataWritten < offset + size && !isBufferFull())
 			{

@@ -119,7 +119,7 @@ namespace FileTransferReceiveLogic
 			uint8_t batchSize = 0;
 
 			uint64_t batchMetadataSizeBytes = 1;
-			size_t batchMetadataReadBytes = 0;
+			uint64_t batchMetadataReadBytes = 0;
 
 			size_t metadataNextPathReadingOffset = 1;
 			uint8_t metadataReadPaths = 0;
@@ -134,7 +134,7 @@ namespace FileTransferReceiveLogic
 			uint64_t fileSizeBytes;
 			uint64_t previousFileSize = 0;
 			uint64_t bytesWrittenToFile = 0;
-			size_t fileMetadataRead = 0;
+			uint64_t fileMetadataRead = 0;
 			bool isPartial = false;
 		};
 
@@ -349,7 +349,7 @@ namespace FileTransferReceiveLogic
 			debugPrintState(DebugState::NewFile);
 		}
 
-		bool readMetadata(size_t offset, size_t size, size_t& metadataRead, DebugState debugState, const auto& readData, auto onFullyRead) noexcept
+		bool readMetadata(size_t offset, size_t size, uint64_t& metadataRead, DebugState debugState, const auto& readData, auto onFullyRead) noexcept
 		{
 			if (metadataRead >= offset && metadataRead < offset + size && !isBufferFullyRead())
 			{
