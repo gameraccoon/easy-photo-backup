@@ -35,15 +35,16 @@ namespace FileTransferReceiveLogic
 		enum class DebugState
 		{
 			StartChunk,
+			NewBatch,
+			NewFile,
 			FilesCount,
-			FileSize,
 			FilePathSize,
 			FilePath,
+			FileSize,
 			FileAlreadySentSize,
 			FileContent,
 			FileContentSkipped,
 			EndFile,
-			NewFile,
 			EndTransmission,
 			EndChunk,
 			Answer,
@@ -60,17 +61,23 @@ namespace FileTransferReceiveLogic
 				case DebugState::StartChunk:
 					Debug::Log::printDebug("Receive:\t\t\t  /---------------\\\nReceive:\t\t\t / #{:03}            \\", transferData.chunksReceived - 1);
 					break;
+				case DebugState::NewBatch:
+					Debug::Log::printDebug("Receive:\t\t\t > ##  new batch ## <");
+					break;
 				case DebugState::FilesCount:
 					Debug::Log::printDebug("Receive:\t\t\t |   files count    |");
 					break;
-				case DebugState::FileSize:
-					Debug::Log::printDebug("Receive:\t\t\t |    file size     |");
+				case DebugState::NewFile:
+					Debug::Log::printDebug("Receive:\t\t\t > --- new file --- <");
 					break;
 				case DebugState::FilePathSize:
 					Debug::Log::printDebug("Receive:\t\t\t |  file path size  |");
 					break;
 				case DebugState::FilePath:
 					Debug::Log::printDebug("Receive:\t\t\t |    file path     |");
+					break;
+				case DebugState::FileSize:
+					Debug::Log::printDebug("Receive:\t\t\t |    file size     |");
 					break;
 				case DebugState::FileAlreadySentSize:
 					Debug::Log::printDebug("Receive:\t\t\t |  previous size   |");
@@ -83,9 +90,6 @@ namespace FileTransferReceiveLogic
 					break;
 				case DebugState::EndFile:
 					Debug::Log::printDebug("Receive:\t\t\t | --- end file --- |");
-					break;
-				case DebugState::NewFile:
-					Debug::Log::printDebug("Receive:\t\t\t > --- new file --- <");
 					break;
 				case DebugState::EndTransmission:
 					Debug::Log::printDebug("Receive:\t\t\t | !! end stream !! |");
@@ -124,7 +128,8 @@ namespace FileTransferReceiveLogic
 			size_t metadataNextPathReadingOffset = 1;
 			uint8_t metadataReadPaths = 0;
 
-			std::filesystem::path filePathNative; // ToDo: probably should be a vector of paths
+			std::vector<std::filesystem::path> filePathsNative;
+			std::vector<Protocol::FileExchange::FileReceiveStatus> preliminaryFileStatuses;
 			std::u8string currentFileNetworkPath;
 			uint16_t currentFileNetworkPathSize = 0;
 			bool isBatchMetadataValidated = false;
@@ -178,14 +183,19 @@ namespace FileTransferReceiveLogic
 			return bytesReadInChunk == ChunkSize;
 		}
 
-		[[nodiscard]] bool hasFileFinished() const noexcept
+		[[nodiscard]] bool isFileFullyRead() const noexcept
 		{
-			return isBatchMetadataFullyRead() && isFileMetadataFullyRead() && currentFileData.bytesWrittenToFile == currentFileData.fileSizeBytes;
+			return isFileMetadataFullyRead() && currentFileData.bytesWrittenToFile == currentFileData.fileSizeBytes;
+		}
+
+		[[nodiscard]] bool hasFileInProgress() const noexcept
+		{
+			return isBatchMetadataFullyRead() && !isFileFullyRead();
 		}
 
 		[[nodiscard]] bool haveUnconfirmedFiles() const noexcept
 		{
-			return transferData.lastFileStatuses.size() > 1 || (transferData.lastFileStatuses.size() == 1 && !hasFileFinished());
+			return transferData.lastFileStatuses.size() > 0;
 		}
 
 		[[nodiscard]] bool currentFileHasNoErrors() const noexcept
@@ -203,6 +213,14 @@ namespace FileTransferReceiveLogic
 				// but otherwise continue receiving and decoding the data until the time of reporting
 				transferData.lastFileStatuses.back() = error;
 			}
+		}
+
+		const std::filesystem::path& getCurrentFileNativePath() const noexcept
+		{
+			assertFatalRelease(transferData.currentFileIndex >= batchData.firstFileIdx, "Logical error: incorrect file index in the batch");
+			const size_t currentFileIndexInBatch = transferData.currentFileIndex - batchData.firstFileIdx;
+			assertFatalRelease(currentFileIndexInBatch < batchData.filePathsNative.size(), "Logical error: trying to access file path out of bounds");
+			return batchData.filePathsNative[currentFileIndexInBatch];
 		}
 
 		bool isFileExist(const std::filesystem::path& path) const
@@ -329,16 +347,26 @@ namespace FileTransferReceiveLogic
 
 			++transferData.currentFileIndex;
 
-			batchData.batchSize = 1;
-			batchData.firstFileIdx = transferData.currentFileIndex;
-			batchData.currentFileNetworkPath.clear();
-			batchData.currentFileNetworkPathSize = 0;
-			batchData.filePathNative.clear();
-			batchData.batchMetadataReadBytes = 0;
-			batchData.metadataNextPathReadingOffset = 1;
-			batchData.metadataReadPaths = 0;
-			batchData.batchMetadataSizeBytes = 1;
-			batchData.isBatchMetadataValidated = false;
+			if (transferData.currentFileIndex == 0 || transferData.currentFileIndex == batchData.firstFileIdx + batchData.batchSize)
+			{
+				batchData.firstFileIdx = transferData.currentFileIndex;
+				batchData.batchSize = 1;
+				batchData.currentFileNetworkPath.clear();
+				batchData.currentFileNetworkPathSize = 0;
+				batchData.filePathsNative.clear();
+				batchData.batchMetadataReadBytes = 0;
+				batchData.metadataNextPathReadingOffset = 1;
+				batchData.metadataReadPaths = 0;
+				batchData.batchMetadataSizeBytes = 1;
+				batchData.isBatchMetadataValidated = false;
+				batchData.preliminaryFileStatuses.clear();
+
+				debugPrintState(DebugState::NewBatch);
+			}
+			else
+			{
+				transferData.lastFileStatuses.push_back(batchData.preliminaryFileStatuses[transferData.currentFileIndex - batchData.firstFileIdx]);
+			}
 
 			currentFileData.bytesWrittenToFile = 0;
 			currentFileData.previousFileSize = 0;
@@ -346,8 +374,6 @@ namespace FileTransferReceiveLogic
 			currentFileData.fileSizeBytes = 0;
 			currentFileData.isPartial = false;
 
-			// set the default status to update later
-			transferData.lastFileStatuses.push_back(Protocol::FileExchange::FileReceiveStatus::Success);
 			debugPrintState(DebugState::NewFile);
 		}
 
@@ -396,10 +422,7 @@ namespace FileTransferReceiveLogic
 						batchData.batchSize = static_cast<uint8_t>(data.raw[0]);
 					},
 					[this] {
-						if (batchData.batchSize > 0)
-						{
-							batchData.batchMetadataSizeBytes += 2 * batchData.batchSize;
-						}
+						batchData.batchMetadataSizeBytes += 2 * batchData.batchSize;
 					}
 				);
 
@@ -437,7 +460,10 @@ namespace FileTransferReceiveLogic
 							[this](auto readFn) {
 								readFn(std::as_writable_bytes(std::span(batchData.currentFileNetworkPath)));
 							},
-							[] {}
+							[this] {
+								batchData.filePathsNative.push_back(batchData.currentFileNetworkPath);
+								batchData.filePathsNative.back().make_preferred();
+							}
 						))
 					{
 						return;
@@ -461,21 +487,30 @@ namespace FileTransferReceiveLogic
 
 			if (isBatchMetadataFullyRead() && !batchData.isBatchMetadataValidated)
 			{
-				batchData.filePathNative = batchData.currentFileNetworkPath;
-				batchData.filePathNative.make_preferred();
+				assertFatalRelease(batchData.filePathsNative.size() == static_cast<size_t>(batchData.batchSize), "Unexpected number of file paths in a batch, {} {}", batchData.batchSize, batchData.filePathsNative.size());
+				batchData.preliminaryFileStatuses.resize(batchData.batchSize);
 
-				// ToDo: we need to test all files, not only the first one in the batch
-				if (Files::isFilePathAcceptable(batchData.filePathNative))
+				for (uint8_t i = 0; i < batchData.batchSize; ++i)
 				{
-					if (isFileExist(rootPath / batchData.filePathNative))
+					if (Files::isFilePathAcceptable(batchData.filePathsNative[i]))
 					{
-						recordCurrentFileError(Protocol::FileExchange::FileReceiveStatus::AlreadyExists);
+						if (isFileExist(rootPath / batchData.filePathsNative[i]))
+						{
+							batchData.preliminaryFileStatuses[i] = Protocol::FileExchange::FileReceiveStatus::AlreadyExists;
+						}
+						else
+						{
+							batchData.preliminaryFileStatuses[i] = Protocol::FileExchange::FileReceiveStatus::Success;
+						}
+					}
+					else
+					{
+						batchData.preliminaryFileStatuses[i] = Protocol::FileExchange::FileReceiveStatus::BadFilePath;
 					}
 				}
-				else
-				{
-					recordCurrentFileError(Protocol::FileExchange::FileReceiveStatus::BadFilePath);
-				}
+
+				assertFatalRelease(batchData.preliminaryFileStatuses.size() > 0, "Logical error: statuses size should not be zero here");
+				transferData.lastFileStatuses.push_back(batchData.preliminaryFileStatuses[0]);
 
 				batchData.isBatchMetadataValidated = true;
 			}
@@ -529,12 +564,12 @@ namespace FileTransferReceiveLogic
 				}
 			}
 
-			assertFatalRelease(isBatchMetadataFullyRead() && isFileMetadataFullyRead(), "Logical error, we should not get here before we finish reading metadata");
+			assertFatalRelease(isBatchMetadataFullyRead() && isFileMetadataFullyRead(), "Logical error: we should not get here before we finish reading metadata");
 			if (isBatchMetadataFullyRead() && isFileMetadataFullyRead() && currentFileData.bytesWrittenToFile == 0)
 			{
 				if (currentFileHasNoErrors())
 				{
-					std::filesystem::path filePartPath = batchData.filePathNative;
+					std::filesystem::path filePartPath = getCurrentFileNativePath();
 					filePartPath += ".part";
 					std::filesystem::path fullFilePartPath = rootPath / filePartPath;
 
@@ -556,7 +591,7 @@ namespace FileTransferReceiveLogic
 
 						if (!isFileOpen(file))
 						{
-							reportDebugError("Could not open file for writing {}.part", batchData.filePathNative.string());
+							reportDebugError("Could not open file for writing {}.part", getCurrentFileNativePath().string());
 							recordCurrentFileError(Protocol::FileExchange::FileReceiveStatus::CouldNotCreate);
 						}
 					}
@@ -638,8 +673,8 @@ namespace FileTransferReceiveLogic
 
 			debugPrintState(DebugState::Answer);
 
-			const bool hasFileInProgress = !hasFileFinished();
-			const size_t statusesToSend = transferData.lastFileStatuses.size() - (isEndOfTransmission() ? 1 : 0);
+			const bool fileInProgress = hasFileInProgress();
+			const size_t statusesToSend = transferData.lastFileStatuses.size();
 
 			// buffer is zeroed by default
 			Cryptography::ByteSequence<Cryptography::ByteSequenceTag::TempInternalBuffer, AnswerChunkSize + Cryptography::CipherAuthDataSize> sendingBuffer;
@@ -743,15 +778,15 @@ namespace FileTransferReceiveLogic
 				}
 			}
 
-			const bool hasFileInProgressFailed = hasFileInProgress && !currentFileHasNoErrors();
+			const bool isFileInProgressFailed = fileInProgress && !currentFileHasNoErrors();
 
 			transferData.lastFileStatuses.clear();
-			if (hasFileInProgressFailed)
+			if (isFileInProgressFailed)
 			{
 				// reset receiving of the last file
 				newFile(file);
 			}
-			else if (hasFileInProgress)
+			else if (fileInProgress)
 			{
 				// restore the record for the file that is in progress, or that is about to be written
 				transferData.lastFileStatuses.push_back(Protocol::FileExchange::FileReceiveStatus::Success);
@@ -789,7 +824,7 @@ namespace FileTransferReceiveLogic
 					break;
 				}
 
-				if (receivingState.hasFileFinished())
+				if (receivingState.isFileFullyRead())
 				{
 					if (file.is_open())
 					{
@@ -798,7 +833,7 @@ namespace FileTransferReceiveLogic
 
 					if (receivingState.currentFileHasNoErrors())
 					{
-						std::filesystem::path fullPath = receivingState.rootPath / receivingState.batchData.filePathNative;
+						std::filesystem::path fullPath = receivingState.rootPath / receivingState.getCurrentFileNativePath();
 						std::filesystem::path partFilePath = fullPath;
 						partFilePath += ".part";
 
@@ -807,7 +842,7 @@ namespace FileTransferReceiveLogic
 					}
 					else
 					{
-						std::filesystem::path partFilePath = receivingState.rootPath / receivingState.batchData.filePathNative;
+						std::filesystem::path partFilePath = receivingState.rootPath / receivingState.getCurrentFileNativePath();
 						partFilePath += ".part";
 
 						receivingState.removeFile(partFilePath);
@@ -832,7 +867,7 @@ namespace FileTransferReceiveLogic
 					}
 				}
 
-				if (receivingState.hasFileFinished())
+				if (receivingState.isFileFullyRead())
 				{
 					receivingState.newFile(file);
 				}
