@@ -129,6 +129,7 @@ namespace FileTransferSendLogic
 			std::vector<size_t> filesAwaitingConfirmation;
 			uint64_t firstAwaitingFileBytesConfirmed = 0;
 			std::vector<std::filesystem::path> confirmedFilesCache;
+			std::vector<size_t> skippedFutureFiles;
 			std::vector<std::filesystem::path> rejectedPartialFiles;
 			uint8_t recommendedNextBatchSize = 1;
 		};
@@ -219,6 +220,18 @@ namespace FileTransferSendLogic
 			assertFatalRelease(fileIndex < transferData.nativePaths.size(), "Logical error: file index beyond files count");
 			debugAssert(!transferData.nativePaths[fileIndex].empty(), "Logical error: trying to move path twice?");
 			return std::move(transferData.nativePaths[fileIndex]);
+		}
+
+		[[nodiscard]] bool consumeShouldFileBeSkipped(size_t fileIndex) noexcept
+		{
+			if (auto it = std::ranges::find(transferData.skippedFutureFiles, fileIndex); it != transferData.skippedFutureFiles.end())
+			{
+				debugAssert(it == transferData.skippedFutureFiles.begin(), "Logical error: Files were processed not in order or some index has not been removed");
+				transferData.skippedFutureFiles.erase(it);
+				return true;
+			}
+
+			return false;
 		}
 
 		void openFile(std::ifstream& stream, const std::filesystem::path& path)
@@ -327,10 +340,6 @@ namespace FileTransferSendLogic
 
 				debugPrintState(DebugState::NewBatch);
 			}
-			else
-			{
-				transferData.filesAwaitingConfirmation.push_back(fileIdx);
-			}
 
 			currentFileData.fileSizeBytes = size;
 			currentFileData.bytesReadFromFile = startBytePos;
@@ -407,7 +416,10 @@ namespace FileTransferSendLogic
 
 			if (hasBatchMetadataBeenFullyWritten() && !batchData.isBatchMetadataProcessed)
 			{
-				transferData.filesAwaitingConfirmation.push_back(batchData.firstFileIdx);
+				for (uint8_t i = 0; i < batchData.batchSize; ++i)
+				{
+					transferData.filesAwaitingConfirmation.push_back(batchData.firstFileIdx + i);
+				}
 				batchData.isBatchMetadataProcessed = true;
 
 				if (isBufferFull())
@@ -491,39 +503,85 @@ namespace FileTransferSendLogic
 
 		void recordAndClearConfirmations(const std::vector<size_t>& errorIndexes, const std::vector<size_t>& skipFileIndexes) noexcept
 		{
-			const bool shouldRecordLast = !hasFileInProgress();
-			const size_t count = transferData.filesAwaitingConfirmation.size() + (shouldRecordLast ? 0 : -1);
-			size_t indexPos = 0;
+			const bool fileInProgress = hasFileInProgress();
+			size_t errorIndexPos = 0;
 			size_t skipFileIndexPos = 0;
-			const size_t indexesSize = errorIndexes.size();
-			for (size_t i = 0; i < count; ++i)
+			const size_t originalConfirmationSize = transferData.filesAwaitingConfirmation.size();
+			const size_t errorIndexesSize = errorIndexes.size();
+			const size_t skipIndexesSize = skipFileIndexes.size();
+			const size_t currentFileIndex = transferData.currentFileIndex;
+			bool isFileInProgressFailed = false;
+
+			// record all files that were successfully received or skipped
+			size_t writePos = 0;
+			for (size_t readPos = 0; readPos < originalConfirmationSize; ++readPos)
 			{
-				if (indexPos < indexesSize && errorIndexes[indexPos] == i)
+				const size_t fileIndex = transferData.filesAwaitingConfirmation[readPos];
+				const bool isFileFullySent = fileIndex < currentFileIndex || (fileIndex == currentFileIndex && !fileInProgress);
+				bool isFileSkipped = false;
+				bool fileHasErrors = false;
+
+				if (errorIndexPos < errorIndexesSize && errorIndexes[errorIndexPos] == readPos)
 				{
-					++indexPos;
-					if (skipFileIndexPos < skipFileIndexes.size() && skipFileIndexes[skipFileIndexPos] == i)
-					{
-						++skipFileIndexPos;
-					}
-					else
-					{
-						continue;
-					}
+					++errorIndexPos;
+					fileHasErrors = true;
 				}
 
-				transferData.confirmedFilesCache.push_back(consumeFileNativeFilePath(transferData.filesAwaitingConfirmation[i]));
-				++stats.filesSent;
+				if (skipFileIndexPos < skipIndexesSize && skipFileIndexes[skipFileIndexPos] == readPos)
+				{
+					++skipFileIndexPos;
+					isFileSkipped = true;
+				}
+
+				if (fileIndex == currentFileIndex && fileInProgress && fileHasErrors)
+				{
+					isFileInProgressFailed = true;
+				}
+
+				debugAssert(fileHasErrors || !isFileSkipped, "Can't have skipped file indexes that are not in error indexes");
+
+				// files can be skipped before they are fully sent
+				if ((!fileHasErrors && isFileFullySent) || isFileSkipped)
+				{
+					transferData.confirmedFilesCache.push_back(consumeFileNativeFilePath(fileIndex));
+					++stats.filesSent;
+				}
+				if (!isFileFullySent && !fileHasErrors)
+				{
+					transferData.filesAwaitingConfirmation[writePos] = fileIndex;
+					++writePos;
+				}
+				if (fileHasErrors && fileIndex > currentFileIndex)
+				{
+					transferData.skippedFutureFiles.push_back(fileIndex);
+				}
 			}
 
-			if (shouldRecordLast)
+			// erase removed records
+			transferData.filesAwaitingConfirmation.resize(writePos);
+
+			if (errorIndexes.size() > 0)
 			{
-				transferData.filesAwaitingConfirmation.clear();
+				transferData.recommendedNextBatchSize = std::min(transferData.recommendedNextBatchSize * 10, 127);
+			}
+			else
+			{
+				transferData.recommendedNextBatchSize = std::max(transferData.recommendedNextBatchSize / 10, 1);
+			}
+
+			if (isFileInProgressFailed)
+			{
+				// current file was rejected, stop reading it
+				currentFileData.bytesReadFromFile = currentFileData.fileSizeBytes;
+				currentFileData.fileMetadataWrittenBytes = currentFileData.fileMetadataSizeBytes;
+			}
+
+			if (!fileInProgress || isFileInProgressFailed)
+			{
 				transferData.firstAwaitingFileBytesConfirmed = 0;
 			}
-			else if (!transferData.filesAwaitingConfirmation.empty())
+			else
 			{
-				transferData.filesAwaitingConfirmation.erase(transferData.filesAwaitingConfirmation.begin(), transferData.filesAwaitingConfirmation.begin() + (transferData.filesAwaitingConfirmation.size() - 1));
-				// right now we read answers synchronously, so we can be sure that all the bytes we wrote are confirmed
 				transferData.firstAwaitingFileBytesConfirmed = currentFileData.bytesReadFromFile;
 			}
 		}
@@ -541,8 +599,6 @@ namespace FileTransferSendLogic
 				reportDebugError("Reading confirmation when have no files needing to confirm");
 				return false;
 			}
-
-			const bool fileInProgress = hasFileInProgress();
 
 			Cryptography::ByteSequence<Cryptography::ByteSequenceTag::TempInternalBuffer, AnswerChunkSize + Cryptography::CipherAuthDataSize> receivingBuffer;
 
@@ -665,13 +721,7 @@ namespace FileTransferSendLogic
 						return false;
 					}
 
-					if (fileInProgress && fileIdx + 1 == transferData.filesAwaitingConfirmation.size())
-					{
-						// current file was rejected, stop reading it
-						currentFileData.bytesReadFromFile = currentFileData.fileSizeBytes;
-						currentFileData.fileMetadataWrittenBytes = currentFileData.fileMetadataSizeBytes;
-					}
-					else if (fileIdx >= transferData.filesAwaitingConfirmation.size()) [[unlikely]]
+					if (fileIdx >= transferData.filesAwaitingConfirmation.size()) [[unlikely]]
 					{
 						reportDebugError("File confirmation index out of bounds {} of {}", fileIdx, transferData.filesAwaitingConfirmation.size());
 						return false;
@@ -788,6 +838,12 @@ namespace FileTransferSendLogic
 		{
 			for (size_t fileIdx = 0; fileIdx < sendingState.transferData.nativePaths.size(); ++fileIdx)
 			{
+				const bool shouldFileBeSkipped = sendingState.consumeShouldFileBeSkipped(fileIdx);
+				if (shouldFileBeSkipped)
+				{
+					continue;
+				}
+
 				const std::filesystem::path& relativePath = sendingState.transferData.nativePaths[fileIdx];
 				uint64_t partialSendStartByte = fileIdx < previouslySentBytes.size() ? previouslySentBytes[fileIdx] : 0;
 

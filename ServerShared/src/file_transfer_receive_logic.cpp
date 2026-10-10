@@ -112,8 +112,10 @@ namespace FileTransferReceiveLogic
 
 		struct TransferData
 		{
+			// not synchronized with the indexes on the sending side
 			size_t currentFileIndex = std::numeric_limits<size_t>::max();
-			std::vector<Protocol::FileExchange::FileReceiveStatus> lastFileStatuses;
+			std::vector<Protocol::FileExchange::FileReceiveStatus> filesAwaitingConfirmation;
+			size_t currentFileAwaitingConfirmationIdx = 0;
 			size_t chunksReceived = 0;
 		};
 
@@ -129,7 +131,6 @@ namespace FileTransferReceiveLogic
 			uint8_t metadataReadPaths = 0;
 
 			std::vector<std::filesystem::path> filePathsNative;
-			std::vector<Protocol::FileExchange::FileReceiveStatus> preliminaryFileStatuses;
 			std::u8string currentFileNetworkPath;
 			uint16_t currentFileNetworkPathSize = 0;
 			bool isBatchMetadataValidated = false;
@@ -195,23 +196,22 @@ namespace FileTransferReceiveLogic
 
 		[[nodiscard]] bool haveUnconfirmedFiles() const noexcept
 		{
-			return transferData.lastFileStatuses.size() > 0;
+			return transferData.filesAwaitingConfirmation.size() > 0;
 		}
 
 		[[nodiscard]] bool currentFileHasNoErrors() const noexcept
 		{
-			debugAssert(!transferData.lastFileStatuses.empty(), "Last file statuses not expected to be empty");
-			return !transferData.lastFileStatuses.empty() && transferData.lastFileStatuses.back() == Protocol::FileExchange::FileReceiveStatus::Success;
+			assertFatalRelease(transferData.filesAwaitingConfirmation.empty() || transferData.currentFileAwaitingConfirmationIdx < transferData.filesAwaitingConfirmation.size(), "Logical error: files awaiting confirmation index out of bounds");
+			return !transferData.filesAwaitingConfirmation.empty() && transferData.filesAwaitingConfirmation[transferData.currentFileAwaitingConfirmationIdx] == Protocol::FileExchange::FileReceiveStatus::Success;
 		}
 
 		void recordCurrentFileError(Protocol::FileExchange::FileReceiveStatus error)
 		{
-			debugAssert(!transferData.lastFileStatuses.empty(), "last file statuses is not expected to be empty");
-			if (!transferData.lastFileStatuses.empty())
+			assertFatalRelease(!transferData.filesAwaitingConfirmation.empty(), "Logical error: files awaiting confirmation is not expected to be empty here");
+			assertFatalRelease(transferData.currentFileAwaitingConfirmationIdx < transferData.filesAwaitingConfirmation.size(), "Logical error: files awaiting confirmation index out of bounds");
+			if (!transferData.filesAwaitingConfirmation.empty())
 			{
-				// save the error, so we ignore writing to the file and send the status to the client
-				// but otherwise continue receiving and decoding the data until the time of reporting
-				transferData.lastFileStatuses.back() = error;
+				transferData.filesAwaitingConfirmation[transferData.currentFileAwaitingConfirmationIdx] = error;
 			}
 		}
 
@@ -359,13 +359,12 @@ namespace FileTransferReceiveLogic
 				batchData.metadataReadPaths = 0;
 				batchData.batchMetadataSizeBytes = 1;
 				batchData.isBatchMetadataValidated = false;
-				batchData.preliminaryFileStatuses.clear();
 
 				debugPrintState(DebugState::NewBatch);
 			}
 			else
 			{
-				transferData.lastFileStatuses.push_back(batchData.preliminaryFileStatuses[transferData.currentFileIndex - batchData.firstFileIdx]);
+				++transferData.currentFileAwaitingConfirmationIdx;
 			}
 
 			currentFileData.bytesWrittenToFile = 0;
@@ -488,7 +487,8 @@ namespace FileTransferReceiveLogic
 			if (isBatchMetadataFullyRead() && !batchData.isBatchMetadataValidated)
 			{
 				assertFatalRelease(batchData.filePathsNative.size() == static_cast<size_t>(batchData.batchSize), "Unexpected number of file paths in a batch, {} {}", batchData.batchSize, batchData.filePathsNative.size());
-				batchData.preliminaryFileStatuses.resize(batchData.batchSize);
+				const size_t firstNewIndex = transferData.filesAwaitingConfirmation.size();
+				transferData.filesAwaitingConfirmation.resize(transferData.filesAwaitingConfirmation.size() + batchData.batchSize);
 
 				for (uint8_t i = 0; i < batchData.batchSize; ++i)
 				{
@@ -496,21 +496,20 @@ namespace FileTransferReceiveLogic
 					{
 						if (isFileExist(rootPath / batchData.filePathsNative[i]))
 						{
-							batchData.preliminaryFileStatuses[i] = Protocol::FileExchange::FileReceiveStatus::AlreadyExists;
+							transferData.filesAwaitingConfirmation[firstNewIndex + i] = Protocol::FileExchange::FileReceiveStatus::AlreadyExists;
 						}
 						else
 						{
-							batchData.preliminaryFileStatuses[i] = Protocol::FileExchange::FileReceiveStatus::Success;
+							transferData.filesAwaitingConfirmation[firstNewIndex + i] = Protocol::FileExchange::FileReceiveStatus::Success;
 						}
 					}
 					else
 					{
-						batchData.preliminaryFileStatuses[i] = Protocol::FileExchange::FileReceiveStatus::BadFilePath;
+						transferData.filesAwaitingConfirmation[firstNewIndex + i] = Protocol::FileExchange::FileReceiveStatus::BadFilePath;
 					}
 				}
 
-				assertFatalRelease(batchData.preliminaryFileStatuses.size() > 0, "Logical error: statuses size should not be zero here");
-				transferData.lastFileStatuses.push_back(batchData.preliminaryFileStatuses[0]);
+				transferData.currentFileAwaitingConfirmationIdx = firstNewIndex;
 
 				batchData.isBatchMetadataValidated = true;
 			}
@@ -665,6 +664,47 @@ namespace FileTransferReceiveLogic
 			return transferData.chunksReceived != 0 && transferData.chunksReceived % ChunksBetweenAnswers == 0;
 		}
 
+		void recordAndClearConfirmations(bool isFileInProgressFailed, std::ofstream& file) noexcept
+		{
+			const size_t originalAwaitingConfirmationSize = transferData.filesAwaitingConfirmation.size();
+			const size_t currentFileConfirmationIdx = transferData.currentFileAwaitingConfirmationIdx;
+			const bool fileInProgress = hasFileInProgress();
+
+			// record all files that were successfully received or skipped
+			size_t writePos = 0;
+			for (size_t readPos = 0; readPos < originalAwaitingConfirmationSize; ++readPos)
+			{
+				const bool isFileFullySent = readPos < currentFileConfirmationIdx || (readPos == currentFileConfirmationIdx && !fileInProgress);
+				const bool fileHasErrors = transferData.filesAwaitingConfirmation[readPos] != Protocol::FileExchange::FileReceiveStatus::Success;
+
+				if (!isFileFullySent && !fileHasErrors)
+				{
+					transferData.filesAwaitingConfirmation[writePos] = transferData.filesAwaitingConfirmation[readPos];
+					++writePos;
+				}
+
+				// is the file is from the future, also remove it from the batch
+				if (fileHasErrors && readPos > currentFileConfirmationIdx)
+				{
+					const size_t batchFileIdx = batchData.batchSize - (originalAwaitingConfirmationSize - readPos);
+					batchData.filePathsNative.erase(batchData.filePathsNative.begin() + batchFileIdx);
+					--batchData.batchSize;
+				}
+			}
+
+			// erase removed records
+			transferData.filesAwaitingConfirmation.resize(writePos);
+
+			if (isFileInProgressFailed)
+			{
+				// reset receiving of the last file
+				newFile(file);
+			}
+
+			// need to do this after newFile call, since that call may increase the index
+			transferData.currentFileAwaitingConfirmationIdx = 0;
+		}
+
 		[[nodiscard]] bool writeAnswer(Network::RawSocket socket, Noise::CipherStateSending& sendingCipherstate, std::ofstream& file) noexcept
 		{
 			// read the big comment in Protocol::FileExchange for the explanation
@@ -674,7 +714,7 @@ namespace FileTransferReceiveLogic
 			debugPrintState(DebugState::Answer);
 
 			const bool fileInProgress = hasFileInProgress();
-			const size_t statusesToSend = transferData.lastFileStatuses.size();
+			const size_t statusesToSend = transferData.filesAwaitingConfirmation.size();
 
 			// buffer is zeroed by default
 			Cryptography::ByteSequence<Cryptography::ByteSequenceTag::TempInternalBuffer, AnswerChunkSize + Cryptography::CipherAuthDataSize> sendingBuffer;
@@ -719,7 +759,7 @@ namespace FileTransferReceiveLogic
 				for (; posInStatuses < statusesToSend && posInChunk < AnswerChunkSize; ++posInStatuses)
 				{
 					const size_t bit = posInStatuses % 8;
-					const Protocol::FileExchange::FileReceiveStatus status = transferData.lastFileStatuses[posInStatuses];
+					const Protocol::FileExchange::FileReceiveStatus status = transferData.filesAwaitingConfirmation[posInStatuses];
 					popcount += status == Protocol::FileExchange::FileReceiveStatus::Success ? 0 : 1;
 					sendingBuffer.raw[posInChunk] |= static_cast<std::byte>(((status == Protocol::FileExchange::FileReceiveStatus::Success ? 0 : 1) << (7 - bit)));
 
@@ -747,9 +787,9 @@ namespace FileTransferReceiveLogic
 			{
 				for (; posInStatuses < statusesToSend && posInChunk < AnswerChunkSize; ++posInStatuses)
 				{
-					if (transferData.lastFileStatuses[posInStatuses] != Protocol::FileExchange::FileReceiveStatus::Success)
+					if (transferData.filesAwaitingConfirmation[posInStatuses] != Protocol::FileExchange::FileReceiveStatus::Success)
 					{
-						sendingBuffer.raw[posInChunk] = static_cast<std::byte>(transferData.lastFileStatuses[posInStatuses]);
+						sendingBuffer.raw[posInChunk] = static_cast<std::byte>(transferData.filesAwaitingConfirmation[posInStatuses]);
 						++posInChunk;
 					}
 				}
@@ -779,19 +819,7 @@ namespace FileTransferReceiveLogic
 			}
 
 			const bool isFileInProgressFailed = fileInProgress && !currentFileHasNoErrors();
-
-			transferData.lastFileStatuses.clear();
-			if (isFileInProgressFailed)
-			{
-				// reset receiving of the last file
-				newFile(file);
-			}
-			else if (fileInProgress)
-			{
-				// restore the record for the file that is in progress, or that is about to be written
-				transferData.lastFileStatuses.push_back(Protocol::FileExchange::FileReceiveStatus::Success);
-			}
-
+			recordAndClearConfirmations(isFileInProgressFailed, file);
 			return true;
 		}
 	};
