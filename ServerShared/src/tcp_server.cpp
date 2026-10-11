@@ -142,14 +142,6 @@ namespace TcpServer
 			return result;
 		}
 
-#if !_WIN32
-		if (auto result = Network::setSocketOption(socket, SO_REUSEPORT); result.has_value())
-		{
-			reportDebugError("Could not set SO_REUSEPORT on the server TCP socket");
-			return result;
-		}
-#endif
-
 		if (auto result = Network::bindSocket(socket, interfaceAddressStr, addressType, 0); result.has_value())
 		{
 			reportDebugError("Could not bind a server TCP socket");
