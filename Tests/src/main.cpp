@@ -2,9 +2,9 @@
 // Distributed under the MIT License (license terms are at http://opensource.org/licenses/MIT).
 
 #include "tests/assert_helper.h"
+#include "tests/random_helpers.h"
 #include <gtest/gtest.h>
 
-#include "common_shared/debug/assert.h"
 #include "common_shared/debug/log.h"
 
 using ::testing::EmptyTestEventListener;
@@ -37,6 +37,7 @@ class TestInfoLogger final : public EmptyTestEventListener
 void SGTestingEnvironment::SetUp()
 {
 	AssertHelper::enableAsserts();
+	initSessionRandomSeed();
 }
 
 void SGTestingEnvironment::TearDown()
@@ -74,6 +75,12 @@ int main(int argc, char* argv[])
 	listeners.Append(new TestInfoLogger());
 
 	const int retVal = RUN_ALL_TESTS();
+
+	if (retVal != 0)
+	{
+		Debug::Log::printDebug("Diagnostic information:");
+		Debug::Log::printDebug("Session random seed: {}", getSessionRandomSeed());
+	}
 
 	return retVal;
 }

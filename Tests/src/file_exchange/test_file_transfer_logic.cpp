@@ -13,6 +13,7 @@
 
 #include "tests/assert_helper.h"
 #include "tests/helper_utils.h"
+#include "tests/random_helpers.h"
 #include <gtest/gtest.h>
 
 #include "common_shared/cryptography/utils/random.h"
@@ -163,11 +164,6 @@ static std::vector<std::byte> generateTestFileData(size_t size, std::minstd_rand
 		result[i] = std::byte(random() % 256);
 	}
 	return result;
-}
-
-static std::minstd_rand::result_type getRandomSeed() noexcept
-{
-	return static_cast<std::minstd_rand::result_type>(time(nullptr));
 }
 
 struct FileExchangeTestFileRange
@@ -567,7 +563,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_SendAndReceiveOneTinyFile_SuccessfullyRece
 	std::vector<TestFileExchangeFile> filesToSend;
 	filesToSend.push_back(TestFileExchangeFile{
 		.path = "tiny.txt",
-		.data = generateTestFileData(4, getRandomSeed()),
+		.data = generateTestFileData(4, getSessionRandomSeed()),
 	});
 
 	runFileExchangeTest(clientStorage, filesToSend, filesToSend, filesToSend);
@@ -579,7 +575,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_SendAndReceiveOneSmallFile_SuccessfullyRec
 	std::vector<TestFileExchangeFile> filesToSend;
 	filesToSend.push_back(TestFileExchangeFile{
 		.path = "small.txt",
-		.data = generateTestFileData(500, getRandomSeed()),
+		.data = generateTestFileData(500, getSessionRandomSeed()),
 	});
 
 	runFileExchangeTest(clientStorage, filesToSend, filesToSend, filesToSend);
@@ -591,7 +587,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_SendAndReceiveOneMediumFile_SuccessfullyRe
 	std::vector<TestFileExchangeFile> filesToSend;
 	filesToSend.push_back(TestFileExchangeFile{
 		.path = "med.txt",
-		.data = generateTestFileData(3000, getRandomSeed()),
+		.data = generateTestFileData(3000, getSessionRandomSeed()),
 	});
 
 	runFileExchangeTest(clientStorage, filesToSend, filesToSend, filesToSend);
@@ -603,7 +599,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_SendAndReceiveOneBigFile_SuccessfullyRecei
 	std::vector<TestFileExchangeFile> filesToSend;
 	filesToSend.push_back(TestFileExchangeFile{
 		.path = "big.txt",
-		.data = generateTestFileData(200000, getRandomSeed()),
+		.data = generateTestFileData(200000, getSessionRandomSeed()),
 	});
 
 	runFileExchangeTest(clientStorage, filesToSend, filesToSend, filesToSend);
@@ -639,7 +635,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_SendAndReceiveTwentyFiles_SuccessfullyRece
 	ClientSentFilesStorage clientStorage = *ClientSentFilesStorage::openStorage(TEST_DATA_PATH);
 	std::vector<TestFileExchangeFile> filesToSend;
 	filesToSend.reserve(sizes.size());
-	const std::minstd_rand::result_type seed = getRandomSeed();
+	const std::minstd_rand::result_type seed = getSessionRandomSeed();
 	for (size_t i = 0; i < sizes.size(); ++i)
 	{
 		filesToSend.push_back(TestFileExchangeFile{
@@ -667,7 +663,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_EverySecondEscapesRoot_EverySecondRejected
 	filesToSend.reserve(sizes.size());
 	std::vector<TestFileExchangeFile> expectedFilesToReceive;
 	expectedFilesToReceive.reserve(sizes.size());
-	const std::minstd_rand::result_type seed = getRandomSeed();
+	const std::minstd_rand::result_type seed = getSessionRandomSeed();
 	for (size_t i = 0; i < sizes.size(); ++i)
 	{
 		if ((i + 1) % 2 == 0)
@@ -709,7 +705,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_SendAndReceiveFilesWithWrongPath_AllReject
 	ClientSentFilesStorage clientStorage = *ClientSentFilesStorage::openStorage(TEST_DATA_PATH);
 	std::vector<TestFileExchangeFile> filesToSend;
 	filesToSend.reserve(sizes.size());
-	const std::minstd_rand::result_type seed = getRandomSeed();
+	const std::minstd_rand::result_type seed = getSessionRandomSeed();
 	for (size_t i = 0; i < sizes.size(); ++i)
 	{
 		filesToSend.push_back(TestFileExchangeFile{
@@ -763,7 +759,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_BigAlreadyExistingFiles_AllSkipped)
 	std::vector<TestFileExchangeFile> filesToSend;
 	constexpr size_t FilesCount = 5;
 	filesToSend.reserve(FilesCount);
-	const std::minstd_rand::result_type seed = getRandomSeed();
+	const std::minstd_rand::result_type seed = getSessionRandomSeed();
 	for (size_t i = 0; i < FilesCount; ++i)
 	{
 		filesToSend.push_back(TestFileExchangeFile{
@@ -792,7 +788,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_BigFilesReceivedCorrupted_AllRejected)
 	filesToSend.reserve(FilesCount);
 	std::vector<TestFileExchangeFile> expectedFiles;
 	expectedFiles.reserve(FilesCount);
-	const std::minstd_rand::result_type seed = getRandomSeed();
+	const std::minstd_rand::result_type seed = getSessionRandomSeed();
 	for (size_t i = 0; i < FilesCount; ++i)
 	{
 		filesToSend.push_back(TestFileExchangeFile{
@@ -823,7 +819,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_BigFilesPartiallySentAndThenContinued_Only
 	std::vector<TestFileExchangeFile> filesToSend;
 	constexpr size_t FilesCount = 7;
 	filesToSend.reserve(FilesCount);
-	const std::minstd_rand::result_type seed = getRandomSeed();
+	const std::minstd_rand::result_type seed = getSessionRandomSeed();
 	for (size_t i = 0; i < FilesCount; ++i)
 	{
 		filesToSend.push_back(TestFileExchangeFile{
@@ -879,7 +875,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_BigFilesPartiallySentAndThenContinued_Only
 TEST_F(FileSendReceiveTest, Roundtrip_BigFilePartiallySentFourTimesAndThenSentFully_ThePartiallySentFileIsFullyResent)
 {
 	ClientSentFilesStorage clientStorage = *ClientSentFilesStorage::openStorage(TEST_DATA_PATH);
-	const std::minstd_rand::result_type seed = getRandomSeed();
+	const std::minstd_rand::result_type seed = getSessionRandomSeed();
 	const TestFileExchangeFile fileToSend{
 		.path = "file",
 		.data = generateTestFileData(800000, seed),
@@ -1001,7 +997,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_FileMarkedPartiallySentAtEOF_FileIsSkipped
 {
 	ClientSentFilesStorage clientStorage = *ClientSentFilesStorage::openStorage(TEST_DATA_PATH);
 
-	const auto seed = getRandomSeed();
+	const auto seed = getSessionRandomSeed();
 
 	TestFileExchangeFile fileToSend{
 		.path = "file",
@@ -1026,7 +1022,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_InvalidResumeOffset_FileIsResentFromBeginn
 {
 	ClientSentFilesStorage clientStorage = *ClientSentFilesStorage::openStorage(TEST_DATA_PATH);
 
-	const auto seed = getRandomSeed();
+	const auto seed = getSessionRandomSeed();
 
 	TestFileExchangeFile fileToSend{
 		.path = "file",
@@ -1049,7 +1045,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_SendAndReceiveOneTinyFile_LoggedBeginAndEn
 	std::vector<TestFileExchangeFile> filesToSend;
 	filesToSend.push_back(TestFileExchangeFile{
 		.path = "tiny.txt",
-		.data = generateTestFileData(4, getRandomSeed()),
+		.data = generateTestFileData(4, getSessionRandomSeed()),
 	});
 
 	runFileExchangeTest(clientStorage, filesToSend, filesToSend, filesToSend);
@@ -1072,7 +1068,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_FileTransferEndsRightBeforeAnswer_Transmis
 	std::vector<TestFileExchangeFile> filesToSend;
 	filesToSend.push_back(TestFileExchangeFile{
 		.path = "file",
-		.data = generateTestFileData(BytesBetweenAnswers - StaticHeaderSize - 4 - 1, getRandomSeed()),
+		.data = generateTestFileData(BytesBetweenAnswers - StaticHeaderSize - 4 - 1, getSessionRandomSeed()),
 	});
 
 	runFileExchangeTest(clientStorage, filesToSend, filesToSend, filesToSend);
@@ -1084,7 +1080,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_FileTransferEndsRightAfterAnswer_Transmiss
 	std::vector<TestFileExchangeFile> filesToSend;
 	filesToSend.push_back(TestFileExchangeFile{
 		.path = "file",
-		.data = generateTestFileData(BytesBetweenAnswers - StaticHeaderSize - 4, getRandomSeed()),
+		.data = generateTestFileData(BytesBetweenAnswers - StaticHeaderSize - 4, getSessionRandomSeed()),
 	});
 
 	runFileExchangeTest(clientStorage, filesToSend, filesToSend, filesToSend);
