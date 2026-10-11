@@ -90,8 +90,8 @@ namespace FileSendHelpers
 			serverInfo.address.ip.data(),
 			serverInfo.address.addressType,
 			serverInfo.address.port,
-			[&storageSentFiles = clientSentFilesStorage, &serverBinding, &files, &previouslySentBytes, &commonRoot](Network::RawSocket socket) -> RequestAnswers::RequestAnswer {
-				return Requests::sendAndProcessSendFilesInteractiveRequest(socket, storageSentFiles, *serverBinding, files, previouslySentBytes, std::filesystem::path(commonRoot));
+			[&storageSentFiles = clientSentFilesStorage, &serverBinding, files = std::move(files), &previouslySentBytes, &commonRoot](Network::RawSocket socket) mutable -> RequestAnswers::RequestAnswer {
+				return Requests::sendAndProcessSendFilesInteractiveRequest(socket, storageSentFiles, *serverBinding, std::move(files), previouslySentBytes, std::filesystem::path(commonRoot));
 			}
 		);
 

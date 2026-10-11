@@ -199,7 +199,7 @@ TEST_F(RequestsTest, PairConfirmAndExchangeFiles_FilesExchanged)
 		}
 		std::vector<uint64_t> previouslySentBytes;
 		storageSentFiles->filterOutSentFiles(serverBinding->serverIdx, files, previouslySentBytes);
-		Requests::sendAndProcessSendFilesInteractiveRequest(clientSocket, *storageSentFiles, *serverBinding, files, previouslySentBytes, folderToSend);
+		Requests::sendAndProcessSendFilesInteractiveRequest(clientSocket, *storageSentFiles, *serverBinding, std::move(files), previouslySentBytes, folderToSend);
 	});
 	TestFinalizer f([&clientThread] {
 		clientThread.join();
