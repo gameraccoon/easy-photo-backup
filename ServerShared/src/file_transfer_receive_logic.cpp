@@ -566,7 +566,9 @@ namespace FileTransferReceiveLogic
 			assertFatalRelease(isBatchMetadataFullyRead() && isFileMetadataFullyRead(), "Logical error: we should not get here before we finish reading metadata");
 			if (isBatchMetadataFullyRead() && isFileMetadataFullyRead() && currentFileData.bytesWrittenToFile == 0)
 			{
-				if (currentFileHasNoErrors())
+				// safe guard to not process it twice (and the end and the beginning of a chunk)
+				const bool isStartOfNewChunk = bytesReadInChunk == 0;
+				if (currentFileHasNoErrors() && !isStartOfNewChunk)
 				{
 					std::filesystem::path filePartPath = getCurrentFileNativePath();
 					filePartPath += ".part";
