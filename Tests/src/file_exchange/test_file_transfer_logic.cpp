@@ -1085,3 +1085,72 @@ TEST_F(FileSendReceiveTest, Roundtrip_FileTransferEndsRightAfterAnswer_Transmiss
 
 	runFileExchangeTest(clientStorage, filesToSend, filesToSend, filesToSend);
 }
+
+TEST_F(FileSendReceiveTest, Roundtrip_TenRandomSizedFiles_TransmissionSuccessful)
+{
+	ClientSentFilesStorage clientStorage = *ClientSentFilesStorage::openStorage(TEST_DATA_PATH);
+	std::vector<TestFileExchangeFile> filesToSend;
+	filesToSend.reserve(10);
+
+	const auto seed = getSessionRandomSeed();
+	std::minstd_rand random;
+	random.seed(seed);
+
+	for (size_t i = 0; i < 10; ++i)
+	{
+		filesToSend.push_back(TestFileExchangeFile{
+			.path = std::format("file{}", i),
+			// up to 100Kb
+			.data = generateTestFileData(random() % 100000, seed + i),
+		});
+	}
+
+	runFileExchangeTest(clientStorage, filesToSend, filesToSend, filesToSend);
+}
+
+TEST_F(FileSendReceiveTest, Roundtrip_TenRandomSizedFilesRandomlyBadPaths_OnlyFilesWithGoodPathsReceived)
+{
+	ClientSentFilesStorage clientStorage = *ClientSentFilesStorage::openStorage(TEST_DATA_PATH);
+	std::vector<TestFileExchangeFile> filesToSend;
+	filesToSend.reserve(10);
+	std::vector<TestFileExchangeFile> filesToReceiveAndConfirm;
+	filesToReceiveAndConfirm.reserve(10);
+
+	const auto seed = getSessionRandomSeed();
+	std::minstd_rand random;
+	random.seed(seed);
+
+	for (size_t i = 0; i < 10; ++i)
+	{
+		const bool isBroken = random() % 2 == 0;
+		std::filesystem::path path;
+		if (isBroken)
+		{
+			path = std::format("../file{}", i);
+		}
+		else
+		{
+			path = std::format("file{}", i);
+		}
+
+		filesToSend.push_back(TestFileExchangeFile{
+			.path = path,
+			.data = generateTestFileData(random() % 100000, seed + i),
+		});
+
+		if (!isBroken)
+		{
+			filesToReceiveAndConfirm.push_back(TestFileExchangeFile{
+				.path = std::move(path),
+				.data = filesToSend.back().data,
+			});
+		}
+	}
+
+	runFileExchangeTest(
+		clientStorage,
+		filesToSend,
+		filesToReceiveAndConfirm,
+		filesToReceiveAndConfirm
+	);
+}
