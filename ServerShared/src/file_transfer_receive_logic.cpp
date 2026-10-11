@@ -531,7 +531,7 @@ namespace FileTransferReceiveLogic
 					[this] {
 						if (currentFileData.fileMetadataRead >= 8)
 						{
-							const size_t partialBit = static_cast<size_t>(0b1) << (sizeof(size_t) * 8 - 1);
+							const uint64_t partialBit = static_cast<uint64_t>(0b1) << (sizeof(uint64_t) * 8 - 1);
 							currentFileData.isPartial = ((currentFileData.fileSizeBytes & partialBit) != 0);
 							currentFileData.fileSizeBytes &= ~partialBit;
 						}

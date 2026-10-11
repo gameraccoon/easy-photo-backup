@@ -432,7 +432,7 @@ namespace FileTransferSendLogic
 			{
 				writeFileMetadata(0, 8, DebugState::FileSize, [this] {
 					std::array<std::byte, 8> data;
-					constexpr uint64_t partialBit = static_cast<size_t>(0b1) << (sizeof(size_t) * 8 - 1);
+					constexpr uint64_t partialBit = static_cast<uint64_t>(0b1) << (sizeof(uint64_t) * 8 - 1);
 					Serialization::writeUint64(data, currentFileData.fileSizeBytes | (currentFileData.isPartial ? partialBit : 0));
 					return data;
 				});
