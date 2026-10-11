@@ -562,11 +562,11 @@ namespace FileTransferSendLogic
 
 			if (errorIndexes.size() > 0)
 			{
-				transferData.recommendedNextBatchSize = std::min(transferData.recommendedNextBatchSize * 10, 127);
+				transferData.recommendedNextBatchSize = static_cast<uint8_t>(std::min(transferData.recommendedNextBatchSize * 10, 127));
 			}
 			else
 			{
-				transferData.recommendedNextBatchSize = std::max(transferData.recommendedNextBatchSize / 10, 1);
+				transferData.recommendedNextBatchSize = static_cast<uint8_t>(std::max(transferData.recommendedNextBatchSize / 10, 1));
 			}
 
 			if (isFileInProgressFailed)

@@ -1101,7 +1101,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_TenRandomSizedFiles_TransmissionSuccessful
 		filesToSend.push_back(TestFileExchangeFile{
 			.path = std::format("file{}", i),
 			// up to 100Kb
-			.data = generateTestFileData(random() % 100000, seed + i),
+			.data = generateTestFileData(random() % 100000, static_cast<std::minstd_rand::result_type>(seed + i)),
 		});
 	}
 
@@ -1135,7 +1135,7 @@ TEST_F(FileSendReceiveTest, Roundtrip_TenRandomSizedFilesRandomlyBadPaths_OnlyFi
 
 		filesToSend.push_back(TestFileExchangeFile{
 			.path = path,
-			.data = generateTestFileData(random() % 100000, seed + i),
+			.data = generateTestFileData(random() % 100000, static_cast<std::minstd_rand::result_type>(seed + i)),
 		});
 
 		if (!isBroken)
