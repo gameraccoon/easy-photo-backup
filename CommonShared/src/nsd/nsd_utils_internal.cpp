@@ -1,7 +1,7 @@
 // Copyright (C) Pavel Grebnev 2026
 // Distributed under the MIT License (license terms are at http://opensource.org/licenses/MIT).
 
-#include "common_shared/nsd/utils_internal.h"
+#include "common_shared/nsd/nsd_utils_internal.h"
 
 namespace NsdInternalUtils
 {

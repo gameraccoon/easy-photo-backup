@@ -20,7 +20,7 @@
 #include "common_shared/cryptography/utils/short_authentification_string_utils.h"
 #include "common_shared/debug/log.h"
 #include "common_shared/network/utils.h"
-#include "common_shared/nsd/nsd_server.h"
+#include "common_shared/nsd/simple_nsd/simple_nsd_server.h"
 
 #include "server_shared/server_storage.h"
 #include "server_shared/tcp_server.h"
@@ -108,7 +108,7 @@ namespace ServiceLogic
 		}
 		std::array<std::byte, 16> serverId = std::move(*serverIdResult);
 
-		auto openSocketResult = NsdServer::openNsdSocket(Network::AddressType::IpV4);
+		auto openSocketResult = SimpleNsdServer::openNsdSocket(Network::AddressType::IpV4);
 
 		if (std::holds_alternative<std::string>(openSocketResult))
 		{
@@ -185,18 +185,18 @@ namespace ServiceLogic
 			static_assert(extraData.size() >= 2 + serverId.size());
 			std::copy(serverId.begin(), serverId.end(), extraData.begin() + 2);
 
-			NsdServer::ListenResult result = NsdServer::listen(socket, "0.0.0.0", Network::AddressType::IpV4, 5354, "_easy-photo-backup._tcp", serverPort, extraData);
+			SimpleNsdServer::ListenResult result = SimpleNsdServer::listen(socket, "0.0.0.0", Network::AddressType::IpV4, 5354, "_easy-photo-backup._tcp", serverPort, extraData);
 
-			if (std::holds_alternative<NsdServer::SetupError>(result))
+			if (std::holds_alternative<SimpleNsdServer::SetupError>(result))
 			{
-				Debug::Log::printDebug("NSD server setup error: '{}'", std::get<NsdServer::SetupError>(result).error);
+				Debug::Log::printDebug("NSD server setup error: '{}'", std::get<SimpleNsdServer::SetupError>(result).error);
 			}
 			else
 			{
 				// if we didn't stop intentionally
 				if (nsdCloseSocketFlag.load(std::memory_order::acquire) == false)
 				{
-					Debug::Log::printDebug("NSD server error: '{}'", std::get<NsdServer::SocketError>(result).error);
+					Debug::Log::printDebug("NSD server error: '{}'", std::get<SimpleNsdServer::SocketError>(result).error);
 					nsdCloseSocketFlag.store(true, std::memory_order::release);
 					Network::closeSocket(socket);
 				}

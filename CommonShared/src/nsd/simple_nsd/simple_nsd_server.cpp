@@ -1,7 +1,7 @@
 // Copyright (C) Pavel Grebnev 2026
 // Distributed under the MIT License (license terms are at http://opensource.org/licenses/MIT).
 
-#include "common_shared/nsd/nsd_server.h"
+#include "common_shared/nsd/simple_nsd/simple_nsd_server.h"
 
 #include <cstring>
 #include <format>
@@ -10,10 +10,10 @@
 #include "common_shared/debug/assert.h"
 #include "common_shared/network/raw_sockets.h"
 #include "common_shared/network/utils.h"
-#include "common_shared/nsd/utils_internal.h"
+#include "common_shared/nsd/nsd_utils_internal.h"
 #include "common_shared/serialization/number_serialization.h"
 
-namespace NsdServer
+namespace SimpleNsdServer
 {
 	std::variant<Network::RawSocket, std::string> openNsdSocket(const Network::AddressType addressType)
 	{

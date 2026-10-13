@@ -10,7 +10,7 @@
 
 #include "common_shared/network/utils.h"
 
-namespace NsdServer
+namespace SimpleNsdServer
 {
 	struct SetupError
 	{

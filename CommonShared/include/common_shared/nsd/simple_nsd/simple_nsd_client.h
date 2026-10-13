@@ -10,7 +10,7 @@
 
 #include "common_shared/network/utils.h"
 
-namespace NsdClient
+namespace SimpleNsdClient
 {
 	using ListenResult = std::optional<std::string>;
 

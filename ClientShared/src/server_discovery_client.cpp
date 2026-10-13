@@ -4,7 +4,7 @@
 #include "client_shared/server_discovery_client.h"
 
 #include "common_shared/debug/log.h"
-#include "common_shared/nsd/nsd_client.h"
+#include "common_shared/nsd/simple_nsd/simple_nsd_client.h"
 
 #ifdef DEBUG_CHECKS
 static constexpr bool NsdDebug = false;
@@ -13,13 +13,13 @@ static constexpr bool NsdDebug = false;
 void ServerDiscoveryClient::startDiscovery() noexcept
 {
 	mDiscoveryThread = std::thread([&servers = mDiscoveredServers, &mutex = mDataMutex, &nsdStopFlag = mNsdStopFlag] {
-		std::optional<std::string> result = NsdClient::processServiceDiscoveryThread(
+		std::optional<std::string> result = SimpleNsdClient::processServiceDiscoveryThread(
 			"_easy-photo-backup._tcp",
 			5354,
 			Network::AddressType::IpV4,
 			1,
 			[&servers, &mutex](auto&& event) {
-				if (event.state == NsdClient::DiscoveryState::Added)
+				if (event.state == SimpleNsdClient::DiscoveryState::Added)
 				{
 					int version = -1;
 					if (!event.extraData.empty())
