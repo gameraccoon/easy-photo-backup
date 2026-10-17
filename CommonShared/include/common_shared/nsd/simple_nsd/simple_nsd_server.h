@@ -33,4 +33,4 @@ namespace SimpleNsdServer
 		uint16_t advertizedPort,
 		std::span<const std::byte> extraData
 	);
-} // namespace NsdServer
+} // namespace SimpleNsdServer

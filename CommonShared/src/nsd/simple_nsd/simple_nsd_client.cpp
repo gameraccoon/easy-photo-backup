@@ -276,4 +276,4 @@ namespace SimpleNsdClient
 			}
 		}
 	}
-} // namespace NsdClient
+} // namespace SimpleNsdClient

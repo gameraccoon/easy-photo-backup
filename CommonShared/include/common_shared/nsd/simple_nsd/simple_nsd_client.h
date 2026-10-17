@@ -35,4 +35,4 @@ namespace SimpleNsdClient
 		const std::function<void(DiscoveryResult&&)>& resultFunction,
 		const std::atomic_bool& stopSignalReceiver
 	);
-} // namespace NsdClient
+} // namespace SimpleNsdClient

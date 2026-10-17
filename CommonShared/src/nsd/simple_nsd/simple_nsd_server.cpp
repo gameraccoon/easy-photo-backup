@@ -91,4 +91,4 @@ namespace SimpleNsdServer
 
 		return SocketError{ std::format("Failed to receive from UDP socket, error code {}.", errno) };
 	}
-} // namespace NsdServer
+} // namespace SimpleNsdServer

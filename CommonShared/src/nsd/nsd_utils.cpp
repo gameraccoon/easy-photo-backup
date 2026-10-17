@@ -15,4 +15,4 @@ namespace NsdUtils
 
 		return std::get<Network::RawSocket>(createSocketResult);
 	}
-} // namespace NsdInternalUtils
+} // namespace NsdUtils
