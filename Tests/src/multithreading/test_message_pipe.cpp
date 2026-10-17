@@ -3,6 +3,9 @@
 
 #include <gtest/gtest.h>
 
+#include <array>
+#include <string>
+
 #include "common_shared/multithreading/message_pipe.h"
 
 TEST(MessagePipe, MessagePipe_CreatedDestroyed_NoErrors)

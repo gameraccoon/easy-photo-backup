@@ -184,7 +184,7 @@ namespace HiddenNsdServer
 		}
 
 		std::unordered_map<uint64_t, TagPayload> tagMap;
-		int64_t lastPeriodIndex = getCurrentPeriodIndex();
+		int32_t lastPeriodIndex = getCurrentPeriodIndex();
 		populateTagMap(clientHashes, lastPeriodIndex, tagMap);
 
 		std::vector<size_t> clientsToRemove;
@@ -206,7 +206,7 @@ namespace HiddenNsdServer
 		{
 			processClientModificationRequests(clientModificationRequests, clientHashes, clientsToRemove);
 
-			const int64_t currentPeriodIndex = getCurrentPeriodIndex();
+			const int32_t currentPeriodIndex = getCurrentPeriodIndex();
 			if (lastPeriodIndex != currentPeriodIndex)
 			{
 				applyPendingRemovals(clientHashes, clientsToRemove);
