@@ -63,6 +63,7 @@ target_sources(CommonShared
 		${COMMON_SHARED_SRC_DIR}/nsd/simple_nsd/simple_nsd_client.cpp
 		${COMMON_SHARED_SRC_DIR}/nsd/simple_nsd/simple_nsd_server.cpp
 		${COMMON_SHARED_SRC_DIR}/nsd/nsd_utils_internal.cpp
+		${COMMON_SHARED_SRC_DIR}/nsd/nsd_utils.cpp
 		${COMMON_SHARED_SRC_DIR}/serialization/number_serialization.cpp
 		${COMMON_SHARED_SRC_DIR}/serialization/raw_data_serialization.cpp
 		${COMMON_SHARED_SRC_DIR}/serialization/serialization_helpers.cpp

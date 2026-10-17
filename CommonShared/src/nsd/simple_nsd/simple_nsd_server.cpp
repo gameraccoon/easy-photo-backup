@@ -5,7 +5,6 @@
 
 #include <cstring>
 #include <format>
-#include <string>
 
 #include "common_shared/debug/assert.h"
 #include "common_shared/network/raw_sockets.h"
@@ -15,17 +14,6 @@
 
 namespace SimpleNsdServer
 {
-	std::variant<Network::RawSocket, std::string> openNsdSocket(const Network::AddressType addressType)
-	{
-		std::variant<Network::RawSocket, std::string> createSocketResult = createSocket(Network::SocketType::Udp, addressType);
-		if (std::holds_alternative<std::string>(createSocketResult))
-		{
-			return std::get<std::string>(createSocketResult);
-		}
-
-		return std::get<Network::RawSocket>(createSocketResult);
-	}
-
 	ListenResult listen(
 		const Network::RawSocket socket,
 		const char* interfaceAddressStr,
@@ -41,24 +29,9 @@ namespace SimpleNsdServer
 			return SetupError{ "service identifier can't be nullptr" };
 		}
 
-		if (auto result = Network::setSocketOption(socket, SO_REUSEADDR); result.has_value())
+		if (auto error = NsdInternalUtils::bindNsdSocket(socket, interfaceAddressStr, addressType, port); error.has_value())
 		{
-			reportDebugError("Could not set SO_REUSEADDR flag to NSD server socket");
-			return SetupError{ *result };
-		}
-
-#if !_WIN32
-		if (auto result = Network::setSocketOption(socket, SO_REUSEPORT); result.has_value())
-		{
-			reportDebugError("Could not set SO_REUSEPORT flag to NSD server socket");
-			return SetupError{ *result };
-		}
-#endif
-
-		if (auto result = Network::bindSocket(socket, interfaceAddressStr, addressType, port); result.has_value())
-		{
-			reportDebugError("Could not set bind NSD server socket");
-			return SetupError{ *result };
+			return SetupError{ *error };
 		}
 
 		const std::string expectedPacket = std::format("aloha:{}\n", serviceIdentifier);

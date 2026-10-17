@@ -24,8 +24,6 @@ namespace SimpleNsdServer
 
 	using ListenResult = std::variant<SetupError, SocketError>;
 
-	std::variant<Network::RawSocket, std::string> openNsdSocket(const Network::AddressType addressType);
-
 	ListenResult listen(
 		Network::RawSocket socket,
 		const char* interfaceAddressStr,

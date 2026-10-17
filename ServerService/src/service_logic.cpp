@@ -20,6 +20,7 @@
 #include "common_shared/cryptography/utils/short_authentification_string_utils.h"
 #include "common_shared/debug/log.h"
 #include "common_shared/network/utils.h"
+#include "common_shared/nsd/nsd_utils.h"
 #include "common_shared/nsd/simple_nsd/simple_nsd_server.h"
 
 #include "server_shared/server_storage.h"
@@ -108,7 +109,7 @@ namespace ServiceLogic
 		}
 		std::array<std::byte, 16> serverId = std::move(*serverIdResult);
 
-		auto openSocketResult = SimpleNsdServer::openNsdSocket(Network::AddressType::IpV4);
+		auto openSocketResult = NsdUtils::openNsdServerSocket(Network::AddressType::IpV4);
 
 		if (std::holds_alternative<std::string>(openSocketResult))
 		{
