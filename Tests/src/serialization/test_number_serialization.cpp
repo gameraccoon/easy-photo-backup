@@ -6,16 +6,17 @@
 
 #include "common_shared/serialization/number_serialization.h"
 
-TEST(NumberSerialization, AppendUint8Uint16Byte)
+TEST(NumberSerialization, AppendUint8Uint16Uint64Byte)
 {
 	std::vector<std::byte> buffer;
 
 	Serialization::appendByte(buffer, std::byte(54));
 	Serialization::appendUint8(buffer, uint8_t(130));
 	Serialization::appendUint16(buffer, uint16_t(890));
+	Serialization::appendUint64(buffer, uint64_t(1234567890123456789));
 
 	// no matter what endiannes the current system have, the result should be the same
-	EXPECT_EQ(hexToBytes("3682037A"), buffer);
+	EXPECT_EQ(hexToBytes("3682037A112210F47DE98115"), buffer);
 }
 
 TEST(NumberSerialization, SerializeUint16)

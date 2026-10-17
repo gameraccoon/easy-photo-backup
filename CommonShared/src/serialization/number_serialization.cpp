@@ -23,6 +23,12 @@ namespace Serialization
 		inOutStream.push_back(static_cast<std::byte>(value & 0xff));
 	}
 
+	void appendUint64(std::vector<std::byte>& inOutStream, uint64_t value) noexcept
+	{
+		inOutStream.resize(inOutStream.size() + 8);
+		writeUint64(std::span(inOutStream).subspan(inOutStream.size() - 8), value);
+	}
+
 	void writeUint16(std::byte& outByte1, std::byte& outByte2, uint16_t value) noexcept
 	{
 		outByte1 = static_cast<std::byte>((value >> 8) & 0xff);
