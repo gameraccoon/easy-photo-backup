@@ -1,10 +1,10 @@
 // Copyright (C) Pavel Grebnev 2026
 // Distributed under the MIT License (license terms are at http://opensource.org/licenses/MIT).
 
-#include <gtest/gtest.h>
-
 #include <array>
 #include <string>
+
+#include <gtest/gtest.h>
 
 #include "common_shared/multithreading/message_pipe.h"
 
