@@ -48,4 +48,10 @@ namespace NsdInternalUtils
 
 		return std::nullopt;
 	}
+
+	int32_t getCurrentPeriodIndex()
+	{
+		const std::chrono::time_point now{ std::chrono::system_clock::now() };
+		return static_cast<int32_t>(std::chrono::duration_cast<std::chrono::days>(now.time_since_epoch()).count());
+	}
 } // namespace NsdInternalUtils

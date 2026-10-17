@@ -20,4 +20,6 @@ namespace NsdInternalUtils
 		const Network::AddressType addressType,
 		const uint16_t port
 	) noexcept;
+
+	[[nodiscard]] int32_t getCurrentPeriodIndex();
 } // namespace NsdInternalUtils
