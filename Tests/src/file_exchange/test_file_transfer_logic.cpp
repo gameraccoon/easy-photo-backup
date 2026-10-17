@@ -2,11 +2,8 @@
 // Distributed under the MIT License (license terms are at http://opensource.org/licenses/MIT).
 
 #include <algorithm>
-#include <chrono>
 #include <format>
-#include <mutex>
 #include <optional>
-#include <queue>
 #include <random>
 #include <thread>
 #include <unordered_map>
@@ -17,6 +14,7 @@
 #include <gtest/gtest.h>
 
 #include "common_shared/cryptography/utils/random.h"
+#include "common_shared/multithreading/message_pipe.h"
 #include "common_shared/network/protocol.h"
 
 #include "client_shared/file_transfer_send_logic.h"
@@ -30,68 +28,16 @@ static constexpr size_t TransportBytesBetweenAnswers = TransportChunkSize * Prot
 static constexpr size_t StaticHeaderSize = 1 + 2 + 8;
 static constexpr size_t StaticHeaderSizePartial = StaticHeaderSize + sizeof(uint64_t);
 
-// a simple test implementation of a message pipe (can be slow, but should be simple to review)
-template<size_t Size>
-class TestFileExchangeMessagePipe
-{
-public:
-	void push(std::span<const std::byte> buffer) noexcept
-	{
-		ASSERT_EQ(buffer.size(), Size);
-		if (buffer.size() != Size)
-		{
-			return;
-		}
-
-		std::lock_guard l(mMessagesMutex);
-
-		mMessages.push(vectorToArray<Size>(buffer));
-	}
-
-	std::optional<std::array<std::byte, Size>> pop() noexcept
-	{
-		const auto timeStart = std::chrono::steady_clock::now();
-		// one second timeout
-		while (true)
-		{
-			if (std::chrono::steady_clock::now() - timeStart >= std::chrono::seconds(1)) [[unlikely]]
-			{
-				EXPECT_TRUE(false) << "Message pipe timeout";
-				return std::nullopt;
-			}
-
-			std::unique_lock l(mMessagesMutex);
-			if (mMessages.empty())
-			{
-				l.unlock();
-				std::this_thread::yield();
-				continue;
-			}
-
-			std::array<std::byte, Size> result = mMessages.front();
-			mMessages.pop();
-			return result;
-		}
-
-		return std::nullopt;
-	}
-
-	size_t size() noexcept
-	{
-		std::lock_guard l(mMessagesMutex);
-		return mMessages.size();
-	}
-
-private:
-	std::mutex mMessagesMutex;
-	std::queue<std::array<std::byte, Size>> mMessages;
-};
-
 struct TestFileExchangeFile
 {
 	std::filesystem::path path;
 	std::vector<std::byte> data;
 };
+
+template<size_t Size>
+using TestFileExchangeMessagePipe = Multithreading::MessagePipe<std::array<std::byte, Size>>;
+
+static std::chrono::steady_clock::duration TEST_NETWORK_TIMEOUT = std::chrono::seconds(1);
 
 static void expectBuffersEqual(std::span<const std::byte> a, std::span<const std::byte> b)
 {
@@ -212,11 +158,11 @@ static FileExchangeTestResult runFileExchangeTest(ClientSentFilesStorage& client
 				return -1;
 			}
 
-			fileMessages.push(std::span<const std::byte>(reinterpret_cast<const std::byte*>(buffer), bufferSize));
+			fileMessages.send(vectorToArray<Protocol::FileExchange::ChunkSize + Cryptography::CipherAuthDataSize>(std::span<const std::byte>(reinterpret_cast<const std::byte*>(buffer), bufferSize)));
 		}
 		else if (socket == receiverSocket)
 		{
-			answerMessages.push(std::span<const std::byte>(reinterpret_cast<const std::byte*>(buffer), bufferSize));
+			answerMessages.send(vectorToArray<Protocol::FileExchange::AnswerChunkSize + Cryptography::CipherAuthDataSize>(std::span<const std::byte>(reinterpret_cast<const std::byte*>(buffer), bufferSize)));
 		}
 		else
 		{
@@ -230,9 +176,10 @@ static FileExchangeTestResult runFileExchangeTest(ClientSentFilesStorage& client
 	Network::gRecvTestMock = [&instructions, &bytesRead, &fileMessages, &answerMessages](Network::RawSocket socket, char* buffer, int bufferSize, int /*flags*/) -> int {
 		if (socket == senderSocket)
 		{
-			auto message = answerMessages.pop();
+			auto message = answerMessages.recv(TEST_NETWORK_TIMEOUT);
 			if (!message.has_value())
 			{
+				EXPECT_TRUE(false) << "Message pipe timeout when receiving answer data";
 				return -1;
 			}
 			EXPECT_EQ(static_cast<int>(message->size()), bufferSize);
@@ -251,9 +198,10 @@ static FileExchangeTestResult runFileExchangeTest(ClientSentFilesStorage& client
 				return -1;
 			}
 
-			auto message = fileMessages.pop();
+			auto message = fileMessages.recv(TEST_NETWORK_TIMEOUT);
 			if (!message.has_value())
 			{
+				EXPECT_TRUE(false) << "Message pipe timeout when receiving file data";
 				return -1;
 			}
 			EXPECT_EQ(static_cast<int>(message->size()), bufferSize);
@@ -499,8 +447,8 @@ static FileExchangeTestResult runFileExchangeTest(ClientSentFilesStorage& client
 	FileTransferReceiveLogic::receiveFiles(serverRootFolder, receiverSocket, cipherStateSending, cipherStateReceiving, receiveMocks);
 	sendingThread.join();
 
-	EXPECT_EQ(size_t(0), fileMessages.size());
-	EXPECT_EQ(size_t(0), answerMessages.size());
+	EXPECT_FALSE(fileMessages.tryRecv().has_value()) << "File messages pipe had messages after transmission ended";
+	EXPECT_FALSE(answerMessages.tryRecv().has_value()) << "Answer messages pipe had messages after transmission ended";
 
 	expectTwoArraysEqual(receivedFiles, expectedFilesToReceive);
 
