@@ -45,9 +45,9 @@ namespace HiddenNsdServer
 		const char* interfaceAddressStr,
 		Network::AddressType addressType,
 		uint16_t port,
-		std::vector<Cryptography::HashResult> clientHashes,
+		std::vector<Cryptography::HashResult>&& clientHashes,
 		MessagePipe& clientModificationRequests,
 		uint16_t advertizedPort,
 		std::span<const std::byte> extraData
-	);
+	) noexcept;
 } // namespace HiddenNsdServer
