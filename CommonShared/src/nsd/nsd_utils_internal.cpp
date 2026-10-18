@@ -3,11 +3,18 @@
 
 #include "common_shared/nsd/nsd_utils_internal.h"
 
+#include <cstring>
+
 #include "common_shared/debug/assert.h"
 #include "common_shared/network/raw_sockets.h"
 
 namespace NsdInternalUtils
 {
+	bool NetworkAddressKey::operator==(const NetworkAddressKey& other) const noexcept
+	{
+		return addrLen == other.addrLen && std::memcmp(&addr, &other.addr, addrLen) == 0;
+	}
+
 	uint16_t checksum16v1(const std::span<const std::byte> data) noexcept
 	{
 		// this is a very trivial checksum, eventually we want crc16 here
@@ -19,7 +26,7 @@ namespace NsdInternalUtils
 		return checksum;
 	}
 
-	std::optional<std::string> bindNsdSocket(
+	std::optional<std::string> bindNsdServerSocket(
 		const Network::RawSocket socket,
 		const char* interfaceAddressStr,
 		const Network::AddressType addressType,
@@ -47,6 +54,148 @@ namespace NsdInternalUtils
 		}
 
 		return std::nullopt;
+	}
+
+	std::variant<std::string, Network::RawSocket> openClientNsdSocket(const Network::AddressType addressType) noexcept
+	{
+		std::variant<Network::RawSocket, std::string> createSocketResult = Network::createSocket(Network::SocketType::Udp, addressType);
+		if (std::holds_alternative<std::string>(createSocketResult))
+		{
+			reportDebugError("Could not create NSD client socket");
+			return std::get<std::string>(createSocketResult);
+		}
+
+		const Network::RawSocket socket = std::get<Network::RawSocket>(std::move(createSocketResult));
+
+		if (auto result = Network::setSocketOption(socket, SO_BROADCAST); result.has_value())
+		{
+			reportDebugError("Could not set SO_BROADCAST flag to NSD client socket");
+			Network::closeSocket(socket);
+			return *result;
+		}
+
+		// 200 milliseconds means that 5 times per second we will check if the stop signal has been received
+		if (auto result = Network::setSocketTimeout(socket, SO_RCVTIMEO, 0, 200000); result.has_value())
+		{
+			reportDebugError("Could not set SO_RCVTIMEO to NSD client socket");
+			Network::closeSocket(socket);
+			return *result;
+		}
+
+		if (auto result = Network::bindSocket(socket, nullptr, addressType, 0); result.has_value())
+		{
+			reportDebugError("Could not bind NSD client socket");
+			Network::closeSocket(socket);
+			return *result;
+		}
+
+		return socket;
+	}
+
+	std::optional<std::string> broadcastNdsUdpRequest(const Network::RawSocket socket, const Network::AddressType addressType, std::span<const std::byte> query, const uint16_t port) noexcept
+	{
+		if (addressType == Network::AddressType::IpV6)
+		{
+			reportDebugError("Not implemented");
+			return std::format("IPV6 broadcast (multicast) is somewhat complicated, it isn't implemented for now. Add when needed");
+		}
+
+		sockaddr_in address{};
+		address.sin_addr.s_addr = INADDR_BROADCAST;
+		address.sin_family = AF_INET;
+		address.sin_port = htons(port);
+#if _WIN32
+		using SendToResult = int;
+#else
+		using SendToResult = ssize_t;
+#endif
+		const SendToResult sentSize = sendto(socket, query.data(), static_cast<int>(query.size()), 0, reinterpret_cast<const sockaddr*>(&address), sizeof(address));
+
+		if (sentSize == -1) [[unlikely]]
+		{
+			return std::format("Failed to send NSD broadcast to UDP socket, error code {}.", errno);
+		}
+
+		debugAssert(sentSize >= 0, "Sent size can't be less than -1 {}", sentSize);
+		debugAssert(sentSize == static_cast<SendToResult>(query.size()), "Sent size was not the same as query size {} and {}", sentSize, query.size());
+
+		return std::nullopt;
+	}
+
+	void registerDiscoveredServer(ClientDiscoveredServersData& discoveredServersData, const NsdInternalUtils::NetworkAddressKey& netAddress, const std::vector<std::byte>& extraData, uint16_t port, const NsdUtils::DiscoveryResultFunction& resultFunction)
+	{
+		if (std::ranges::find(discoveredServersData.discoveryGenerations[0], netAddress) == discoveredServersData.discoveryGenerations[0].end())
+		{
+			discoveredServersData.discoveryGenerations[0].push_back(netAddress);
+		}
+
+		if (std::ranges::find(discoveredServersData.onlineServers, netAddress) == discoveredServersData.onlineServers.end())
+		{
+			discoveredServersData.onlineServers.push_back(netAddress);
+			auto result = Network::parseAddress(&netAddress.addr, netAddress.addrLen);
+			if (std::holds_alternative<Network::NetworkAddress>(result))
+			{
+				resultFunction(NsdUtils::DiscoveryResult{
+					.address = Network::NetworkAddress{
+						.ip = std::get<Network::NetworkAddress>(result).ip,
+						.port = port,
+						.addressType = std::get<Network::NetworkAddress>(result).addressType,
+					},
+					.extraData = extraData,
+					.state = NsdUtils::DiscoveryState::Added,
+				});
+			}
+		}
+	}
+
+	void removeOldDiscoveredServers(ClientDiscoveredServersData& discoveredServersData, const NsdUtils::DiscoveryResultFunction& resultFunction) noexcept
+	{
+		// remove servers that are no longer online
+		discoveredServersData.serversToRemove.clear();
+		for (const NetworkAddressKey& server : discoveredServersData.onlineServers)
+		{
+			bool found = false;
+			for (size_t i = 0; i < discoveredServersData.discoveryGenerations.size(); ++i)
+			{
+				if (std::ranges::find(discoveredServersData.discoveryGenerations[i], server) != discoveredServersData.discoveryGenerations[i].end())
+				{
+					found = true;
+					break;
+				}
+			}
+			if (!found)
+			{
+				discoveredServersData.serversToRemove.push_back(server);
+			}
+		}
+
+		if (!discoveredServersData.serversToRemove.empty())
+		{
+			for (size_t i = discoveredServersData.onlineServers.size(); i > 0; --i)
+			{
+				if (std::ranges::find(discoveredServersData.serversToRemove, discoveredServersData.onlineServers[i - 1]) != discoveredServersData.serversToRemove.end())
+				{
+					discoveredServersData.onlineServers.erase(discoveredServersData.onlineServers.begin() + static_cast<int>(i - 1));
+				}
+			}
+		}
+
+		for (const NetworkAddressKey& server : discoveredServersData.serversToRemove)
+		{
+			auto result = Network::parseAddress(&server.addr, server.addrLen);
+			if (std::holds_alternative<Network::NetworkAddress>(result))
+			{
+				resultFunction(NsdUtils::DiscoveryResult{
+					.address = std::move(std::get<Network::NetworkAddress>(result)),
+					.extraData = std::vector<std::byte>{},
+					.state = NsdUtils::DiscoveryState::Removed,
+				});
+			}
+		}
+
+		std::rotate(discoveredServersData.discoveryGenerations.data(), discoveredServersData.discoveryGenerations.data() + (discoveredServersData.discoveryGenerations.size() - 1), discoveredServersData.discoveryGenerations.data() + discoveredServersData.discoveryGenerations.size());
+		debugAssert(discoveredServersData.discoveryGenerations.size() < 8, "Too many servers during debugging ({}), is this a bug or are we stress-testing?", discoveredServersData.discoveryGenerations.size());
+		discoveredServersData.discoveryGenerations[0].clear();
 	}
 
 	int32_t getCurrentPeriodIndex()

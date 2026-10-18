@@ -19,7 +19,7 @@ void ServerDiscoveryClient::startDiscovery() noexcept
 			Network::AddressType::IpV4,
 			1,
 			[&servers, &mutex](auto&& event) {
-				if (event.state == SimpleNsdClient::DiscoveryState::Added)
+				if (event.state == NsdUtils::DiscoveryState::Added)
 				{
 					int version = -1;
 					if (!event.extraData.empty())

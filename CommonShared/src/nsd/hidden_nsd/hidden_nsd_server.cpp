@@ -286,7 +286,7 @@ namespace HiddenNsdServer
 		std::span<const std::byte> extraData
 	) noexcept
 	{
-		if (auto error = NsdInternalUtils::bindNsdSocket(socket, interfaceAddressStr, addressType, port); error.has_value())
+		if (auto error = NsdInternalUtils::bindNsdServerSocket(socket, interfaceAddressStr, addressType, port); error.has_value())
 		{
 			return SetupError{ *error };
 		}

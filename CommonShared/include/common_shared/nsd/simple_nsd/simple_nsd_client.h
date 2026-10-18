@@ -4,11 +4,11 @@
 #pragma once
 
 #include <atomic>
-#include <functional>
 #include <optional>
 #include <string>
 
 #include "common_shared/network/utils.h"
+#include "common_shared/nsd/nsd_utils.h"
 
 namespace SimpleNsdClient
 {
@@ -32,7 +32,7 @@ namespace SimpleNsdClient
 		uint16_t broadcastPort,
 		Network::AddressType addressType,
 		float broadcastPeriodSec,
-		const std::function<void(DiscoveryResult&&)>& resultFunction,
+		const NsdUtils::DiscoveryResultFunction& resultFunction,
 		const std::atomic_bool& stopSignalReceiver
 	);
 } // namespace SimpleNsdClient

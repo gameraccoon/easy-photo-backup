@@ -29,7 +29,7 @@ namespace SimpleNsdServer
 			return SetupError{ "service identifier can't be nullptr" };
 		}
 
-		if (auto error = NsdInternalUtils::bindNsdSocket(socket, interfaceAddressStr, addressType, port); error.has_value())
+		if (auto error = NsdInternalUtils::bindNsdServerSocket(socket, interfaceAddressStr, addressType, port); error.has_value())
 		{
 			return SetupError{ *error };
 		}
