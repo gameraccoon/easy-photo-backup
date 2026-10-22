@@ -83,7 +83,7 @@ namespace SimpleNsdClient
 		const char* serviceIdentifier,
 		const uint16_t broadcastPort,
 		const Network::AddressType addressType,
-		const float broadcastPeriodSec,
+		const float timeBetweenBroadcastsSec,
 		const NsdUtils::DiscoveryResultFunction& resultFunction,
 		const std::atomic_bool& stopSignalReceiver
 	)
@@ -111,8 +111,8 @@ namespace SimpleNsdClient
 		std::vector<std::byte> extraData;
 
 		// set the time in the past, enough to trigger the broadcast immediately
-		const std::chrono::duration broadcastPeriod = std::chrono::round<std::chrono::nanoseconds>(std::chrono::duration<float>(broadcastPeriodSec));
-		std::chrono::time_point lastBroadcastTime = std::chrono::steady_clock::now() - (broadcastPeriod * 2);
+		const std::chrono::duration timeBetweenBroadcasts = std::chrono::round<std::chrono::nanoseconds>(std::chrono::duration<float>(timeBetweenBroadcastsSec));
+		std::chrono::time_point lastBroadcastTime = std::chrono::steady_clock::now() - (timeBetweenBroadcasts * 2);
 
 		while (true)
 		{
@@ -121,7 +121,7 @@ namespace SimpleNsdClient
 				return std::nullopt;
 			}
 
-			if (std::chrono::steady_clock::now() > lastBroadcastTime + broadcastPeriod)
+			if (std::chrono::steady_clock::now() > lastBroadcastTime + timeBetweenBroadcasts)
 			{
 				if (const auto result = NsdInternalUtils::broadcastNdsUdpRequest(socket, addressType, query, broadcastPort); result.has_value()) [[unlikely]]
 				{

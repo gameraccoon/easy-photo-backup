@@ -5,7 +5,7 @@
 
 #include <array>
 #include <cstddef>
-#include <memory>
+#include <memory> // for std::hash
 #include <span>
 
 #include "common_shared/cryptography/utils/crypto_wipe.h"

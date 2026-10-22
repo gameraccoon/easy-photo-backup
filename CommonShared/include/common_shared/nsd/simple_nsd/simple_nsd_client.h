@@ -31,7 +31,7 @@ namespace SimpleNsdClient
 		const char* serviceIdentifier,
 		uint16_t broadcastPort,
 		Network::AddressType addressType,
-		float broadcastPeriodSec,
+		float timeBetweenBroadcastsSec,
 		const NsdUtils::DiscoveryResultFunction& resultFunction,
 		const std::atomic_bool& stopSignalReceiver
 	);
