@@ -9,7 +9,7 @@
 #include <unordered_map>
 
 #include "common_shared/cryptography/primitives/cipher_functions.h"
-#include "common_shared/cryptography/primitives/hash_functions.h"
+#include "common_shared/cryptography/utils/identification_tags.h"
 #include "common_shared/debug/assert.h"
 #include "common_shared/network/raw_sockets.h"
 #include "common_shared/network/utils.h"
@@ -19,7 +19,7 @@
 namespace HiddenNsdServer
 {
 	// we store the amount of tags that is enough to cover all possible requets during one time period
-	constexpr const size_t TagsPerPeriod = 256;
+	constexpr size_t TagsPerPeriod = 256;
 
 	struct TagPayload
 	{
@@ -31,85 +31,23 @@ namespace HiddenNsdServer
 		uint16_t clientIndex;
 	};
 
+	static auto createTagPayload = [](uint16_t clientIndex, uint32_t periodIndex, uint32_t keyIndexInPeriod) -> TagPayload {
+		return TagPayload{
+			.periodIndex = periodIndex,
+			.keyIndexInPeriod = keyIndexInPeriod,
+			.clientIndex = clientIndex,
+		};
+	};
+
+	using TagMap = Cryptography::IdentificationTagMap<TagPayload, TagsPerPeriod, createTagPayload>;
+
 	struct ThrottledIp
 	{
 		std::array<std::byte, 17> binaryIp;
 		std::chrono::steady_clock::time_point throttleEnd;
 	};
 
-	static void removeTagsForPeriods(const uint32_t firstIndexToKeep, std::unordered_map<uint64_t, TagPayload>& inOutTagMap)
-	{
-		std::erase_if(inOutTagMap, [firstIndexToKeep](const std::pair<uint64_t, TagPayload>& pair) {
-			return pair.second.periodIndex < firstIndexToKeep;
-		});
-	}
-
-	static void appendOneClientTagsForPeriods(const Cryptography::HashResult& clientHash, uint16_t clientIdx, const int32_t firstPeriod, const int32_t lastPeriod, std::unordered_map<uint64_t, TagPayload>& inOutTagMap) noexcept
-	{
-		constexpr size_t TAG_LEN_BYTES = 8;
-		constexpr size_t TAGS_PER_HASH = Cryptography::HASHLEN / TAG_LEN_BYTES;
-
-		std::array<std::byte, 12> mixedInData;
-		Cryptography::HashResult tempResult;
-		for (int32_t periodIndexSigned = firstPeriod; periodIndexSigned <= lastPeriod; ++periodIndexSigned)
-		{
-			const uint32_t periodIndex = static_cast<uint32_t>(periodIndexSigned);
-			Serialization::writeUint64(std::span(mixedInData).subspan(0, 8), periodIndex);
-
-			const Cryptography::HashResult& hash = clientHash;
-			for (size_t i = 0; i < TagsPerPeriod; i += TAGS_PER_HASH)
-			{
-				Serialization::writeUint32(std::span(mixedInData).subspan(8, 4), static_cast<uint32_t>(i));
-				HMAC_blake2b(hash, mixedInData, tempResult);
-				for (size_t j = 0; j < TAGS_PER_HASH; ++j)
-				{
-					const uint64_t tag = Serialization::readUint64(std::span<const std::byte>(tempResult).subspan(j * TAG_LEN_BYTES, TAG_LEN_BYTES));
-					inOutTagMap.emplace(
-						tag,
-						TagPayload{
-							.periodIndex = periodIndex,
-							.keyIndexInPeriod = static_cast<uint32_t>(i + j),
-							.clientIndex = clientIdx,
-						}
-					);
-				}
-			}
-		}
-	}
-
-	static void removeClientTags(uint16_t clientIdx, std::unordered_map<uint64_t, TagPayload>& inOutTagMap) noexcept
-	{
-		std::erase_if(inOutTagMap, [clientIdx](const std::pair<uint64_t, TagPayload>& pair) {
-			return pair.second.clientIndex == clientIdx;
-		});
-	}
-
-	static void updateTagMap(const std::vector<Cryptography::HashResult>& clientHashes, const int32_t lastPeriodIndex, const int32_t currentPeriodIndex, std::unordered_map<uint64_t, TagPayload>& inOutTagMap) noexcept
-	{
-		// we don't need to do anything if the period didn't move forward
-		if (currentPeriodIndex <= lastPeriodIndex)
-		{
-			return;
-		}
-
-		// if we skipped so many periods that we can just remove everything
-		if (currentPeriodIndex > lastPeriodIndex + 2)
-		{
-			inOutTagMap.clear();
-		}
-
-		const int32_t firstIndexToKeep = currentPeriodIndex - 1;
-		removeTagsForPeriods(static_cast<uint32_t>(firstIndexToKeep), inOutTagMap);
-
-		const int32_t firstIndexToPopulate = std::max(lastPeriodIndex + 2, currentPeriodIndex - 1);
-		const int32_t lastIndexToPopulate = currentPeriodIndex + 1;
-		for (uint16_t clientIdx = 0; clientIdx < clientHashes.size(); ++clientIdx)
-		{
-			appendOneClientTagsForPeriods(clientHashes[clientIdx], clientIdx, firstIndexToPopulate, lastIndexToPopulate, inOutTagMap);
-		}
-	}
-
-	static void processClientModificationRequests(MessagePipe& clientModificationRequests, std::vector<Cryptography::HashResult>& clientHashes, std::unordered_map<uint64_t, TagPayload>& tagMap, int32_t lastPeriodIndex, int32_t currentPeriodIndex, std::vector<size_t>& clientsToRemove) noexcept
+	static void processClientModificationRequests(MessagePipe& clientModificationRequests, std::vector<Cryptography::HashResult>& clientHashes, TagMap& tagMap, int32_t lastPeriodIndex, int32_t currentPeriodIndex, std::vector<size_t>& clientsToRemove) noexcept
 	{
 		auto requests = clientModificationRequests.recvAllCurrent();
 		if (!requests.has_value())
@@ -134,7 +72,7 @@ namespace HiddenNsdServer
 					// it can be that we don't need to add anything, if we are going to regenerate the whole map anyway
 					if (firstIndexToAdd <= lastIndexToAdd)
 					{
-						appendOneClientTagsForPeriods(clientHashes.back(), clientHashes.size() - 1, firstIndexToAdd, lastIndexToAdd, tagMap);
+						tagMap.appendOneClientTagsForPeriods(clientHashes.back(), clientHashes.size() - 1, firstIndexToAdd, lastIndexToAdd);
 					}
 				}
 				else
@@ -150,7 +88,7 @@ namespace HiddenNsdServer
 					if (std::find(clientsToRemove.begin(), clientsToRemove.end(), clientIndexToRemove) == clientsToRemove.end())
 					{
 						clientsToRemove.push_back(clientIndexToRemove);
-						removeClientTags(static_cast<uint16_t>(clientIndexToRemove), tagMap);
+						tagMap.removeClientTags(static_cast<uint16_t>(clientIndexToRemove));
 					}
 				}
 				else
@@ -161,7 +99,7 @@ namespace HiddenNsdServer
 		}
 	}
 
-	static void applyPendingRemovals(std::vector<Cryptography::HashResult>& clientHashes, std::unordered_map<uint64_t, TagPayload>& tagMap, std::vector<size_t>& clientsToRemove) noexcept
+	static void applyPendingRemovals(std::vector<Cryptography::HashResult>& clientHashes, TagMap& tagMap, std::vector<size_t>& clientsToRemove) noexcept
 	{
 		if (clientsToRemove.empty())
 		{
@@ -194,10 +132,9 @@ namespace HiddenNsdServer
 		clientHashes.resize(writeIdx);
 
 		// shift the client indexes in the map
-		for (auto& pair : tagMap)
-		{
-			pair.second.clientIndex = indexRedirectors[pair.second.clientIndex];
-		}
+		tagMap.forEachPayload([&indexRedirectors](auto& payload) {
+			payload.clientIndex = indexRedirectors[payload.clientIndex];
+		});
 
 		clientsToRemove.clear();
 	}
@@ -258,7 +195,7 @@ namespace HiddenNsdServer
 		return isThrottled;
 	}
 
-	static void updateClientAndPeriodData(int32_t& lastPeriodIndex, MessagePipe& clientModificationRequests, std::vector<Cryptography::HashResult>& clientHashes, std::unordered_map<uint64_t, TagPayload>& tagMap, std::vector<size_t>& clientsToRemove) noexcept
+	static void updateClientAndPeriodData(int32_t& lastPeriodIndex, MessagePipe& clientModificationRequests, std::vector<Cryptography::HashResult>& clientHashes, TagMap& tagMap, std::vector<size_t>& clientsToRemove) noexcept
 	{
 		// we never move back in time, if the clocks drift back we keep the last used period
 		// periods are also measured in days or at least hours, so 32bit overflow is not
@@ -270,7 +207,7 @@ namespace HiddenNsdServer
 		if (currentPeriodIndex > lastPeriodIndex)
 		{
 			applyPendingRemovals(clientHashes, tagMap, clientsToRemove);
-			updateTagMap(clientHashes, lastPeriodIndex, currentPeriodIndex, tagMap);
+			tagMap.updateTagMap(clientHashes, lastPeriodIndex, currentPeriodIndex);
 			lastPeriodIndex = currentPeriodIndex;
 		}
 	}
@@ -311,9 +248,9 @@ namespace HiddenNsdServer
 			return SetupError{ std::format("The actual size of responsePlaintext is {} bytes, expected {} bytes.", responsePlaintext.size(), responsePlaintextSize) };
 		}
 
-		std::unordered_map<uint64_t, TagPayload> tagMap;
+		TagMap tagMap;
 		int32_t lastPeriodIndex = NsdInternalUtils::getCurrentPeriodIndex();
-		updateTagMap(clientHashes, 0, lastPeriodIndex, tagMap);
+		tagMap.updateTagMap(clientHashes, 0, lastPeriodIndex);
 
 		std::vector<size_t> clientsToRemove;
 
@@ -356,19 +293,18 @@ namespace HiddenNsdServer
 
 			const uint64_t tag = Serialization::readUint64(std::as_bytes(std::span(buf)).subspan(0, expectedPacketSize));
 
-			auto it = tagMap.find(tag);
-			if (it == tagMap.end())
+			std::optional<TagPayload> tagPayload = tagMap.consumeTag(tag);
+
+			if (!tagPayload.has_value())
 			{
 				throttledIps.emplace_back(binaryIp, timeNow + std::chrono::seconds(3));
 				continue;
 			}
 
-			if (Cryptography::EncryptResult result = composeAnswer(it->second, clientHashes, responsePlaintext, buf); result != Cryptography::EncryptResult::Success)
+			if (Cryptography::EncryptResult result = composeAnswer(*tagPayload, clientHashes, responsePlaintext, buf); result != Cryptography::EncryptResult::Success)
 			{
 				continue;
 			}
-
-			tagMap.erase(it);
 
 			if (const auto sentSize = sendto(socket, buf, static_cast<int>(responsePlaintextSize + Cryptography::CipherAuthDataSize), 0, &clientAddr, clientAddrLen); sentSize == -1)
 			{

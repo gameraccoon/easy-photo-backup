@@ -53,6 +53,7 @@ target_sources(CommonShared
 		${COMMON_SHARED_SRC_DIR}/cryptography/utils/connection_id_utils.cpp
 		${COMMON_SHARED_SRC_DIR}/cryptography/utils/crypto_wipe.cpp
 		${COMMON_SHARED_SRC_DIR}/cryptography/utils/erasable_data.cpp
+		${COMMON_SHARED_SRC_DIR}/cryptography/utils/identification_tags.cpp
 		${COMMON_SHARED_SRC_DIR}/cryptography/utils/random.cpp
 		${COMMON_SHARED_SRC_DIR}/cryptography/utils/short_authentification_string_utils.cpp
 		${COMMON_SHARED_SRC_DIR}/debug/assert.cpp
@@ -60,6 +61,7 @@ target_sources(CommonShared
 		${COMMON_SHARED_SRC_DIR}/debug/debug_print_helpers.cpp
 		${COMMON_SHARED_SRC_DIR}/files/file_utils.cpp
 		${COMMON_SHARED_SRC_DIR}/network/utils.cpp
+		${COMMON_SHARED_SRC_DIR}/nsd/hidden_nsd/hidden_nsd_client.cpp
 		${COMMON_SHARED_SRC_DIR}/nsd/hidden_nsd/hidden_nsd_server.cpp
 		${COMMON_SHARED_SRC_DIR}/nsd/simple_nsd/simple_nsd_client.cpp
 		${COMMON_SHARED_SRC_DIR}/nsd/simple_nsd/simple_nsd_server.cpp
