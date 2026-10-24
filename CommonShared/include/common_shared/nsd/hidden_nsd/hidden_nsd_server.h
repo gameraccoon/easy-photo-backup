@@ -46,12 +46,12 @@ namespace HiddenNsdServer
 
 	ListenResult listen(
 		Network::RawSocket socket,
-		const char* interfaceAddressStr,
 		Network::AddressType addressType,
+		const char* interfaceAddressStr,
 		uint16_t port,
-		std::vector<Cryptography::HashResult>&& clientHashes,
-		MessagePipe& clientModificationRequests,
 		uint16_t advertizedPort,
-		std::span<const std::byte> extraData
+		std::span<const std::byte> extraData,
+		std::vector<Cryptography::HashResult>&& inClientHashes,
+		MessagePipe& clientModificationRequests
 	) noexcept;
 } // namespace HiddenNsdServer

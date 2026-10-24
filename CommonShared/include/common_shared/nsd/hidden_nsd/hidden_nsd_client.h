@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include <atomic>
 #include <optional>
 #include <string>
 
@@ -22,12 +21,12 @@ namespace HiddenNsdClient
 	};
 
 	ListenResult processServiceDiscoveryThread(
-		uint16_t broadcastPort,
 		Network::AddressType addressType,
-		const std::vector<NsdServerData>& serverData,
+		uint16_t broadcastPort,
 		float timeBetweenBroadcastsSec,
 		int numberOfBroadcasts,
 		float extraWaitTimeAfterLastRequest,
+		const std::vector<NsdServerData>& serverData,
 		const NsdUtils::DiscoveryResultFunction& resultFunction
 	);
 } // namespace HiddenNsdClient

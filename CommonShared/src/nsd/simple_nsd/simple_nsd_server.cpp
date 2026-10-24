@@ -15,12 +15,12 @@ namespace SimpleNsdServer
 {
 	ListenResult listen(
 		const Network::RawSocket socket,
-		const char* interfaceAddressStr,
 		const Network::AddressType addressType,
+		const char* interfaceAddressStr,
 		const uint16_t port,
-		const char* serviceIdentifier,
 		const uint16_t advertizedPort,
-		std::span<const std::byte> extraData
+		std::span<const std::byte> extraData,
+		const char* serviceIdentifier
 	)
 	{
 		if (serviceIdentifier == nullptr)

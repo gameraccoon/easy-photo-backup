@@ -73,12 +73,12 @@ namespace SimpleNsdClient
 	}
 
 	ListenResult processServiceDiscoveryThread(
-		const char* serviceIdentifier,
-		const uint16_t broadcastPort,
 		const Network::AddressType addressType,
+		const uint16_t broadcastPort,
 		const float timeBetweenBroadcastsSec,
-		const NsdUtils::DiscoveryResultFunction& resultFunction,
-		const std::atomic_bool& stopSignalReceiver
+		const char* serviceIdentifier,
+		const std::atomic_bool& stopSignalReceiver,
+		const NsdUtils::DiscoveryResultFunction& resultFunction
 	)
 	{
 		if (serviceIdentifier == nullptr)

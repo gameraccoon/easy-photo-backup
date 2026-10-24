@@ -14,10 +14,11 @@ void ServerDiscoveryClient::startDiscovery() noexcept
 {
 	mDiscoveryThread = std::thread([&servers = mDiscoveredServers, &mutex = mDataMutex, &nsdStopFlag = mNsdStopFlag] {
 		std::optional<std::string> result = SimpleNsdClient::processServiceDiscoveryThread(
-			"_easy-photo-backup._tcp",
-			5354,
 			Network::AddressType::IpV4,
-			1,
+			5354,
+			1.0f,
+			"_easy-photo-backup._tcp",
+			nsdStopFlag,
 			[&servers, &mutex](auto&& event) {
 				if (event.state == NsdUtils::DiscoveryState::Added)
 				{
@@ -77,8 +78,7 @@ void ServerDiscoveryClient::startDiscovery() noexcept
 						}
 					}
 				}
-			},
-			nsdStopFlag
+			}
 		);
 
 		if (result.has_value())

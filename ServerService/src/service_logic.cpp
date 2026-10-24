@@ -186,7 +186,15 @@ namespace ServiceLogic
 			static_assert(extraData.size() >= 2 + serverId.size());
 			std::copy(serverId.begin(), serverId.end(), extraData.begin() + 2);
 
-			SimpleNsdServer::ListenResult result = SimpleNsdServer::listen(socket, "0.0.0.0", Network::AddressType::IpV4, 5354, "_easy-photo-backup._tcp", serverPort, extraData);
+			SimpleNsdServer::ListenResult result = SimpleNsdServer::listen(
+				socket,
+				Network::AddressType::IpV4,
+				"0.0.0.0",
+				5354,
+				serverPort,
+				extraData,
+				"_easy-photo-backup._tcp"
+			);
 
 			if (std::holds_alternative<SimpleNsdServer::SetupError>(result))
 			{

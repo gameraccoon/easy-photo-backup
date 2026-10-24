@@ -289,12 +289,12 @@ TEST_F(SimpleNsdTest, NsdServer_StartClient_FindTheServer)
 
 	auto clientThread = std::thread([&clientStopSignal = clientStopSignal, &answerFn] {
 		SimpleNsdClient::processServiceDiscoveryThread(
-			"server_id",
-			1234,
 			Network::AddressType::IpV4,
+			1234,
 			0.01,
-			answerFn,
-			clientStopSignal
+			"server_id",
+			clientStopSignal,
+			answerFn
 		);
 	});
 

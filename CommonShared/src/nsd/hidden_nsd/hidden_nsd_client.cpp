@@ -66,12 +66,12 @@ namespace HiddenNsdClient
 	}
 
 	ListenResult processServiceDiscoveryThread(
-		const uint16_t broadcastPort,
 		const Network::AddressType addressType,
-		const std::vector<NsdServerData>& serverData,
+		const uint16_t broadcastPort,
 		const float timeBetweenBroadcastsSec,
 		const int numberOfBroadcasts,
 		const float extraWaitTimeAfterLastRequest,
+		const std::vector<NsdServerData>& serverData,
 		const NsdUtils::DiscoveryResultFunction& resultFunction
 	)
 	{

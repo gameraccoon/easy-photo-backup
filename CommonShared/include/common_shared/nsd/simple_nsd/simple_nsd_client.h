@@ -28,11 +28,11 @@ namespace SimpleNsdClient
 	};
 
 	ListenResult processServiceDiscoveryThread(
-		const char* serviceIdentifier,
-		uint16_t broadcastPort,
 		Network::AddressType addressType,
+		uint16_t broadcastPort,
 		float timeBetweenBroadcastsSec,
-		const NsdUtils::DiscoveryResultFunction& resultFunction,
-		const std::atomic_bool& stopSignalReceiver
+		const char* serviceIdentifier,
+		const std::atomic_bool& stopSignalReceiver,
+		const NsdUtils::DiscoveryResultFunction& resultFunction
 	);
 } // namespace SimpleNsdClient

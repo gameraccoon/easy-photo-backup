@@ -194,13 +194,13 @@ namespace HiddenNsdServer
 
 	ListenResult listen(
 		const Network::RawSocket socket,
-		const char* interfaceAddressStr,
 		const Network::AddressType addressType,
+		const char* interfaceAddressStr,
 		const uint16_t port,
-		std::vector<Cryptography::HashResult> clientHashes,
-		MessagePipe& clientModificationRequests,
 		const uint16_t advertizedPort,
-		std::span<const std::byte> extraData
+		std::span<const std::byte> extraData,
+		std::vector<Cryptography::HashResult>&& inClientHashes,
+		MessagePipe& clientModificationRequests
 	) noexcept
 	{
 		if (auto error = NsdInternalUtils::bindNsdServerSocket(socket, interfaceAddressStr, addressType, port); error.has_value())
@@ -227,6 +227,8 @@ namespace HiddenNsdServer
 		{
 			return SetupError{ std::format("The actual size of responsePlaintext is {} bytes, expected {} bytes.", responsePlaintext.size(), responsePlaintextSize) };
 		}
+
+		std::vector<Cryptography::HashResult> clientHashes = std::move(inClientHashes);
 
 		TagMap tagMap;
 		int32_t lastPeriodIndex = NsdInternalUtils::getCurrentPeriodIndex();
