@@ -15,16 +15,9 @@
 
 namespace HiddenNsdClient
 {
-	static bool processUdpRequestAnswer(const Network::RawSocket socket, std::byte* const inOutBuffer, const size_t bufferSize, NsdInternalUtils::NetworkAddressKey& outNetAddress, uint16_t& outPort, std::vector<std::byte>& outExtraData)
+	static bool processUdpRequestAnswer(const Network::RawSocket socket, std::span<std::byte> inOutBuffer, NsdInternalUtils::NetworkAddressKey& outNetAddress, uint16_t& outPort, std::vector<std::byte>& outExtraData)
 	{
-		// for the simplicity sake, we use UDP to communicate back as well
-		// this can miss packets sometimes, but it's fine for our use case
-#if _WIN32
-		using RecvFromResult = int;
-#else
-		using RecvFromResult = ssize_t;
-#endif
-		const RecvFromResult messageLength = recvfrom(socket, reinterpret_cast<char*>(inOutBuffer), static_cast<int>(bufferSize), 0, &outNetAddress.addr, &outNetAddress.addrLen);
+		const int messageLength = NsdInternalUtils::reveiveNsdAnswer(socket, inOutBuffer, outNetAddress);
 		if (messageLength == -1) [[unlikely]]
 		{
 			// either failure or timeout, we don't destinguish them right now
@@ -44,7 +37,7 @@ namespace HiddenNsdClient
 
 		const uint16_t extraDataLen = Serialization::readUint16(inOutBuffer[1], inOutBuffer[2]);
 
-		if (messageLength != 1 + 2 + 2 + static_cast<RecvFromResult>(extraDataLen) + 2) [[unlikely]]
+		if (messageLength != 1 + 2 + 2 + extraDataLen + 2) [[unlikely]]
 		{
 			return false;
 		}
@@ -53,8 +46,8 @@ namespace HiddenNsdClient
 		const uint16_t receivedChecksum = Serialization::readUint16(inOutBuffer[5 + extraDataLen], inOutBuffer[6 + extraDataLen]);
 
 		const uint16_t actualChecksum = NsdInternalUtils::checksum16v1(std::span(
-			inOutBuffer + 3,
-			inOutBuffer + (3 + 2 + extraDataLen)
+			inOutBuffer.data() + 3,
+			inOutBuffer.data() + (3 + 2 + extraDataLen)
 		));
 
 		if (receivedChecksum != actualChecksum) [[unlikely]]
@@ -64,8 +57,8 @@ namespace HiddenNsdClient
 
 		outExtraData.clear();
 		std::copy(
-			inOutBuffer + 5,
-			inOutBuffer + 5 + extraDataLen,
+			inOutBuffer.data() + 5,
+			inOutBuffer.data() + 5 + extraDataLen,
 			std::back_inserter(outExtraData)
 		);
 
@@ -94,7 +87,7 @@ namespace HiddenNsdClient
 		const int32_t currentPeriodIndex = NsdInternalUtils::getCurrentPeriodIndex();
 
 		constexpr size_t BUFFER_SIZE = 1024;
-		std::byte buffer[BUFFER_SIZE];
+		std::array<std::byte, BUFFER_SIZE> buffer;
 		NsdInternalUtils::NetworkAddressKey netAddress{};
 		std::vector<std::byte> extraData;
 
@@ -133,7 +126,7 @@ namespace HiddenNsdClient
 			}
 
 			uint16_t port;
-			if (processUdpRequestAnswer(socket, buffer, BUFFER_SIZE, netAddress, port, extraData))
+			if (processUdpRequestAnswer(socket, buffer, netAddress, port, extraData))
 			{
 				NsdInternalUtils::registerDiscoveredServer(discoveredServersData, netAddress, extraData, port, resultFunction);
 			}

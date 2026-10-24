@@ -122,6 +122,21 @@ namespace NsdInternalUtils
 		return std::nullopt;
 	}
 
+	int reveiveNsdRequest(const Network::RawSocket socket, std::span<std::byte> inOutBuffer, NetworkAddressKey& outNetAddress)
+	{
+		return static_cast<int>(recvfrom(socket, reinterpret_cast<char*>(inOutBuffer.data()), static_cast<int>(inOutBuffer.size()), 0, &outNetAddress.addr, &outNetAddress.addrLen));
+	}
+
+	int sendNsdAnswer(const Network::RawSocket socket, std::span<const std::byte> inOutBuffer, const NetworkAddressKey& netAddress)
+	{
+		return static_cast<int>(sendto(socket, reinterpret_cast<const char*>(inOutBuffer.data()), static_cast<int>(inOutBuffer.size()), 0, &netAddress.addr, netAddress.addrLen));
+	}
+
+	int reveiveNsdAnswer(const Network::RawSocket socket, std::span<std::byte> inOutBuffer, NetworkAddressKey& outNetAddress)
+	{
+		return static_cast<int>(recvfrom(socket, reinterpret_cast<char*>(inOutBuffer.data()), static_cast<int>(inOutBuffer.size()), 0, &outNetAddress.addr, &outNetAddress.addrLen));
+	}
+
 	void registerDiscoveredServer(ClientDiscoveredServersData& discoveredServersData, const NsdInternalUtils::NetworkAddressKey& netAddress, const std::vector<std::byte>& extraData, uint16_t port, const NsdUtils::DiscoveryResultFunction& resultFunction)
 	{
 		if (std::ranges::find(discoveredServersData.discoveryGenerations[0], netAddress) == discoveredServersData.discoveryGenerations[0].end())

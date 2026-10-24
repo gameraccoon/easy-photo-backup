@@ -10,7 +10,6 @@
 #include "common_shared/cryptography/primitives/cipher_functions.h"
 #include "common_shared/cryptography/utils/identification_tags.h"
 #include "common_shared/debug/assert.h"
-#include "common_shared/network/raw_sockets.h"
 #include "common_shared/network/utils.h"
 #include "common_shared/nsd/nsd_utils_internal.h"
 #include "common_shared/serialization/number_serialization.h"
@@ -120,14 +119,14 @@ namespace HiddenNsdServer
 		clientsToRemove.clear();
 	}
 
-	[[nodiscard]] static Cryptography::EncryptResult composeAnswer(const TagMap::TagPayload& tagPayload, const std::vector<Cryptography::HashResult>& clientHashes, std::span<const std::byte> plaintext, std::span<char> outCiphertext) noexcept
+	[[nodiscard]] static Cryptography::EncryptResult composeAnswer(const TagMap::TagPayload& tagPayload, const std::vector<Cryptography::HashResult>& clientHashes, std::span<const std::byte> plaintext, std::span<std::byte> outCiphertext) noexcept
 	{
 		// use the hash as the encryption key
 		Cryptography::CipherKey cipherKey;
 		std::copy(clientHashes[tagPayload.clientIndex].raw.begin(), clientHashes[tagPayload.clientIndex].raw.begin() + 32, cipherKey.raw.begin());
 		// date and tag index make an unique nonce, since we use them only once
 		Cryptography::Nonce nonce = (static_cast<uint64_t>(tagPayload.periodIndex) << (8 * 4)) + tagPayload.keyIndexInPeriod;
-		return Cryptography::encrypt_chacha20poly1305(cipherKey, nonce, {}, plaintext, std::as_writable_bytes(outCiphertext));
+		return Cryptography::encrypt_chacha20poly1305(cipherKey, nonce, {}, plaintext, outCiphertext);
 	}
 
 	[[nodiscard]] static std::array<std::byte, 17> readBinaryIp(const sockaddr& clientAddr) noexcept
@@ -235,24 +234,18 @@ namespace HiddenNsdServer
 
 		std::vector<size_t> clientsToRemove;
 
-		const size_t expectedPacketSize = 8;
+		const int expectedPacketSize = 8;
 
 		std::vector<ThrottledIp> throttledIps;
 
 		constexpr size_t BUFFER_SIZE = 1024;
 		assertFatalRelease(BUFFER_SIZE < responsePlaintextSize + Cryptography::CipherAuthDataSize, "NSD buffer is too small to fit the answer");
-		char buf[BUFFER_SIZE];
-#if _WIN32
-		using RecvFromResult = int;
-#else
-		using RecvFromResult = ssize_t;
-#endif
-		RecvFromResult messageLength = 0;
-		sockaddr clientAddr;
+		std::array<std::byte, BUFFER_SIZE> buf;
+		NsdInternalUtils::NetworkAddressKey clientAddr;
 		while (true)
 		{
-			socklen_t clientAddrLen = sizeof(clientAddr);
-			messageLength = recvfrom(socket, buf, BUFFER_SIZE, 0, &clientAddr, &clientAddrLen);
+			clientAddr.addrLen = sizeof(NsdInternalUtils::NetworkAddressKey::addr);
+			const int messageLength = NsdInternalUtils::reveiveNsdRequest(socket, buf, clientAddr);
 			if (messageLength == -1)
 			{
 				break;
@@ -260,13 +253,13 @@ namespace HiddenNsdServer
 
 			updateClientAndPeriodData(lastPeriodIndex, clientModificationRequests, clientHashes, tagMap, clientsToRemove);
 
-			if (messageLength != static_cast<RecvFromResult>(expectedPacketSize))
+			if (messageLength != expectedPacketSize)
 			{
 				continue;
 			}
 
 			const std::chrono::steady_clock::time_point timeNow = std::chrono::steady_clock::now();
-			const std::array<std::byte, 17> binaryIp = readBinaryIp(clientAddr);
+			const std::array<std::byte, 17> binaryIp = readBinaryIp(clientAddr.addr);
 			if (isIpThrottledCheckAndUpdate(binaryIp, throttledIps, timeNow))
 			{
 				continue;
@@ -287,7 +280,7 @@ namespace HiddenNsdServer
 				continue;
 			}
 
-			if (const auto sentSize = sendto(socket, buf, static_cast<int>(responsePlaintextSize + Cryptography::CipherAuthDataSize), 0, &clientAddr, clientAddrLen); sentSize == -1)
+			if (const int sentSize = NsdInternalUtils::sendNsdAnswer(socket, std::span(buf).subspan(responsePlaintextSize + Cryptography::CipherAuthDataSize), clientAddr); sentSize == -1)
 			{
 				return SocketError{ std::format("Failed to send response to UDP socket, error code {}.", errno) };
 			}

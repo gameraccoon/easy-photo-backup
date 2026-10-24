@@ -52,6 +52,10 @@ namespace NsdInternalUtils
 	[[nodiscard]] std::variant<std::string, Network::RawSocket> openClientNsdSocket(const Network::AddressType addressType) noexcept;
 	[[nodiscard]] std::optional<std::string> broadcastNdsUdpRequest(Network::RawSocket socket, Network::AddressType addressType, std::span<const std::byte> query, uint16_t port) noexcept;
 
+	[[nodiscard]] int reveiveNsdRequest(const Network::RawSocket socket, std::span<std::byte> inOutBuffer, NsdInternalUtils::NetworkAddressKey& outNetAddress);
+	[[nodiscard]] int sendNsdAnswer(const Network::RawSocket socket, std::span<const std::byte> inOutBuffer, const NetworkAddressKey& netAddress);
+	[[nodiscard]] int reveiveNsdAnswer(const Network::RawSocket socket, std::span<std::byte> inOutBuffer, NsdInternalUtils::NetworkAddressKey& outNetAddress);
+
 	void registerDiscoveredServer(ClientDiscoveredServersData& discoveredServersData, const NsdInternalUtils::NetworkAddressKey& netAddress, const std::vector<std::byte>& extraData, uint16_t port, const NsdUtils::DiscoveryResultFunction& resultFunction);
 	void removeOldDiscoveredServers(ClientDiscoveredServersData& discoveredServersData, const NsdUtils::DiscoveryResultFunction& resultFunction) noexcept;
 

@@ -7,7 +7,6 @@
 #include <format>
 
 #include "common_shared/debug/assert.h"
-#include "common_shared/network/raw_sockets.h"
 #include "common_shared/network/utils.h"
 #include "common_shared/nsd/nsd_utils_internal.h"
 #include "common_shared/serialization/number_serialization.h"
@@ -62,28 +61,23 @@ namespace SimpleNsdServer
 		}
 
 		constexpr size_t BUFFER_SIZE = 1024;
-		char buf[BUFFER_SIZE];
-#if _WIN32
-		using RecvFromResult = int;
-#else
-		using RecvFromResult = ssize_t;
-#endif
-		RecvFromResult messageLength = 0;
-		sockaddr clientAddr;
-		socklen_t clientAddrLen = sizeof(clientAddr);
-		while ((messageLength = recvfrom(socket, buf, BUFFER_SIZE, 0, &clientAddr, &clientAddrLen)) != -1)
+		std::array<std::byte, BUFFER_SIZE> buf;
+		NsdInternalUtils::NetworkAddressKey clientAddr;
+		while (true)
 		{
-			if (messageLength != static_cast<RecvFromResult>(expectedPacket.size()))
+			clientAddr.addrLen = sizeof(NsdInternalUtils::NetworkAddressKey::addr);
+			const int messageLength = NsdInternalUtils::reveiveNsdRequest(socket, buf, clientAddr);
+			if (messageLength != static_cast<int>(expectedPacket.size()))
 			{
 				continue;
 			}
 
-			if (std::memcmp(buf, expectedPacket.data(), expectedPacket.size()) != 0)
+			if (std::memcmp(buf.data(), expectedPacket.data(), expectedPacket.size()) != 0)
 			{
 				continue;
 			}
 
-			if (const auto sentSize = sendto(socket, reinterpret_cast<const char*>(response.data()), static_cast<int>(responseSize), 0, &clientAddr, clientAddrLen); sentSize == -1)
+			if (const int sentSize = NsdInternalUtils::sendNsdAnswer(socket, response, clientAddr); sentSize == -1)
 			{
 				return SocketError{ std::format("Failed to send response to UDP socket, error code {}.", errno) };
 			}
