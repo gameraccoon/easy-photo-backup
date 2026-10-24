@@ -6,8 +6,6 @@
 #ifdef DEBUG_CHECKS
 
 #include <format>
-#include <iostream>
-#include <mutex>
 
 #include "common_shared/debug/log.h"
 

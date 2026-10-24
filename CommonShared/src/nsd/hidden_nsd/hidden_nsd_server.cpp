@@ -241,7 +241,7 @@ namespace HiddenNsdServer
 		std::vector<ThrottledIp> throttledIps;
 
 		constexpr size_t BUFFER_SIZE = 1024;
-		assertFatalRelease(BUFFER_SIZE < responsePlaintextSize + Cryptography::CipherAuthDataSize, "NSD buffer is too small to fit the answer");
+		assertFatalRelease(BUFFER_SIZE >= responsePlaintextSize + Cryptography::CipherAuthDataSize, "NSD buffer is too small to fit the answer");
 		std::array<std::byte, BUFFER_SIZE> buf;
 		NsdInternalUtils::NetworkAddressKey clientAddr;
 		while (true)
@@ -283,12 +283,12 @@ namespace HiddenNsdServer
 				continue;
 			}
 
-			if (Cryptography::EncryptResult result = composeAnswer(*tagPayload, clientHashes, responsePlaintext, buf); result != Cryptography::EncryptResult::Success)
+			if (Cryptography::EncryptResult result = composeAnswer(*tagPayload, clientHashes, responsePlaintext, std::span(buf).subspan(0, responsePlaintextSize + Cryptography::CipherAuthDataSize)); result != Cryptography::EncryptResult::Success)
 			{
 				continue;
 			}
 
-			if (const int sentSize = NsdInternalUtils::sendNsdAnswer(socket, std::span(buf).subspan(responsePlaintextSize + Cryptography::CipherAuthDataSize), clientAddr); sentSize == -1)
+			if (const int sentSize = NsdInternalUtils::sendNsdAnswer(socket, std::span(buf).subspan(0, responsePlaintextSize + Cryptography::CipherAuthDataSize), clientAddr); sentSize == -1)
 			{
 				return SocketError{ std::format("Failed to send response to UDP socket, error code {}.", Network::getLastSocketError()) };
 			}

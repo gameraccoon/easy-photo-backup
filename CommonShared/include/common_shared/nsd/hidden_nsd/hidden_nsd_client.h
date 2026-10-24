@@ -25,7 +25,7 @@ namespace HiddenNsdClient
 		uint16_t broadcastPort,
 		float timeBetweenBroadcastsSec,
 		int numberOfBroadcasts,
-		float extraWaitTimeAfterLastRequest,
+		float extraWaitTimeAfterLastBroadcastSec,
 		const std::vector<NsdServerData>& serverData,
 		const NsdUtils::DiscoveryResultFunction& resultFunction
 	);

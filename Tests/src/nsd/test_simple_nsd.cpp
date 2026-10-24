@@ -26,24 +26,31 @@ protected:
 	}
 };
 
+// baseline test that confirms the "golden path" of the functionality works
 TEST_F(SimpleNsdTest, NsdServer_StartClient_FindTheServer)
 {
 	Network::RawSocket serverSocket = mocks.openListenServerSocket("10.101.1.2");
+	constexpr uint16_t nsdPort = 1234;
+	constexpr const char* serviceName = "server_id";
 	auto serverThread = std::thread([serverSocket] {
-		std::string payload = "test data";
+		constexpr std::string_view payload = "test data";
+		constexpr const char* networkInterface = "0.0.0.0";
+		constexpr uint16_t advertizedPort = 3456;
 		SimpleNsdServer::listen(
 			serverSocket,
 			Network::AddressType::IpV4,
-			"0.0.0.0",
-			1234,
-			3456,
+			networkInterface,
+			nsdPort,
+			advertizedPort,
 			std::as_bytes(std::span(payload)),
-			"server_id"
+			serviceName
 		);
 	});
 
-	auto answerFn = [&clientStopSignal = mocks.clientStopSignal](NsdUtils::DiscoveryResult&& result) {
+	std::atomic_bool gotAnswer{ false };
+	auto answerFn = [&clientStopSignal = mocks.clientStopSignal, &gotAnswer](NsdUtils::DiscoveryResult&& result) {
 		clientStopSignal.store(true, std::memory_order::relaxed);
+		gotAnswer.store(true, std::memory_order::relaxed);
 
 		const std::string expectedPayloadStr = "test data";
 		const std::span<const std::byte> expectedPayload = std::as_bytes(std::span(expectedPayloadStr));
@@ -54,14 +61,16 @@ TEST_F(SimpleNsdTest, NsdServer_StartClient_FindTheServer)
 		assertSpansEqual(std::vector<std::byte>(expectedPayload.begin(), expectedPayload.end()), result.extraData);
 	};
 
+	constexpr float timeBetweenBroadcastsSec = 0.01f;
 	SimpleNsdClient::processServiceDiscoveryThread(
 		Network::AddressType::IpV4,
-		1234,
-		0.01,
-		"server_id",
+		nsdPort,
+		timeBetweenBroadcastsSec,
+		serviceName,
 		mocks.clientStopSignal,
 		answerFn
 	);
+	EXPECT_TRUE(gotAnswer.load(std::memory_order::relaxed));
 
 	mocks.closeServerSocket(serverSocket);
 	serverThread.join();

@@ -11,8 +11,16 @@
 
 #include "common_shared/debug/assert.h"
 
+#ifdef DEBUG_CHECKS
+#include "common_shared/debug/debug_print_helpers.h"
+#endif // DEBUG_CHECKS
+
 namespace NsdInternalUtils
 {
+#ifdef DEBUG_CHECKS
+	constexpr bool debugPrintBuffers = false;
+#endif // DEBUG_CHECKS
+
 	bool NetworkAddressKey::operator==(const NetworkAddressKey& other) const noexcept
 	{
 		return addrLen == other.addrLen && std::memcmp(&addr, &other.addr, addrLen) == 0;
@@ -25,7 +33,7 @@ namespace NsdInternalUtils
 	std::function<int(Network::RawSocket, std::span<std::byte>, NetworkAddressKey&)> gRecvRequestMock;
 	std::function<int(Network::RawSocket, std::span<const std::byte>, NetworkAddressKey)> gSendAnswerMock;
 	std::function<int(Network::RawSocket, std::span<std::byte>, NetworkAddressKey&)> gRecvAnswerMock;
-#endif
+#endif // WITH_TESTS
 
 	uint16_t checksum16v1(const std::span<const std::byte> data) noexcept
 	{
@@ -51,7 +59,7 @@ namespace NsdInternalUtils
 			gBindServerSocketMock(socket, port);
 			return std::nullopt;
 		}
-#endif
+#endif // WITH_TESTS
 
 		if (auto result = Network::setSocketOption(socket, SO_REUSEADDR); result.has_value())
 		{
@@ -65,7 +73,7 @@ namespace NsdInternalUtils
 			reportDebugError("Could not set SO_REUSEPORT flag to NSD server socket");
 			return result;
 		}
-#endif
+#endif // !_WIN32
 
 		if (auto result = Network::bindSocket(socket, interfaceAddressStr, addressType, port); result.has_value())
 		{
@@ -83,7 +91,7 @@ namespace NsdInternalUtils
 		{
 			return gOpenClientSocketMock();
 		}
-#endif
+#endif // WITH_TESTS
 
 		std::variant<Network::RawSocket, std::string> createSocketResult = Network::createSocket(Network::SocketType::Udp, addressType);
 		if (std::holds_alternative<std::string>(createSocketResult))
@@ -121,13 +129,20 @@ namespace NsdInternalUtils
 
 	std::optional<std::string> broadcastNdsUdpRequest(const Network::RawSocket socket, const Network::AddressType addressType, std::span<const std::byte> query, const uint16_t port) noexcept
 	{
+#ifdef DEBUG_CHECKS
+		if constexpr (debugPrintBuffers)
+		{
+			Debug::Print::printSpan("send_broadcast", query);
+		}
+#endif // DEBUG_CHECKS
+
 #ifdef WITH_TESTS
 		if (gBroadcastRequestMock)
 		{
 			gBroadcastRequestMock(socket, query, port);
 			return std::nullopt;
 		}
-#endif
+#endif // WITH_TESTS
 
 		if (addressType == Network::AddressType::IpV6)
 		{
@@ -162,9 +177,19 @@ namespace NsdInternalUtils
 #ifdef WITH_TESTS
 		if (gRecvRequestMock)
 		{
-			return gRecvRequestMock(socket, inOutBuffer, outNetAddress);
+			const int receivedBytes = gRecvRequestMock(socket, inOutBuffer, outNetAddress);
+#ifdef DEBUG_CHECKS
+			if constexpr (debugPrintBuffers)
+			{
+				if (receivedBytes > 0)
+				{
+					Debug::Print::printSpan("recv_broadcast", std::span(inOutBuffer).subspan(0, receivedBytes));
+				}
+			}
+#endif // DEBUG_CHECKS
+			return receivedBytes;
 		}
-#endif
+#endif // WITH_TESTS
 
 		// setup polling structure to wait on OS interrupt
 #ifdef _WIN32
@@ -199,7 +224,19 @@ namespace NsdInternalUtils
 
 		if (pfd.revents & POLLIN)
 		{
-			return static_cast<int>(recvfrom(socket, reinterpret_cast<char*>(inOutBuffer.data()), static_cast<int>(inOutBuffer.size()), 0, &outNetAddress.addr, &outNetAddress.addrLen));
+			const int receivedBytes = static_cast<int>(recvfrom(socket, reinterpret_cast<char*>(inOutBuffer.data()), static_cast<int>(inOutBuffer.size()), 0, &outNetAddress.addr, &outNetAddress.addrLen));
+
+#ifdef DEBUG_CHECKS
+			if constexpr (debugPrintBuffers)
+			{
+				if (receivedBytes > 0)
+				{
+					Debug::Print::printSpan("recv_broadcast", std::span(inOutBuffer).subspan(0, receivedBytes));
+				}
+			}
+#endif // DEBUG_CHECKS
+
+			return receivedBytes;
 		}
 
 		// we get here if the data is not ready yet
@@ -208,24 +245,53 @@ namespace NsdInternalUtils
 
 	int sendNsdAnswer(const Network::RawSocket socket, std::span<const std::byte> inOutBuffer, const NetworkAddressKey& netAddress)
 	{
+#ifdef DEBUG_CHECKS
+		if constexpr (debugPrintBuffers)
+		{
+			Debug::Print::printSpan("send_answer", inOutBuffer);
+		}
+#endif // DEBUG_CHECKS
+
 #ifdef WITH_TESTS
 		if (gSendAnswerMock)
 		{
 			return gSendAnswerMock(socket, inOutBuffer, netAddress);
 		}
-#endif
+#endif // WITH_TESTS
 		return static_cast<int>(sendto(socket, reinterpret_cast<const char*>(inOutBuffer.data()), static_cast<int>(inOutBuffer.size()), 0, &netAddress.addr, netAddress.addrLen));
 	}
 
-	int reveiveNsdAnswer(const Network::RawSocket socket, std::span<std::byte> inOutBuffer, NetworkAddressKey& outNetAddress)
+	int receiveNsdAnswer(const Network::RawSocket socket, std::span<std::byte> inOutBuffer, NetworkAddressKey& outNetAddress)
 	{
 #ifdef WITH_TESTS
 		if (gRecvAnswerMock)
 		{
-			return gRecvAnswerMock(socket, inOutBuffer, outNetAddress);
+			const int receivedBytes = gRecvAnswerMock(socket, inOutBuffer, outNetAddress);
+#ifdef DEBUG_CHECKS
+			if constexpr (debugPrintBuffers)
+			{
+				if (receivedBytes > 0)
+				{
+					Debug::Print::printSpan("recv_answer", std::span(inOutBuffer).subspan(0, receivedBytes));
+				}
+			}
+#endif // DEBUG_CHECKS
+			return receivedBytes;
 		}
-#endif
-		return static_cast<int>(recvfrom(socket, reinterpret_cast<char*>(inOutBuffer.data()), static_cast<int>(inOutBuffer.size()), 0, &outNetAddress.addr, &outNetAddress.addrLen));
+#endif // WITH_TESTS
+		const int receivedBytes = static_cast<int>(recvfrom(socket, reinterpret_cast<char*>(inOutBuffer.data()), static_cast<int>(inOutBuffer.size()), 0, &outNetAddress.addr, &outNetAddress.addrLen));
+
+#ifdef DEBUG_CHECKS
+		if constexpr (debugPrintBuffers)
+		{
+			if (receivedBytes > 0)
+			{
+				Debug::Print::printSpan("recv_answer", std::span(inOutBuffer).subspan(0, receivedBytes));
+			}
+		}
+#endif // DEBUG_CHECKS
+
+		return receivedBytes;
 	}
 
 	void registerDiscoveredServer(ClientDiscoveredServersData& discoveredServersData, const NetworkAddressKey& netAddress, const std::vector<std::byte>& extraData, uint16_t port, const NsdUtils::DiscoveryResultFunction& resultFunction)

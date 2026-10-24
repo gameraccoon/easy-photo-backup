@@ -11,8 +11,11 @@
 #include "common_shared/cryptography/noise/cipher_utils.h"
 #include "common_shared/cryptography/utils/crypto_wipe.h"
 #include "common_shared/debug/assert.h"
-#include "common_shared/debug/debug_print_helpers.h"
 #include "common_shared/network/raw_sockets.h"
+
+#ifdef DEBUG_CHECKS
+#include "common_shared/debug/debug_print_helpers.h"
+#endif // DEBUG_CHECKS
 
 namespace Network
 {

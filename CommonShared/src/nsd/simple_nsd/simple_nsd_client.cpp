@@ -24,7 +24,7 @@ namespace SimpleNsdClient
 
 	static bool processUdpRequestAnswer(const Network::RawSocket socket, std::span<std::byte> inOutBuffer, NsdInternalUtils::NetworkAddressKey& outNetAddress, uint16_t& outPort, std::vector<std::byte>& outExtraData)
 	{
-		const int messageLength = NsdInternalUtils::reveiveNsdAnswer(socket, inOutBuffer, outNetAddress);
+		const int messageLength = NsdInternalUtils::receiveNsdAnswer(socket, inOutBuffer, outNetAddress);
 		if (messageLength == -1) [[unlikely]]
 		{
 			// either failure or timeout, we don't destinguish them right now
