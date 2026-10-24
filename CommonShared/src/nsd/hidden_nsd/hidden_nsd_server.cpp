@@ -282,7 +282,7 @@ namespace HiddenNsdServer
 
 			if (const int sentSize = NsdInternalUtils::sendNsdAnswer(socket, std::span(buf).subspan(responsePlaintextSize + Cryptography::CipherAuthDataSize), clientAddr); sentSize == -1)
 			{
-				return SocketError{ std::format("Failed to send response to UDP socket, error code {}.", errno) };
+				return SocketError{ std::format("Failed to send response to UDP socket, error code {}.", Network::getLastSocketError()) };
 			}
 		}
 

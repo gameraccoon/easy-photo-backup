@@ -59,6 +59,7 @@ namespace Network
 
 	void initSocketLib();
 	void shutdownSocketLib();
+	int getLastSocketError();
 
 	[[nodiscard]]
 	std::variant<RawSocket, std::string> createSocket(SocketType type, AddressType addressType);

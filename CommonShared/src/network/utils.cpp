@@ -106,7 +106,7 @@ namespace Network
 #endif
 	}
 
-	static int getLastSocketError()
+	int getLastSocketError()
 	{
 #if defined(_WIN32) || defined(_WIN64)
 		return WSAGetLastError();
