@@ -9,7 +9,8 @@
 namespace Hash
 {
 	// non-cryptographic hash of a container
-	template<typename T, std::enable_if_t<std::is_integral_v<T>>>
+	template<typename T>
+		requires(std::is_integral_v<T>)
 	size_t hashSpan(std::span<const T> span) noexcept
 	{
 		// based on https://stackoverflow.com/a/12996028/3787296

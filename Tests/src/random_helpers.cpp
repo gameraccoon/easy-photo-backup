@@ -17,3 +17,12 @@ std::minstd_rand::result_type getSessionRandomSeed() noexcept
 	EXPECT_NE(TestSessionRandomSeed, std::minstd_rand::result_type(0)) << "Random seed was not initialized";
 	return TestSessionRandomSeed;
 }
+
+void fillWithTestRandomBytes(std::span<std::byte> data, int seed)
+{
+	srand(seed);
+	for (std::byte& byte : data)
+	{
+		byte = std::byte(random() % 256);
+	}
+}

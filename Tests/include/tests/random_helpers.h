@@ -4,6 +4,9 @@
 #pragma once
 
 #include <random>
+#include <span>
 
 void initSessionRandomSeed() noexcept;
 std::minstd_rand::result_type getSessionRandomSeed() noexcept;
+
+void fillWithTestRandomBytes(std::span<std::byte> data, int seed);

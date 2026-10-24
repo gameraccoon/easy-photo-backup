@@ -6,7 +6,6 @@
 #include <array>
 #include <cstring>
 #include <format>
-#include <unordered_map>
 
 #include "common_shared/cryptography/primitives/cipher_functions.h"
 #include "common_shared/cryptography/utils/identification_tags.h"
@@ -21,31 +20,13 @@ namespace HiddenNsdServer
 	// we store the amount of tags that is enough to cover all possible requets during one time period
 	constexpr size_t TagsPerPeriod = 256;
 
-	struct TagPayload
-	{
-		// period index
-		uint32_t periodIndex;
-		// key index
-		uint32_t keyIndexInPeriod;
-		// we never expect to have more clients than uint16 can fit
-		uint16_t clientIndex;
-	};
-
-	static auto createTagPayload = [](uint16_t clientIndex, uint32_t periodIndex, uint32_t keyIndexInPeriod) -> TagPayload {
-		return TagPayload{
-			.periodIndex = periodIndex,
-			.keyIndexInPeriod = keyIndexInPeriod,
-			.clientIndex = clientIndex,
-		};
-	};
-
-	using TagMap = Cryptography::IdentificationTagMap<TagPayload, TagsPerPeriod, createTagPayload>;
-
 	struct ThrottledIp
 	{
 		std::array<std::byte, 17> binaryIp;
 		std::chrono::steady_clock::time_point throttleEnd;
 	};
+
+	using TagMap = Cryptography::IdentificationTagMap<TagsPerPeriod>;
 
 	static void processClientModificationRequests(MessagePipe& clientModificationRequests, std::vector<Cryptography::HashResult>& clientHashes, TagMap& tagMap, int32_t lastPeriodIndex, int32_t currentPeriodIndex, std::vector<size_t>& clientsToRemove) noexcept
 	{
@@ -64,7 +45,7 @@ namespace HiddenNsdServer
 				if (auto it = std::find(clientHashes.begin(), clientHashes.end(), modification.clientHash); it == clientHashes.end())
 				{
 					clientHashes.push_back(std::move(modification.clientHash));
-					assertFatalRelease(clientHashes.size() < std::numeric_limits<uint16_t>::max(), "Too many potential NSD clients, possible logical error, terminating");
+					assertFatalRelease(clientHashes.size() < std::numeric_limits<uint32_t>::max(), "Too many potential NSD clients, possible logical error, terminating");
 
 					// we intentially don't populate periods that will be removed or added right away to not do double work
 					const int32_t firstIndexToAdd = currentPeriodIndex - 1;
@@ -88,7 +69,7 @@ namespace HiddenNsdServer
 					if (std::find(clientsToRemove.begin(), clientsToRemove.end(), clientIndexToRemove) == clientsToRemove.end())
 					{
 						clientsToRemove.push_back(clientIndexToRemove);
-						tagMap.removeClientTags(static_cast<uint16_t>(clientIndexToRemove));
+						tagMap.removeClientTags(static_cast<uint32_t>(clientIndexToRemove));
 					}
 				}
 				else
@@ -139,7 +120,7 @@ namespace HiddenNsdServer
 		clientsToRemove.clear();
 	}
 
-	[[nodiscard]] static Cryptography::EncryptResult composeAnswer(const TagPayload& tagPayload, const std::vector<Cryptography::HashResult>& clientHashes, std::span<const std::byte> plaintext, std::span<char> outCiphertext) noexcept
+	[[nodiscard]] static Cryptography::EncryptResult composeAnswer(const TagMap::TagPayload& tagPayload, const std::vector<Cryptography::HashResult>& clientHashes, std::span<const std::byte> plaintext, std::span<char> outCiphertext) noexcept
 	{
 		// use the hash as the encryption key
 		Cryptography::CipherKey cipherKey;
@@ -293,7 +274,7 @@ namespace HiddenNsdServer
 
 			const uint64_t tag = Serialization::readUint64(std::as_bytes(std::span(buf)).subspan(0, expectedPacketSize));
 
-			std::optional<TagPayload> tagPayload = tagMap.consumeTag(tag);
+			std::optional<TagMap::TagPayload> tagPayload = tagMap.consumeTag(tag);
 
 			if (!tagPayload.has_value())
 			{

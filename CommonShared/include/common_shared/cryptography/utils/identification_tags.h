@@ -12,40 +12,67 @@
 
 namespace Cryptography
 {
-	template<typename TagPayload, size_t TagsPerPeriod, auto CreatePayloadFn>
+	constexpr size_t IDENTIFICATION_TAG_LEN_BYTES = 8;
+	constexpr size_t IDENTIFICATION_TAGS_PER_HASH = Cryptography::HASHLEN / IDENTIFICATION_TAG_LEN_BYTES;
+
+	template<size_t TagsPerPeriod>
+		requires(TagsPerPeriod % 4 == 0)
 	class IdentificationTagMap
 	{
 	public:
-		void appendOneClientTagsForPeriods(const Cryptography::HashResult& clientHash, const uint16_t clientIdx, const int32_t firstPeriod, const int32_t lastPeriod) noexcept
-		{
-			constexpr size_t TAG_LEN_BYTES = 8;
-			constexpr size_t TAGS_PER_HASH = Cryptography::HASHLEN / TAG_LEN_BYTES;
+		IdentificationTagMap() noexcept = default;
+		// rule of 5
+		IdentificationTagMap(const IdentificationTagMap&) noexcept = delete;
+		IdentificationTagMap& operator=(const IdentificationTagMap&) noexcept = delete;
+		IdentificationTagMap(IdentificationTagMap&&) noexcept = delete;
+		IdentificationTagMap& operator=(IdentificationTagMap&&) noexcept = delete;
+		~IdentificationTagMap() noexcept = default;
 
-			std::array<std::byte, 12> mixedInData;
+		struct TagPayload
+		{
+			uint32_t clientIndex;
+			uint32_t periodIndex;
+			uint32_t keyIndexInPeriod;
+		};
+
+		enum class UpdateTagOperation : uint8_t
+		{
+			NormalForwardOnlyUpdate,
+			ForceResetWithNewPeriod,
+		};
+
+	public:
+		void appendOneClientTagsForPeriods(const Cryptography::HashResult& clientHash, const uint32_t clientIdx, const int32_t firstPeriod, const int32_t lastPeriod) noexcept
+		{
+			std::array<std::byte, 8> mixedInData;
 			Cryptography::HashResult tempResult;
 			for (int32_t periodIndexSigned = firstPeriod; periodIndexSigned <= lastPeriod; ++periodIndexSigned)
 			{
 				const uint32_t periodIndex = static_cast<uint32_t>(periodIndexSigned);
-				Serialization::writeUint64(std::span(mixedInData).subspan(0, 8), periodIndex);
+				Serialization::writeUint32(std::span(mixedInData).subspan(0, 4), periodIndex);
 
 				const Cryptography::HashResult& hash = clientHash;
-				for (size_t i = 0; i < TagsPerPeriod; i += TAGS_PER_HASH)
+				for (size_t i = 0; i < TagsPerPeriod / IDENTIFICATION_TAGS_PER_HASH; ++i)
 				{
-					Serialization::writeUint32(std::span(mixedInData).subspan(8, 4), static_cast<uint32_t>(i));
+					Serialization::writeUint32(std::span(mixedInData).subspan(4, 4), static_cast<uint32_t>(i));
 					HMAC_blake2b(hash, mixedInData, tempResult);
-					for (size_t j = 0; j < TAGS_PER_HASH; ++j)
+					for (size_t j = 0; j < IDENTIFICATION_TAGS_PER_HASH; ++j)
 					{
-						const uint64_t tag = Serialization::readUint64(std::span<const std::byte>(tempResult).subspan(j * TAG_LEN_BYTES, TAG_LEN_BYTES));
+						const uint64_t tag = Serialization::readUint64(std::span<const std::byte>(tempResult).subspan(j * IDENTIFICATION_TAG_LEN_BYTES, IDENTIFICATION_TAG_LEN_BYTES));
 						mTags.emplace(
 							tag,
-							CreatePayloadFn(clientIdx, periodIndex, static_cast<uint32_t>(i + j))
+							TagPayload{
+								.clientIndex = clientIdx,
+								.periodIndex = periodIndex,
+								.keyIndexInPeriod = static_cast<uint32_t>(i * IDENTIFICATION_TAGS_PER_HASH + j),
+							}
 						);
 					}
 				}
 			}
 		}
 
-		void removeClientTags(const uint16_t clientIdx) noexcept
+		void removeClientTags(const uint32_t clientIdx) noexcept
 		{
 			std::erase_if(mTags, [clientIdx](const std::pair<uint64_t, TagPayload>& pair) {
 				return pair.second.clientIndex == clientIdx;
@@ -65,19 +92,34 @@ namespace Cryptography
 			{
 				mTags.clear();
 			}
-
-			const int32_t firstIndexToKeep = currentPeriodIndex - 1;
-			removeTagsForPeriods(static_cast<uint32_t>(firstIndexToKeep));
+			else
+			{
+				// in other cases, remove tags only from old irrelevant periods
+				const int32_t firstIndexToKeep = currentPeriodIndex - 1;
+				removeTagsForPeriods(static_cast<uint32_t>(firstIndexToKeep));
+			}
 
 			const int32_t firstIndexToPopulate = std::max(lastPeriodIndex + 2, currentPeriodIndex - 1);
 			const int32_t lastIndexToPopulate = currentPeriodIndex + 1;
-			for (uint16_t clientIdx = 0; clientIdx < clientHashes.size(); ++clientIdx)
+			for (uint32_t clientIdx = 0; clientIdx < clientHashes.size(); ++clientIdx)
 			{
 				appendOneClientTagsForPeriods(clientHashes[clientIdx], clientIdx, firstIndexToPopulate, lastIndexToPopulate);
 			}
 		}
 
-		std::optional<TagPayload> consumeTag(const uint64_t tag) noexcept
+		void resetMap(const std::vector<Cryptography::HashResult>& clientHashes, const int32_t currentPeriodIndex) noexcept
+		{
+			mTags.clear();
+
+			const int32_t firstIndexToPopulate = currentPeriodIndex - 1;
+			const int32_t lastIndexToPopulate = currentPeriodIndex + 1;
+			for (uint32_t clientIdx = 0; clientIdx < clientHashes.size(); ++clientIdx)
+			{
+				appendOneClientTagsForPeriods(clientHashes[clientIdx], clientIdx, firstIndexToPopulate, lastIndexToPopulate);
+			}
+		}
+
+		[[nodiscard]] std::optional<TagPayload> consumeTag(const uint64_t tag) noexcept
 		{
 			auto it = mTags.find(tag);
 			if (it != mTags.end())
@@ -110,5 +152,5 @@ namespace Cryptography
 		std::unordered_map<uint64_t, TagPayload> mTags;
 	};
 
-	uint64_t getSingleIdentificationTag(const Cryptography::HashResult& clientHash, uint32_t periodIndex, size_t tagIndexInPeriod);
+	uint64_t getSingleIdentificationTag(const Cryptography::HashResult& clientHash, uint32_t periodIndex, uint32_t tagIndexInPeriod);
 } // namespace Cryptography
