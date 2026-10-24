@@ -115,6 +115,7 @@ protected:
 					return -1;
 				}
 
+				// the "socket" is "closed"
 				if (servers[serverSocketIdx] == nullptr)
 				{
 					return -1;
@@ -134,13 +135,13 @@ protected:
 			if (message->data.size() > inOutBuffer.size())
 			{
 				ADD_FAILURE() << "Too long message";
-				return -1;
+				return 0;
 			}
 			const size_t clientSocketIdx = message->clientSocketIdx;
 			if (clientSocketIdx >= clients.size())
 			{
 				ADD_FAILURE() << "Unknown client connection";
-				return -1;
+				return 0;
 			}
 			std::copy(message->data.begin(), message->data.end(), inOutBuffer.begin());
 			outNetAddress = clients[clientSocketIdx]->netAddress;
@@ -192,17 +193,17 @@ protected:
 			if (message->data.size() > inOutBuffer.size())
 			{
 				ADD_FAILURE() << "Too long message";
-				return -1;
+				return 0;
 			}
 			const size_t serverSocketIdx = message->serverSocketIdx;
 			if (serverSocketIdx >= servers.size())
 			{
 				ADD_FAILURE() << "Unknown server connection";
-				return -1;
+				return 0;
 			}
 			if (servers[serverSocketIdx] == nullptr)
 			{
-				return -1;
+				return 0;
 			}
 			std::copy(message->data.begin(), message->data.end(), inOutBuffer.begin());
 			outNetAddress = servers[serverSocketIdx]->netAddress;

@@ -248,7 +248,13 @@ namespace HiddenNsdServer
 			const int messageLength = NsdInternalUtils::receiveNsdRequest(socket, buf, clientAddr);
 			if (messageLength == -1)
 			{
-				break;
+				return SocketClosed{};
+			}
+
+			// encountered non-fatal error
+			if (messageLength == 0)
+			{
+				continue;
 			}
 
 			updateClientAndPeriodData(lastPeriodIndex, clientModificationRequests, clientHashes, tagMap, clientsToRemove);
@@ -285,7 +291,5 @@ namespace HiddenNsdServer
 				return SocketError{ std::format("Failed to send response to UDP socket, error code {}.", Network::getLastSocketError()) };
 			}
 		}
-
-		return SocketError{ std::format("Failed to receive from UDP socket, error code {}.", errno) };
 	}
 } // namespace HiddenNsdServer

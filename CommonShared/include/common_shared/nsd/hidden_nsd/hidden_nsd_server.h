@@ -24,6 +24,10 @@ namespace HiddenNsdServer
 		std::string error;
 	};
 
+	struct SocketClosed
+	{
+	};
+
 	struct ClientModification
 	{
 		enum class Command : uint8_t
@@ -38,7 +42,7 @@ namespace HiddenNsdServer
 
 	using MessagePipe = Multithreading::MessagePipe<ClientModification>;
 
-	using ListenResult = std::variant<SetupError, SocketError>;
+	using ListenResult = std::variant<SetupError, SocketError, SocketClosed>;
 
 	ListenResult listen(
 		Network::RawSocket socket,

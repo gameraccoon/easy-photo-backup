@@ -5,6 +5,10 @@
 
 #include <cstring>
 
+#ifndef _WIN32
+#include <sys/poll.h>
+#endif
+
 #include "common_shared/debug/assert.h"
 
 namespace NsdInternalUtils
@@ -144,7 +148,7 @@ namespace NsdInternalUtils
 
 		if (sentSize == -1) [[unlikely]]
 		{
-			return std::format("Failed to send NSD broadcast to UDP socket, error code {}.", errno);
+			return std::format("Failed to send NSD broadcast to UDP socket, error code {}.", Network::getLastSocketError());
 		}
 
 		debugAssert(sentSize >= 0, "Sent size can't be less than -1 {}", sentSize);
@@ -161,7 +165,45 @@ namespace NsdInternalUtils
 			return gRecvRequestMock(socket, inOutBuffer, outNetAddress);
 		}
 #endif
-		return static_cast<int>(recvfrom(socket, reinterpret_cast<char*>(inOutBuffer.data()), static_cast<int>(inOutBuffer.size()), 0, &outNetAddress.addr, &outNetAddress.addrLen));
+
+		// setup polling structure to wait on OS interrupt
+#ifdef _WIN32
+		WSAPOLLFD pfd;
+		pfd.fd = socket;
+		pfd.events = POLLIN;
+		pfd.revents = 0;
+		int pollResult = WSAPoll(&pfd, 1, -1); // -1 = wait indefinitely
+#else
+		struct pollfd pfd;
+		pfd.fd = socket;
+		pfd.events = POLLIN;
+		pfd.revents = 0;
+		int pollResult = poll(&pfd, 1, -1); // -1 = wait indefinitely
+#endif
+
+		if (pollResult < 0)
+		{
+			if (errno == EINTR)
+			{
+				// non-fatal
+				return 0;
+			}
+			return -1;
+		}
+
+		// check if socket got closed, or encountered a fatal error
+		if (pfd.revents & (POLLERR | POLLHUP | POLLNVAL))
+		{
+			return -1;
+		}
+
+		if (pfd.revents & POLLIN)
+		{
+			return static_cast<int>(recvfrom(socket, reinterpret_cast<char*>(inOutBuffer.data()), static_cast<int>(inOutBuffer.size()), 0, &outNetAddress.addr, &outNetAddress.addrLen));
+		}
+
+		// we get here if the data is not ready yet
+		return 0;
 	}
 
 	int sendNsdAnswer(const Network::RawSocket socket, std::span<const std::byte> inOutBuffer, const NetworkAddressKey& netAddress)

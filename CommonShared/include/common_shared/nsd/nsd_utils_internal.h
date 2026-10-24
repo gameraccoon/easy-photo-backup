@@ -61,6 +61,7 @@ namespace NsdInternalUtils
 	[[nodiscard]] std::variant<std::string, Network::RawSocket> openClientNsdSocket(const Network::AddressType addressType) noexcept;
 	[[nodiscard]] std::optional<std::string> broadcastNdsUdpRequest(Network::RawSocket socket, Network::AddressType addressType, std::span<const std::byte> query, uint16_t port) noexcept;
 
+	// -1 means a fatal error (e.g. the socket is closed), 0 means non-fatal error
 	[[nodiscard]] int receiveNsdRequest(const Network::RawSocket socket, std::span<std::byte> inOutBuffer, NetworkAddressKey& outNetAddress);
 	[[nodiscard]] int sendNsdAnswer(const Network::RawSocket socket, std::span<const std::byte> inOutBuffer, const NetworkAddressKey& netAddress);
 	[[nodiscard]] int reveiveNsdAnswer(const Network::RawSocket socket, std::span<std::byte> inOutBuffer, NetworkAddressKey& outNetAddress);

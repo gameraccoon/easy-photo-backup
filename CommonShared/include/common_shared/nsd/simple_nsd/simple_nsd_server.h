@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include <atomic>
 #include <cstdint>
 #include <span>
 #include <string>
@@ -23,11 +22,11 @@ namespace SimpleNsdServer
 		std::string error;
 	};
 
-	struct ServerRequestedToStop
+	struct SocketClosed
 	{
 	};
 
-	using ListenResult = std::variant<SetupError, SocketError, ServerRequestedToStop>;
+	using ListenResult = std::variant<SetupError, SocketError, SocketClosed>;
 
 	ListenResult listen(
 		Network::RawSocket socket,

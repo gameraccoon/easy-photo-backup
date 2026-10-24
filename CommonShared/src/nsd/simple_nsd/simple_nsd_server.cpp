@@ -67,9 +67,10 @@ namespace SimpleNsdServer
 		{
 			clientAddr.addrLen = sizeof(NsdInternalUtils::NetworkAddressKey::addr);
 			const int messageLength = NsdInternalUtils::receiveNsdRequest(socket, buf, clientAddr);
-			if (messageLength == -1)
+
+			if (messageLength < 0)
 			{
-				return SocketError{ "Could not read from socket, possibly closed" };
+				return SocketClosed{};
 			}
 
 			if (messageLength != static_cast<int>(expectedPacket.size()))
@@ -87,7 +88,5 @@ namespace SimpleNsdServer
 				return SocketError{ std::format("Failed to send response to UDP socket, error code {}.", Network::getLastSocketError()) };
 			}
 		}
-
-		return SocketError{ std::format("Failed to receive from UDP socket, error code {}.", errno) };
 	}
 } // namespace SimpleNsdServer
