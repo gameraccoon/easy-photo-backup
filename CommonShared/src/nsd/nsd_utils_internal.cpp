@@ -6,7 +6,6 @@
 #include <cstring>
 
 #include "common_shared/debug/assert.h"
-#include "common_shared/network/raw_sockets.h"
 
 namespace NsdInternalUtils
 {
@@ -14,6 +13,15 @@ namespace NsdInternalUtils
 	{
 		return addrLen == other.addrLen && std::memcmp(&addr, &other.addr, addrLen) == 0;
 	}
+
+#ifdef WITH_TESTS
+	std::function<Network::RawSocket()> gOpenClientSocketMock;
+	std::function<void(Network::RawSocket, uint16_t)> gBindServerSocketMock;
+	std::function<int(Network::RawSocket, std::span<const std::byte>, uint16_t)> gBroadcastRequestMock;
+	std::function<int(Network::RawSocket, std::span<std::byte>, NetworkAddressKey&)> gRecvRequestMock;
+	std::function<int(Network::RawSocket, std::span<const std::byte>, NetworkAddressKey)> gSendAnswerMock;
+	std::function<int(Network::RawSocket, std::span<std::byte>, NetworkAddressKey&)> gRecvAnswerMock;
+#endif
 
 	uint16_t checksum16v1(const std::span<const std::byte> data) noexcept
 	{
@@ -33,6 +41,14 @@ namespace NsdInternalUtils
 		const uint16_t port
 	) noexcept
 	{
+#ifdef WITH_TESTS
+		if (gBindServerSocketMock)
+		{
+			gBindServerSocketMock(socket, port);
+			return std::nullopt;
+		}
+#endif
+
 		if (auto result = Network::setSocketOption(socket, SO_REUSEADDR); result.has_value())
 		{
 			reportDebugError("Could not set SO_REUSEADDR flag to NSD server socket");
@@ -58,6 +74,13 @@ namespace NsdInternalUtils
 
 	std::variant<std::string, Network::RawSocket> openClientNsdSocket(const Network::AddressType addressType) noexcept
 	{
+#ifdef WITH_TESTS
+		if (gOpenClientSocketMock)
+		{
+			return gOpenClientSocketMock();
+		}
+#endif
+
 		std::variant<Network::RawSocket, std::string> createSocketResult = Network::createSocket(Network::SocketType::Udp, addressType);
 		if (std::holds_alternative<std::string>(createSocketResult))
 		{
@@ -94,6 +117,14 @@ namespace NsdInternalUtils
 
 	std::optional<std::string> broadcastNdsUdpRequest(const Network::RawSocket socket, const Network::AddressType addressType, std::span<const std::byte> query, const uint16_t port) noexcept
 	{
+#ifdef WITH_TESTS
+		if (gBroadcastRequestMock)
+		{
+			gBroadcastRequestMock(socket, query, port);
+			return std::nullopt;
+		}
+#endif
+
 		if (addressType == Network::AddressType::IpV6)
 		{
 			reportDebugError("Not implemented");
@@ -122,22 +153,40 @@ namespace NsdInternalUtils
 		return std::nullopt;
 	}
 
-	int reveiveNsdRequest(const Network::RawSocket socket, std::span<std::byte> inOutBuffer, NetworkAddressKey& outNetAddress)
+	int receiveNsdRequest(const Network::RawSocket socket, std::span<std::byte> inOutBuffer, NetworkAddressKey& outNetAddress)
 	{
+#ifdef WITH_TESTS
+		if (gRecvRequestMock)
+		{
+			return gRecvRequestMock(socket, inOutBuffer, outNetAddress);
+		}
+#endif
 		return static_cast<int>(recvfrom(socket, reinterpret_cast<char*>(inOutBuffer.data()), static_cast<int>(inOutBuffer.size()), 0, &outNetAddress.addr, &outNetAddress.addrLen));
 	}
 
 	int sendNsdAnswer(const Network::RawSocket socket, std::span<const std::byte> inOutBuffer, const NetworkAddressKey& netAddress)
 	{
+#ifdef WITH_TESTS
+		if (gSendAnswerMock)
+		{
+			return gSendAnswerMock(socket, inOutBuffer, netAddress);
+		}
+#endif
 		return static_cast<int>(sendto(socket, reinterpret_cast<const char*>(inOutBuffer.data()), static_cast<int>(inOutBuffer.size()), 0, &netAddress.addr, netAddress.addrLen));
 	}
 
 	int reveiveNsdAnswer(const Network::RawSocket socket, std::span<std::byte> inOutBuffer, NetworkAddressKey& outNetAddress)
 	{
+#ifdef WITH_TESTS
+		if (gRecvAnswerMock)
+		{
+			return gRecvAnswerMock(socket, inOutBuffer, outNetAddress);
+		}
+#endif
 		return static_cast<int>(recvfrom(socket, reinterpret_cast<char*>(inOutBuffer.data()), static_cast<int>(inOutBuffer.size()), 0, &outNetAddress.addr, &outNetAddress.addrLen));
 	}
 
-	void registerDiscoveredServer(ClientDiscoveredServersData& discoveredServersData, const NsdInternalUtils::NetworkAddressKey& netAddress, const std::vector<std::byte>& extraData, uint16_t port, const NsdUtils::DiscoveryResultFunction& resultFunction)
+	void registerDiscoveredServer(ClientDiscoveredServersData& discoveredServersData, const NetworkAddressKey& netAddress, const std::vector<std::byte>& extraData, uint16_t port, const NsdUtils::DiscoveryResultFunction& resultFunction)
 	{
 		if (std::ranges::find(discoveredServersData.discoveryGenerations[0], netAddress) == discoveredServersData.discoveryGenerations[0].end())
 		{

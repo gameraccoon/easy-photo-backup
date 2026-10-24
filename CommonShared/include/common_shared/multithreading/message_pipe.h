@@ -53,7 +53,7 @@ namespace Multithreading
 		}
 
 		// blocking, returns std::nullopt on timeout or if the pipe is closed
-		std::optional<T> recv(std::chrono::steady_clock::duration timeout) noexcept
+		[[nodiscard]] std::optional<T> recv(std::chrono::steady_clock::duration timeout) noexcept
 		{
 			std::unique_lock<std::mutex> lock(mDataMutex);
 			if (!mCondVar.wait_for(lock, timeout, [&] {
@@ -75,7 +75,7 @@ namespace Multithreading
 		}
 
 		// returns std::nullopt if the pipe is closed
-		std::optional<QueueType> recvAllCurrent() noexcept
+		[[nodiscard]] std::optional<QueueType> recvAllCurrent() noexcept
 		{
 			std::unique_lock<std::mutex> lock(mDataMutex);
 			if (mIsPipeClosed && mQueue.empty())
@@ -86,7 +86,7 @@ namespace Multithreading
 		}
 
 		// returns std::nullopt if there is nothing to consume (including, when the pipe is closed)
-		std::optional<T> tryRecv() noexcept
+		[[nodiscard]] std::optional<T> tryRecv() noexcept
 		{
 			std::unique_lock<std::mutex> lock(mDataMutex);
 			if (mQueue.empty())
@@ -105,7 +105,7 @@ namespace Multithreading
 			mCondVar.notify_one();
 		}
 
-		bool isClosed() noexcept
+		[[nodiscard]] bool isClosed() noexcept
 		{
 			std::unique_lock<std::mutex> lock(mDataMutex);
 			return mIsPipeClosed;

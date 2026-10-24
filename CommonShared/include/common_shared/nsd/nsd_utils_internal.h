@@ -18,7 +18,7 @@ namespace NsdInternalUtils
 {
 	struct NetworkAddressKey
 	{
-		sockaddr addr;
+		sockaddr addr{};
 		socklen_t addrLen = sizeof(sockaddr);
 
 		bool operator==(const NetworkAddressKey& other) const noexcept;
@@ -32,13 +32,22 @@ namespace NsdInternalUtils
 		// we count generations based on our send timer
 		// we don't care about when we sent the broadcast that got the server to us
 		static constexpr int GENERATIONS_TO_MISS_TO_REMOVE = 2;
-		using DiscoveryGenerations = std::array<std::vector<NsdInternalUtils::NetworkAddressKey>, GENERATIONS_TO_MISS_TO_REMOVE>;
+		using DiscoveryGenerations = std::array<std::vector<NetworkAddressKey>, GENERATIONS_TO_MISS_TO_REMOVE>;
 
-		std::array<std::vector<NsdInternalUtils::NetworkAddressKey>, GENERATIONS_TO_MISS_TO_REMOVE> discoveryGenerations;
+		std::array<std::vector<NetworkAddressKey>, GENERATIONS_TO_MISS_TO_REMOVE> discoveryGenerations;
 
-		std::vector<NsdInternalUtils::NetworkAddressKey> onlineServers;
-		std::vector<NsdInternalUtils::NetworkAddressKey> serversToRemove;
+		std::vector<NetworkAddressKey> onlineServers;
+		std::vector<NetworkAddressKey> serversToRemove;
 	};
+
+#ifdef WITH_TESTS
+	extern std::function<Network::RawSocket()> gOpenClientSocketMock;
+	extern std::function<void(Network::RawSocket, uint16_t)> gBindServerSocketMock;
+	extern std::function<int(Network::RawSocket, std::span<const std::byte>, uint16_t)> gBroadcastRequestMock;
+	extern std::function<int(Network::RawSocket, std::span<std::byte>, NetworkAddressKey&)> gRecvRequestMock;
+	extern std::function<int(Network::RawSocket, std::span<const std::byte>, NetworkAddressKey)> gSendAnswerMock;
+	extern std::function<int(Network::RawSocket, std::span<std::byte>, NetworkAddressKey&)> gRecvAnswerMock;
+#endif
 
 	[[nodiscard]] uint16_t checksum16v1(const std::span<const std::byte> data) noexcept;
 
@@ -52,11 +61,11 @@ namespace NsdInternalUtils
 	[[nodiscard]] std::variant<std::string, Network::RawSocket> openClientNsdSocket(const Network::AddressType addressType) noexcept;
 	[[nodiscard]] std::optional<std::string> broadcastNdsUdpRequest(Network::RawSocket socket, Network::AddressType addressType, std::span<const std::byte> query, uint16_t port) noexcept;
 
-	[[nodiscard]] int reveiveNsdRequest(const Network::RawSocket socket, std::span<std::byte> inOutBuffer, NsdInternalUtils::NetworkAddressKey& outNetAddress);
+	[[nodiscard]] int receiveNsdRequest(const Network::RawSocket socket, std::span<std::byte> inOutBuffer, NetworkAddressKey& outNetAddress);
 	[[nodiscard]] int sendNsdAnswer(const Network::RawSocket socket, std::span<const std::byte> inOutBuffer, const NetworkAddressKey& netAddress);
-	[[nodiscard]] int reveiveNsdAnswer(const Network::RawSocket socket, std::span<std::byte> inOutBuffer, NsdInternalUtils::NetworkAddressKey& outNetAddress);
+	[[nodiscard]] int reveiveNsdAnswer(const Network::RawSocket socket, std::span<std::byte> inOutBuffer, NetworkAddressKey& outNetAddress);
 
-	void registerDiscoveredServer(ClientDiscoveredServersData& discoveredServersData, const NsdInternalUtils::NetworkAddressKey& netAddress, const std::vector<std::byte>& extraData, uint16_t port, const NsdUtils::DiscoveryResultFunction& resultFunction);
+	void registerDiscoveredServer(ClientDiscoveredServersData& discoveredServersData, const NetworkAddressKey& netAddress, const std::vector<std::byte>& extraData, uint16_t port, const NsdUtils::DiscoveryResultFunction& resultFunction);
 	void removeOldDiscoveredServers(ClientDiscoveredServersData& discoveredServersData, const NsdUtils::DiscoveryResultFunction& resultFunction) noexcept;
 
 	[[nodiscard]] int32_t getCurrentPeriodIndex();

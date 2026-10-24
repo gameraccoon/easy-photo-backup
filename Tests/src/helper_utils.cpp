@@ -91,10 +91,26 @@ bool isAllZeroes(const std::span<const std::byte> data)
 void assertSpansEqual(std::span<const std::byte> span1, std::span<const std::byte> span2)
 {
 	ASSERT_EQ(span1.size(), span2.size());
+	if (span1.empty())
+	{
+		return;
+	}
 	if (std::memcmp(span1.data(), span2.data(), span1.size()))
 	{
-		Debug::Print::printSpan("span1", span1);
-		Debug::Print::printSpan("span2", span2);
-		FAIL() << "Two spans expected to be the same but were not, see values above";
+		for (size_t i = 0; i < span1.size(); ++i)
+		{
+			if (span1[i] != span2[i])
+			{
+				FAIL() << std::format("Two spans are not equal, first diverged byte at index {}", i);
+				break;
+			}
+		}
+
+		// avoid spamming huge arrays to output
+		if (span1.size() < 100 && span2.size() < 100)
+		{
+			Debug::Print::printSpan("span1", span1);
+			Debug::Print::printSpan("span2", span2);
+		}
 	}
 }

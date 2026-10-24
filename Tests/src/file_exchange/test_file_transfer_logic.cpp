@@ -39,20 +39,6 @@ using TestFileExchangeMessagePipe = Multithreading::MessagePipe<std::array<std::
 
 static std::chrono::steady_clock::duration TEST_NETWORK_TIMEOUT = std::chrono::seconds(1);
 
-static void expectBuffersEqual(std::span<const std::byte> a, std::span<const std::byte> b)
-{
-	ASSERT_EQ(a.size(), b.size());
-
-	for (size_t i = 0; i < a.size(); ++i)
-	{
-		if (a[i] != b[i])
-		{
-			FAIL() << std::format("Two spans are not equal, first diverged byte at index {}", i);
-			break;
-		}
-	}
-}
-
 static void expectTwoArraysEqual(std::vector<TestFileExchangeFile> actual, std::vector<TestFileExchangeFile> expected)
 {
 	ASSERT_EQ(actual.size(), expected.size());
@@ -179,7 +165,7 @@ static FileExchangeTestResult runFileExchangeTest(ClientSentFilesStorage& client
 			auto message = answerMessages.recv(TEST_NETWORK_TIMEOUT);
 			if (!message.has_value())
 			{
-				EXPECT_TRUE(false) << "Message pipe timeout when receiving answer data";
+				ADD_FAILURE() << "Message pipe timeout when receiving answer data";
 				return -1;
 			}
 			EXPECT_EQ(static_cast<int>(message->size()), bufferSize);
@@ -201,7 +187,7 @@ static FileExchangeTestResult runFileExchangeTest(ClientSentFilesStorage& client
 			auto message = fileMessages.recv(TEST_NETWORK_TIMEOUT);
 			if (!message.has_value())
 			{
-				EXPECT_TRUE(false) << "Message pipe timeout when receiving file data";
+				ADD_FAILURE() << "Message pipe timeout when receiving file data";
 				return -1;
 			}
 			EXPECT_EQ(static_cast<int>(message->size()), bufferSize);
@@ -286,7 +272,7 @@ static FileExchangeTestResult runFileExchangeTest(ClientSentFilesStorage& client
 			EXPECT_EQ(filesToConfirm.size() - previouslySentBytes.size(), size_t(0)) << std::format("Some files were not confirmed (confirmed {} out of {})", expectedFilesToConfirm.size() - filesToConfirm.size() + previouslySentBytes.size(), expectedFilesToConfirm.size());
 			for (size_t i = previouslySentBytes.size(); i < filesToConfirm.size(); ++i)
 			{
-				EXPECT_TRUE(false) << std::format("{} expected to be confirmed but it hasn't been", filesToConfirm[i].string());
+				ADD_FAILURE() << std::format("{} expected to be confirmed but it hasn't been", filesToConfirm[i].string());
 			}
 		}
 	});
@@ -370,7 +356,7 @@ static FileExchangeTestResult runFileExchangeTest(ClientSentFilesStorage& client
 				const size_t expectedStartPos = receivedFiles.back().data.size() - buffer.size() - fileRange.startByte;
 				ASSERT_LE(expectedStartPos, fileRange.data.size());
 				ASSERT_LE(expectedStartPos + buffer.size(), fileRange.data.size());
-				expectBuffersEqual(buffer, std::span<const std::byte>(fileRange.data.data() + expectedStartPos, buffer.size()));
+				assertSpansEqual(buffer, std::span<const std::byte>(fileRange.data.data() + expectedStartPos, buffer.size()));
 			}
 		},
 		.replaceFile = [&receivedFiles, &receivedFilesIndex, &instructions, &overriddenFileFlags, &serverRootFolder](const std::filesystem::path& sourcePath, const std::filesystem::path& destinationPath) -> void {

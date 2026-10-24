@@ -245,7 +245,7 @@ namespace HiddenNsdServer
 		while (true)
 		{
 			clientAddr.addrLen = sizeof(NsdInternalUtils::NetworkAddressKey::addr);
-			const int messageLength = NsdInternalUtils::reveiveNsdRequest(socket, buf, clientAddr);
+			const int messageLength = NsdInternalUtils::receiveNsdRequest(socket, buf, clientAddr);
 			if (messageLength == -1)
 			{
 				break;

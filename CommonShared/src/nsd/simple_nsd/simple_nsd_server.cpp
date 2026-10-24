@@ -66,7 +66,12 @@ namespace SimpleNsdServer
 		while (true)
 		{
 			clientAddr.addrLen = sizeof(NsdInternalUtils::NetworkAddressKey::addr);
-			const int messageLength = NsdInternalUtils::reveiveNsdRequest(socket, buf, clientAddr);
+			const int messageLength = NsdInternalUtils::receiveNsdRequest(socket, buf, clientAddr);
+			if (messageLength == -1)
+			{
+				return SocketError{ "Could not read from socket, possibly closed" };
+			}
+
 			if (messageLength != static_cast<int>(expectedPacket.size()))
 			{
 				continue;

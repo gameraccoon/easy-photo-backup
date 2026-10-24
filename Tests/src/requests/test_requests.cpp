@@ -37,7 +37,7 @@ public:
 		{
 			if (std::chrono::steady_clock::now() - timeStart >= std::chrono::seconds(1)) [[unlikely]]
 			{
-				EXPECT_TRUE(false) << "Message pipe timeout";
+				ADD_FAILURE() << "Message pipe timeout";
 				return -1;
 			}
 
