@@ -6,7 +6,6 @@
 #include <algorithm>
 #include <chrono>
 #include <cstring>
-#include <thread>
 #include <vector>
 
 #include "common_shared/cryptography/primitives/cipher_functions.h"
@@ -137,13 +136,14 @@ namespace HiddenNsdClient
 		// set the time in the past, enough to trigger the broadcast immediately
 		const std::chrono::duration timeBetweenBroadcasts = std::chrono::round<std::chrono::nanoseconds>(std::chrono::duration<float>(timeBetweenBroadcastsSec));
 		std::chrono::time_point lastBroadcastTime = std::chrono::steady_clock::now() - (timeBetweenBroadcasts * 2);
+		const std::chrono::duration waitTimeAfterLastBroadcast = std::chrono::round<std::chrono::nanoseconds>(std::chrono::duration<float>(extraWaitTimeAfterLastBroadcastSec));
 
 		int broadcastsDone = 0;
 		std::array<std::byte, 8> query;
 		std::vector<SentTag> sentTags;
 		while (true)
 		{
-			if (std::chrono::steady_clock::now() > lastBroadcastTime + timeBetweenBroadcasts)
+			if (broadcastsDone < numberOfBroadcasts && std::chrono::steady_clock::now() > lastBroadcastTime + timeBetweenBroadcasts)
 			{
 				sentTags.clear();
 				for (size_t i = 0; i < serverData.size(); ++i)
@@ -163,22 +163,13 @@ namespace HiddenNsdClient
 				NsdInternalUtils::removeOldDiscoveredServers(discoveredServersData, resultFunction);
 			}
 
-			if (broadcastsDone == numberOfBroadcasts)
-			{
-				std::this_thread::sleep_for(
-					std::chrono::round<std::chrono::nanoseconds>(
-						std::chrono::duration<float>{ extraWaitTimeAfterLastBroadcastSec }
-					)
-				);
-			}
-
 			uint16_t port;
 			if (processUdpRequestAnswer(socket, sentTags, serverData, currentPeriodIndex, buffer, netAddress, port, extraData))
 			{
 				NsdInternalUtils::registerDiscoveredServer(discoveredServersData, netAddress, extraData, port, resultFunction);
 			}
 
-			if (broadcastsDone == numberOfBroadcasts)
+			if (broadcastsDone == numberOfBroadcasts && std::chrono::steady_clock::now() > lastBroadcastTime + waitTimeAfterLastBroadcast)
 			{
 				return std::nullopt;
 			}
