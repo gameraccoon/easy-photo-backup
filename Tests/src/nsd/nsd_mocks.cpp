@@ -44,9 +44,9 @@ void NsdTestMocks::setUp()
 		const size_t clientSocketIdx = static_cast<size_t>(socket);
 		for (auto& server : servers)
 		{
-			if (server != nullptr && server->port == port)
+			if (server != nullptr)
 			{
-				server->requestPipe.sendEmplace(clientSocketIdx, std::vector(data.begin(), data.end()));
+				server->requestPipe.sendEmplace(clientSocketIdx, port, std::vector(data.begin(), data.end()));
 			}
 		}
 		return data.size();
@@ -78,7 +78,11 @@ void NsdTestMocks::setUp()
 			message = servers[serverSocketIdx]->requestPipe.tryRecv();
 			if (message.has_value())
 			{
-				break;
+				// message is for this server
+				if (message->port == servers[serverSocketIdx]->port)
+				{
+					break;
+				}
 			}
 
 			lock.unlock();

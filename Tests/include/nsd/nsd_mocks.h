@@ -20,6 +20,7 @@ public:
 	struct RequestMessage
 	{
 		size_t clientSocketIdx;
+		uint16_t port;
 		std::vector<std::byte> data;
 	};
 
