@@ -23,11 +23,12 @@ namespace HiddenNsdClient
 		uint32_t keyIndexInPeriod;
 	};
 
-	[[nodiscard]] static bool decryptAnswer(const std::vector<SentTag>& sentTags, const std::vector<NsdServerData>& serverData, uint32_t periodIndex, std::span<const std::byte> ciphertext, std::span<std::byte> outPlaintext) noexcept
+	[[nodiscard]] static bool decryptAnswer(std::vector<SentTag>& sentTags, const std::vector<NsdServerData>& serverData, uint32_t periodIndex, std::span<const std::byte> ciphertext, std::span<std::byte> outPlaintext) noexcept
 	{
 		// try to encrypt for all the servers we sent
-		for (const SentTag& sentTag : sentTags)
+		for (size_t i = 0; i < sentTags.size(); ++i)
 		{
+			const SentTag& sentTag = sentTags[i];
 			assertFatalRelease(sentTag.serverIdx < serverData.size(), "Logical error: desynchronized index");
 			const NsdServerData& oneServerData = serverData[sentTag.serverIdx];
 			// use the hash as the encryption key
@@ -38,6 +39,7 @@ namespace HiddenNsdClient
 			const Cryptography::DecryptResult result = Cryptography::decrypt_chacha20poly1305(cipherKey, nonce, {}, ciphertext, outPlaintext);
 			if (result == Cryptography::DecryptResult::Success)
 			{
+				sentTags.erase(sentTags.begin() + i);
 				return true;
 			}
 			if (result != Cryptography::DecryptResult::AuthDataMismatch)
@@ -50,7 +52,7 @@ namespace HiddenNsdClient
 		return false;
 	}
 
-	static bool processUdpRequestAnswer(const Network::RawSocket socket, const std::vector<SentTag>& sentTags, const std::vector<NsdServerData>& serverData, uint32_t periodIndex, std::span<std::byte> inOutBuffer, NsdInternalUtils::NetworkAddressKey& outNetAddress, uint16_t& outPort, std::vector<std::byte>& outExtraData)
+	static bool processUdpRequestAnswer(const Network::RawSocket socket, std::vector<SentTag>& sentTags, const std::vector<NsdServerData>& serverData, uint32_t periodIndex, std::span<std::byte> inOutBuffer, NsdInternalUtils::NetworkAddressKey& outNetAddress, uint16_t& outPort, std::vector<std::byte>& outExtraData)
 	{
 		int messageLength = NsdInternalUtils::receiveNsdAnswer(socket, inOutBuffer, outNetAddress);
 		if (messageLength == -1) [[unlikely]]
@@ -145,13 +147,12 @@ namespace HiddenNsdClient
 		{
 			if (broadcastsDone < numberOfBroadcasts && std::chrono::steady_clock::now() > lastBroadcastTime + timeBetweenBroadcasts)
 			{
-				sentTags.clear();
 				for (size_t i = 0; i < serverData.size(); ++i)
 				{
 					const auto& oneServerData = serverData[i];
 					const uint64_t tag = Cryptography::getSingleIdentificationTag(oneServerData.hash, currentPeriodIndex, oneServerData.keyIndexInPeriod + broadcastsDone);
 					Serialization::writeUint64(query, tag);
-					sentTags.emplace_back(tag, i);
+					sentTags.emplace_back(tag, i, oneServerData.keyIndexInPeriod + broadcastsDone);
 					if (const auto result = NsdInternalUtils::broadcastNdsUdpRequest(socket, addressType, query, broadcastPort); result.has_value()) [[unlikely]]
 					{
 						return result;
@@ -163,7 +164,7 @@ namespace HiddenNsdClient
 				NsdInternalUtils::removeOldDiscoveredServers(discoveredServersData, resultFunction);
 			}
 
-			uint16_t port;
+			uint16_t port = 0;
 			if (processUdpRequestAnswer(socket, sentTags, serverData, currentPeriodIndex, buffer, netAddress, port, extraData))
 			{
 				NsdInternalUtils::registerDiscoveredServer(discoveredServersData, netAddress, extraData, port, resultFunction);

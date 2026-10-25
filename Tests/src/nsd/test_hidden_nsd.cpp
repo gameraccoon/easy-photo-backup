@@ -63,16 +63,16 @@ TEST_F(HiddenNsdTest, NsdServer_StartClient_FindTheServer)
 		const std::string expectedPayloadStr = "test data";
 		const std::span<const std::byte> expectedPayload = std::as_bytes(std::span(expectedPayloadStr));
 
+		ASSERT_EQ(result.state, NsdUtils::DiscoveryState::Added);
 		EXPECT_EQ(result.address.addressType, Network::AddressType::IpV4);
 		EXPECT_EQ(result.address.toString(), "10.101.1.2:3456");
-		EXPECT_EQ(result.state, NsdUtils::DiscoveryState::Added);
 		assertSpansEqual(std::vector<std::byte>(expectedPayload.begin(), expectedPayload.end()), result.extraData);
 	};
 
 	std::vector<HiddenNsdClient::NsdServerData> serverData;
 	serverData.emplace_back(clientHash.clone(), 0);
 	constexpr float timeBetweenBroadcastsSec = 0.01f;
-	constexpr int numberOfBroadcasts = 1;
+	constexpr int numberOfBroadcasts = 5;
 	constexpr float extraWaitTimeAfterLastBroadcastSec = 0.01f;
 	HiddenNsdClient::processServiceDiscoveryThread(
 		Network::AddressType::IpV4,
