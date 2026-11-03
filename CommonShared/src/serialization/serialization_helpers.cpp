@@ -162,4 +162,35 @@ namespace Serialization
 		}
 		return Internal::reportIfReadError(readResult, logName);
 	}
+
+	bool GenericDeserializationWrapper::skipBytes(size_t bytesToSkip) noexcept
+	{
+		const size_t resultOffset = mBytesRead + bytesToSkip;
+		// the second check is to avoid size_t overflow
+		if (resultOffset < mBuffer.size() && resultOffset > mBytesRead)
+		{
+			mBytesRead = resultOffset;
+			return true;
+		}
+		else
+		{
+			return false;
+		}
+	}
+
+	bool GenericDeserializationWrapper::skipShortString(std::string_view logName) noexcept
+	{
+		if (mBytesRead >= mBuffer.size())
+		{
+			return Internal::reportIfReadError("Not enough data to read the string size", logName);
+		}
+
+		const size_t stringLen = static_cast<size_t>(mBuffer[mBytesRead]);
+		mBytesRead += 1;
+		if (!skipBytes(stringLen))
+		{
+			return Internal::reportIfReadError("Not enough data to read the string", logName);
+		}
+		return true;
+	}
 } // namespace Serialization
