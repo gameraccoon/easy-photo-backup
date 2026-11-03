@@ -28,6 +28,13 @@ TEST(PairingCodeUtils, Generate6DigitShortAuthentificationString)
 
 		EXPECT_EQ(Cryptography::generateSas(handshakeHash, 6), "757153");
 	}
+
+	{
+		Cryptography::HashResult handshakeHash;
+		vectorToArray(hexToBytes("0202020202020202020202020202020202020202020202020202020202020202"), handshakeHash.raw);
+
+		EXPECT_EQ(Cryptography::generateSas(handshakeHash, 6), "064448");
+	}
 }
 
 TEST(PairingCodeUtils, Generate18DigitShortAuthentificationString)
@@ -51,5 +58,12 @@ TEST(PairingCodeUtils, Generate18DigitShortAuthentificationString)
 		vectorToArray(hexToBytes("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"), handshakeHash.raw);
 
 		EXPECT_EQ(Cryptography::generateSas(handshakeHash, 18), "363154300105757153");
+	}
+
+	{
+		Cryptography::HashResult handshakeHash;
+		vectorToArray(hexToBytes("fbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfb"), handshakeHash.raw);
+
+		EXPECT_EQ(Cryptography::generateSas(handshakeHash, 18), "098155677750281005");
 	}
 }
