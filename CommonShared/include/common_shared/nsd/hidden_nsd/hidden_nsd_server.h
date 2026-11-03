@@ -20,7 +20,10 @@ namespace HiddenNsdServer
 
 	using TagMap = Cryptography::IdentificationTagMap<TagsPerPeriod>;
 
-	using UpdateHashesFn = std::function<void(std::vector<Cryptography::HashResult>& /*clientHashes*/, size_t& /*outNumAddedClients*/, std::vector<size_t>& /*inOutClientsToRemove*/)>;
+	using ClientHashes = std::vector<Cryptography::HashResult>;
+	using ClientHashIds = std::vector<uint32_t>;
+
+	using UpdateHashesFn = std::function<void(ClientHashes& /*clientHashes*/, ClientHashIds& hashesIds, size_t& /*outNumAddedClients*/, std::vector<size_t>& /*inOutClientsToRemove*/)>;
 
 	struct SetupError
 	{

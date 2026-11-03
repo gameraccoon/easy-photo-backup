@@ -35,11 +35,12 @@ TEST_F(HiddenNsdTest, NsdServer_StartClient_FindTheServer)
 	fillWithTestRandomBytes(clientHash, getSessionRandomSeed());
 	constexpr uint16_t nsdPort = 1234;
 
-	auto updateClientHashesFn = [&clientHash](std::vector<Cryptography::HashResult>& clientHashes, size_t& outNumAddedClients, std::vector<size_t>& /*inOutClientsToRemove*/) {
+	auto updateClientHashesFn = [&clientHash](std::vector<Cryptography::HashResult>& clientHashes, std::vector<uint32_t>& clientIndexes, size_t& outNumAddedClients, std::vector<size_t>& /*inOutClientsToRemove*/) {
 		if (clientHashes.empty())
 		{
 			outNumAddedClients = 1;
 			clientHashes.push_back(clientHash.clone());
+			clientIndexes.push_back(0);
 		}
 	};
 

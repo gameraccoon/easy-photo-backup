@@ -21,62 +21,43 @@ namespace HiddenNsdServer
 		std::chrono::steady_clock::time_point throttleEnd;
 	};
 
-	static void processClientModificationRequests(std::vector<Cryptography::HashResult>& clientHashes, TagMap& tagMap, int32_t lastPeriodIndex, int32_t currentPeriodIndex, size_t numAddedClients, const std::vector<size_t>& clientsToRemove) noexcept
+	static void processClientModificationRequests(ClientHashes& clientHashes, TagMap& tagMap, int32_t lastPeriodIndex, int32_t currentPeriodIndex, size_t numAddedClients, const std::vector<size_t>& clientsToRemove) noexcept
 	{
 		debugAssert(numAddedClients <= clientHashes.size(), "Logical error, numAddedClients was incorrect: {} for clients {}", numAddedClients, clientHashes.size());
+		clientHashes.reserve(clientHashes.size() + numAddedClients);
 		if (numAddedClients > 0 && numAddedClients <= clientHashes.size())
 		{
 			for (size_t i = clientHashes.size() - numAddedClients; i < clientHashes.size(); ++i)
 			{
 				Cryptography::HashResult& clientHash = clientHashes[i];
-				// don't add the same hash twice, even if we previously wanted to remove it
-				// we never expect the same client to be readded
-				if (auto it = std::find(clientHashes.begin(), clientHashes.end(), clientHash); it == clientHashes.end())
-				{
-					clientHashes.push_back(std::move(clientHash));
-					assertFatalRelease(clientHashes.size() < std::numeric_limits<uint32_t>::max(), "Too many potential NSD clients, possible logical error, terminating");
+				assertFatalRelease(clientHashes.size() < std::numeric_limits<uint32_t>::max(), "Too many potential NSD clients, possible logical error, terminating");
 
-					// we intentially don't populate periods that will be removed or added right away to not do double work
-					const int32_t firstIndexToAdd = currentPeriodIndex - 1;
-					const int32_t lastIndexToAdd = lastPeriodIndex + 1;
-					// it can be that we don't need to add anything, if we are going to regenerate the whole map anyway
-					if (firstIndexToAdd <= lastIndexToAdd)
-					{
-						tagMap.appendOneClientTagsForPeriods(clientHashes.back(), clientHashes.size() - 1, firstIndexToAdd, lastIndexToAdd);
-					}
-				}
-				else
+				// we intentially don't populate periods that will be removed or added right away to not do double work
+				const int32_t firstIndexToAdd = currentPeriodIndex - 1;
+				const int32_t lastIndexToAdd = lastPeriodIndex + 1;
+				// it can be that we don't need to add anything, if we are going to regenerate the whole map anyway
+				if (firstIndexToAdd <= lastIndexToAdd)
 				{
-					reportDebugError("Trying to add a client twice to NSD");
+					tagMap.appendOneClientTagsForPeriods(clientHash, clientHashes.size() - 1, firstIndexToAdd, lastIndexToAdd);
 				}
 			}
 		}
 
 		for (size_t indexToRemove : clientsToRemove)
 		{
-			Cryptography::HashResult& clientHash = clientHashes[indexToRemove];
-			if (auto it = std::find(clientHashes.begin(), clientHashes.end(), clientHash); it != clientHashes.end())
-			{
-				const size_t clientIndexToRemove = std::distance(clientHashes.begin(), it);
-				if (std::find(clientsToRemove.begin(), clientsToRemove.end(), clientIndexToRemove) == clientsToRemove.end())
-				{
-					// we only clear the tag map for now, the hash will be removed at the end of the period
-					tagMap.removeClientTags(static_cast<uint32_t>(clientIndexToRemove));
-				}
-			}
-			else
-			{
-				reportDebugError("Trying to remove a non-existing client from NSD");
-			}
+			// we only clear the tag map for now, the hash will be removed at the end of the period
+			tagMap.removeClientTags(static_cast<uint32_t>(indexToRemove));
 		}
 	}
 
-	static void applyPendingRemovals(std::vector<Cryptography::HashResult>& clientHashes, TagMap& tagMap, std::vector<size_t>& clientsToRemove) noexcept
+	static void applyPendingRemovals(ClientHashes& clientHashes, ClientHashIds& clientIds, TagMap& tagMap, std::vector<size_t>& clientsToRemove) noexcept
 	{
 		if (clientsToRemove.empty())
 		{
 			return;
 		}
+
+		assertFatalRelease(clientHashes.size() != clientIds.size(), "Logical error, these vectors should always have the same size");
 
 		std::sort(clientsToRemove.begin(), clientsToRemove.end());
 		size_t writeIdx = 0;
@@ -97,11 +78,13 @@ namespace HiddenNsdServer
 			{
 				// shift to the left, overriding previous element
 				clientHashes[writeIdx] = std::move(clientHashes[readIdx]);
+				clientIds[writeIdx] = std::move(clientIds[readIdx]);
 			}
 			++writeIdx;
 		}
 
 		clientHashes.resize(writeIdx);
+		clientIds.resize(writeIdx);
 
 		// shift the client indexes in the map
 		tagMap.forEachPayload([&indexRedirectors](auto& payload) {
@@ -167,7 +150,7 @@ namespace HiddenNsdServer
 		return isThrottled;
 	}
 
-	static void updateClientAndPeriodData(int32_t& lastPeriodIndex, const UpdateHashesFn& updateHashesFn, std::vector<Cryptography::HashResult>& clientHashes, TagMap& tagMap, std::vector<size_t>& clientsToRemove) noexcept
+	static void updateClientAndPeriodData(int32_t& lastPeriodIndex, const UpdateHashesFn& updateHashesFn, ClientHashes& clientHashes, ClientHashIds& clientIds, TagMap& tagMap, std::vector<size_t>& clientsToRemove) noexcept
 	{
 		// we never move back in time, if the clocks drift back we keep the last used period
 		// periods are also measured in days or at least hours, so 32bit overflow is not
@@ -175,12 +158,12 @@ namespace HiddenNsdServer
 		const int32_t currentPeriodIndex = std::max(Cryptography::IdentificationTagsUtils::getCurrentDayIndex(), lastPeriodIndex);
 
 		size_t numAddedClients = 0;
-		updateHashesFn(clientHashes, numAddedClients, clientsToRemove);
+		updateHashesFn(clientHashes, clientIds, numAddedClients, clientsToRemove);
 		processClientModificationRequests(clientHashes, tagMap, lastPeriodIndex, currentPeriodIndex, numAddedClients, clientsToRemove);
 
 		if (currentPeriodIndex > lastPeriodIndex)
 		{
-			applyPendingRemovals(clientHashes, tagMap, clientsToRemove);
+			applyPendingRemovals(clientHashes, clientIds, tagMap, clientsToRemove);
 			tagMap.updateTagMap(clientHashes, lastPeriodIndex, currentPeriodIndex);
 			lastPeriodIndex = currentPeriodIndex;
 		}
@@ -222,9 +205,10 @@ namespace HiddenNsdServer
 		}
 
 		std::vector<Cryptography::HashResult> clientHashes;
+		std::vector<uint32_t> clientIds;
 		std::vector<size_t> clientsToRemove;
 		size_t initialClientsNum;
-		updateHashesFn(clientHashes, initialClientsNum, clientsToRemove);
+		updateHashesFn(clientHashes, clientIds, initialClientsNum, clientsToRemove);
 
 		TagMap tagMap;
 		int32_t lastPeriodIndex = Cryptography::IdentificationTagsUtils::getCurrentDayIndex();
@@ -253,7 +237,7 @@ namespace HiddenNsdServer
 				continue;
 			}
 
-			updateClientAndPeriodData(lastPeriodIndex, updateHashesFn, clientHashes, tagMap, clientsToRemove);
+			updateClientAndPeriodData(lastPeriodIndex, updateHashesFn, clientHashes, clientIds, tagMap, clientsToRemove);
 
 			if (messageLength != expectedPacketSize)
 			{
