@@ -7,7 +7,6 @@
 #include "common_shared/cryptography/primitives/dh_functions.h"
 #include "common_shared/debug/assert.h"
 #include "common_shared/network/protocol.h"
-#include "common_shared/network/raw_sockets.h"
 
 namespace Requests
 {
@@ -51,13 +50,13 @@ namespace Requests
 		}
 
 		// increase the timeouts for the rest of the handshake
-		if (const auto result = Network::setSocketTimeout(socket, SO_RCVTIMEO, SubsequentMessagesTimeoutSeconds, SubsequentMessagesTimeoutMicroseconds); result.has_value())
+		if (const auto result = Network::setSocketTimeout(socket, Network::SOCKET_OPTION_RCVTIMEO, SubsequentMessagesTimeoutSeconds, SubsequentMessagesTimeoutMicroseconds); result.has_value())
 		{
 			reportDebugError("Could not set SO_RCVTIMEO to a connection socket: {}", *result);
 			return std::nullopt;
 		}
 
-		if (const auto result = Network::setSocketTimeout(socket, SO_SNDTIMEO, SubsequentMessagesTimeoutSeconds, SubsequentMessagesTimeoutMicroseconds); result.has_value())
+		if (const auto result = Network::setSocketTimeout(socket, Network::SOCKET_OPTION_SNDTIMEO, SubsequentMessagesTimeoutSeconds, SubsequentMessagesTimeoutMicroseconds); result.has_value())
 		{
 			reportDebugError("Could not set SO_SNDTIMEO to a connection socket: {}", *result);
 			return std::nullopt;

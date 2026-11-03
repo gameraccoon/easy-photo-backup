@@ -19,6 +19,11 @@
 
 namespace Network
 {
+	const int SOCKET_OPTION_REUSEADDR = SO_REUSEADDR;
+	const int SOCKET_OPTION_REUSEPORT = SO_REUSEPORT;
+	const int SOCKET_OPTION_BROADCAST = SO_BROADCAST;
+	const int SOCKET_OPTION_RCVTIMEO = SO_RCVTIMEO;
+	const int SOCKET_OPTION_SNDTIMEO = SO_SNDTIMEO;
 
 #ifdef DEBUG_CHECKS
 	constexpr bool debugPrintBuffers = false;
