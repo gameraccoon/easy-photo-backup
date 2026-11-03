@@ -35,14 +35,18 @@ TEST_F(HiddenNsdTest, NsdServer_StartClient_FindTheServer)
 	fillWithTestRandomBytes(clientHash, getSessionRandomSeed());
 	constexpr uint16_t nsdPort = 1234;
 
-	HiddenNsdServer::MessagePipe clientModificationRequests;
+	auto updateClientHashesFn = [&clientHash](std::vector<Cryptography::HashResult>& clientHashes, size_t& outNumAddedClients, std::vector<size_t>& /*inOutClientsToRemove*/) {
+		if (clientHashes.empty())
+		{
+			outNumAddedClients = 1;
+			clientHashes.push_back(clientHash.clone());
+		}
+	};
 
-	auto serverThread = std::thread([serverSocket, &clientHash, &clientModificationRequests] {
+	auto serverThread = std::thread([serverSocket, &updateClientHashesFn] {
 		constexpr std::string_view payload = "test data";
 		constexpr const char* networkInterface = "0.0.0.0";
 		constexpr uint16_t advertizedPort = 3456;
-		std::vector<Cryptography::HashResult> clients;
-		clients.push_back(clientHash.clone());
 		HiddenNsdServer::listen(
 			serverSocket,
 			Network::AddressType::IpV4,
@@ -50,8 +54,7 @@ TEST_F(HiddenNsdTest, NsdServer_StartClient_FindTheServer)
 			nsdPort,
 			advertizedPort,
 			std::as_bytes(std::span(payload)),
-			std::move(clients),
-			clientModificationRequests
+			updateClientHashesFn
 		);
 	});
 
