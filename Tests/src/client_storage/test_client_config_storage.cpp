@@ -53,7 +53,8 @@ TEST_F(ClientConfigStorageTest, Storage_AddConfirmedServerAndGetIt_ReturnsTheBin
 
 	ClientConfigStorage::ServerBinding binding;
 	binding.serverName = "asdf";
-	Cryptography::fillWithRandomBytes(binding.connectionId);
+	Cryptography::fillWithRandomBytes(binding.nsdIdentificationHash);
+	Cryptography::fillWithRandomBytes(binding.encryptedRequestIdentificationHash);
 	Cryptography::fillWithRandomBytes(binding.remoteStaticKey);
 	Cryptography::fillWithRandomBytes(binding.staticKeys.publicKey);
 	Cryptography::fillWithRandomBytes(binding.staticKeys.secretKey);
@@ -67,7 +68,8 @@ TEST_F(ClientConfigStorageTest, Storage_AddConfirmedServerAndGetIt_ReturnsTheBin
 
 	EXPECT_EQ(result->serverIdx, uint8_t(0));
 	EXPECT_EQ(result->serverName, binding.serverName);
-	EXPECT_EQ(result->connectionId, binding.connectionId);
+	EXPECT_EQ(result->nsdIdentificationHash, binding.nsdIdentificationHash);
+	EXPECT_EQ(result->encryptedRequestIdentificationHash, binding.encryptedRequestIdentificationHash);
 	EXPECT_EQ(result->remoteStaticKey, binding.remoteStaticKey);
 	EXPECT_EQ(result->staticKeys.publicKey, binding.staticKeys.publicKey);
 	EXPECT_EQ(result->staticKeys.secretKey, binding.staticKeys.secretKey);
@@ -83,7 +85,8 @@ TEST_F(ClientConfigStorageTest, Storage_RemoveExistingConfirmedBindingAndGetIt_R
 
 	ClientConfigStorage::ServerBinding binding;
 	binding.serverName = "asdf";
-	Cryptography::fillWithRandomBytes(binding.connectionId);
+	Cryptography::fillWithRandomBytes(binding.nsdIdentificationHash);
+	Cryptography::fillWithRandomBytes(binding.encryptedRequestIdentificationHash);
 	Cryptography::fillWithRandomBytes(binding.remoteStaticKey);
 	Cryptography::fillWithRandomBytes(binding.staticKeys.publicKey);
 	Cryptography::fillWithRandomBytes(binding.staticKeys.secretKey);

@@ -7,9 +7,9 @@
 
 #include "common_shared/network/protocol.h"
 
-namespace Requests
+namespace PairingRequests
 {
-	using namespace Protocol::Requests;
+	using namespace Protocol::PairingRequests;
 
 	struct RequestReadError
 	{
@@ -18,10 +18,7 @@ namespace Requests
 
 	using RequestVariant = std::variant<
 		RequestReadError,
-		GetProtocolVersion,
-		GetServerName,
-		Pair,
-		SendFiles>;
+		Pair>;
 
 	RequestVariant parseRequest(std::byte requestId, std::span<std::byte const> requestData);
 } // namespace Requests

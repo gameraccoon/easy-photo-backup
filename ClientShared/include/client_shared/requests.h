@@ -5,7 +5,6 @@
 
 #include <cstdint>
 #include <functional>
-#include <optional>
 #include <variant>
 
 #include "common_shared/network/protocol.h"
@@ -15,14 +14,11 @@
 
 namespace Requests
 {
-	using namespace Protocol::Requests;
+	using PairingRequest = std::variant<Protocol::PairingRequests::Pair>;
 
-	using Request = std::variant<
-		GetProtocolVersion,
-		GetServerName,
-		Pair>;
+	using EncryptedRequest = std::variant<Protocol::EncryptedRequests::SendFiles>;
 
 	[[nodiscard]] RequestAnswers::RequestAnswer prepareConnectionAndProcess(const char* serverAddress, const Network::AddressType serverAddressType, uint16_t port, const std::function<RequestAnswers::RequestAnswer(Network::RawSocket socket)>& processFn);
 
-	[[nodiscard]] RequestAnswers::RequestAnswer sendAndProcessRequest(const char* serverAddress, const Network::AddressType serverAddressType, uint16_t port, Request&& request);
+	[[nodiscard]] RequestAnswers::RequestAnswer sendAndProcessRequest(const char* serverAddress, const Network::AddressType serverAddressType, uint16_t port, PairingRequest&& request);
 }

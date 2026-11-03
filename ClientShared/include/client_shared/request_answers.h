@@ -37,8 +37,6 @@ namespace RequestAnswers
 		ErrorNoHandling,
 		ExpectedNoAnswer,
 		UnsupportedProtocolVersion,
-		GetProtocolVersion,
-		GetServerName,
 		Pair,
 		SendFiles>;
 } // namespace RequestAnswers

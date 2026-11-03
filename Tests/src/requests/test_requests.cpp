@@ -4,18 +4,21 @@
 #include <filesystem>
 #include <fstream>
 
+#include "tests/helper_utils.h"
+#include "tests/random_helpers.h"
 #include <gtest/gtest.h>
-#include <tests/helper_utils.h>
 
-#include "common_shared/cryptography/utils/connection_id_utils.h"
+#include "common_shared/cryptography/utils/identification_tags.h"
+#include "common_shared/serialization/number_serialization.h"
 
 #include "client_shared/client_storage.h"
 #include "client_shared/file_send_helpers.h"
 #include "client_shared/pairing_interactive_request.h"
 #include "client_shared/send_files_interactive_request.h"
 
+#include "server_shared/encrypted_requests.h"
 #include "server_shared/pairing_interactive_request.h"
-#include "server_shared/requests.h"
+#include "server_shared/pairing_requests.h"
 #include "server_shared/send_files_interactive_request.h"
 #include "server_shared/server_storage.h"
 
@@ -111,6 +114,8 @@ TEST_F(RequestsTest, PairConfirmAndExchangeFiles_FilesExchanged)
 	constexpr Network::RawSocket clientSocket = 10;
 	constexpr Network::RawSocket serverSocket = 11;
 
+	const uint64_t clientSentTag = getRandom<uint64_t>(getSessionRandomSeed());
+
 	const std::filesystem::path folderToSend = "./tests/requests_test/files_to_send";
 
 	std::vector<std::filesystem::path> fileNames;
@@ -167,7 +172,7 @@ TEST_F(RequestsTest, PairConfirmAndExchangeFiles_FilesExchanged)
 	};
 	Network::gTestDisableRealSockets = true;
 
-	std::thread clientThread = std::thread([&folderToSend]() {
+	std::thread clientThread = std::thread([clientSentTag, &folderToSend]() {
 		const ClientConfigStorage::ServerId serverId = vectorToArray<16>(hexToBytes("1234567890abcdef1234567890abcdef"));
 
 		// client pair
@@ -182,7 +187,8 @@ TEST_F(RequestsTest, PairConfirmAndExchangeFiles_FilesExchanged)
 			serverId,
 			ClientConfigStorage::ServerBinding{
 				.serverName = "test server",
-				.connectionId = Cryptography::generateConnectionId(pairingInformation.staticKeys.publicKey, pairingInformation.remoteStaticKey),
+				.nsdIdentificationHash = Cryptography::IdentificationTagsUtils::getIdentificationHash(pairingInformation.handshakeHash, std::as_bytes(std::span(Protocol::Salts::NsdIdTagSaltString))),
+				.encryptedRequestIdentificationHash = Cryptography::IdentificationTagsUtils::getIdentificationHash(pairingInformation.handshakeHash, std::as_bytes(std::span(Protocol::Salts::EncryptedRequestIdTagSaltString))),
 				.remoteStaticKey = pairingInformation.remoteStaticKey.clone(),
 				.staticKeys = pairingInformation.staticKeys.clone(),
 			}
@@ -199,7 +205,15 @@ TEST_F(RequestsTest, PairConfirmAndExchangeFiles_FilesExchanged)
 		}
 		std::vector<uint64_t> previouslySentBytes;
 		storageSentFiles->filterOutSentFiles(serverBinding->serverIdx, files, previouslySentBytes);
-		Requests::sendAndProcessSendFilesInteractiveRequest(clientSocket, *storageSentFiles, *serverBinding, std::move(files), previouslySentBytes, folderToSend);
+		Requests::sendAndProcessSendFilesInteractiveRequest(
+			clientSocket,
+			clientSentTag,
+			*storageSentFiles,
+			*serverBinding,
+			std::move(files),
+			previouslySentBytes,
+			folderToSend
+		);
 	});
 	TestFinalizer f([&clientThread] {
 		clientThread.join();
@@ -216,34 +230,37 @@ TEST_F(RequestsTest, PairConfirmAndExchangeFiles_FilesExchanged)
 		Debug::Log::printDebug("Could not recv the first pairing message from a client: {}", *result);
 		return;
 	}
-	constexpr size_t MessagePreludeSize = sizeof(Protocol::NetworkProtocolVersion) + sizeof(Protocol::RequestId);
-	ASSERT_GE(readBytes, MessagePreludeSize);
-	auto pairRequest = Requests::parseRequest(buffer[2], std::span(buffer.data() + MessagePreludeSize, buffer.data() + readBytes));
-	ASSERT_TRUE(std::holds_alternative<Requests::Pair>(pairRequest));
-	std::optional<Requests::PendingClientBinding> pendingClientBinding = Requests::processPairingInteractiveRequest(std::get<Requests::Pair>(pairRequest).firstMessage, serverSocket);
+	constexpr size_t PairingMessagePreludeSize = sizeof(Protocol::NetworkProtocolVersion) + sizeof(Protocol::RequestId);
+	ASSERT_GE(readBytes, PairingMessagePreludeSize);
+	auto pairRequest = PairingRequests::parseRequest(buffer[2], std::span(buffer.data() + PairingMessagePreludeSize, buffer.data() + readBytes));
+	ASSERT_TRUE(std::holds_alternative<PairingRequests::Pair>(pairRequest));
+	std::optional<Requests::PendingClientBinding> pendingClientBinding = Requests::processPairingInteractiveRequest(std::get<PairingRequests::Pair>(pairRequest).firstMessage, serverSocket);
 	ASSERT_TRUE(pendingClientBinding.has_value());
 
-	// server approve
-	configStorage->addConfirmedClientBinding(
-		Cryptography::generateConnectionId(pendingClientBinding->remoteStaticKey, pendingClientBinding->staticKeys.publicKey),
-		ServerConfigStorage::ClientBinding{
-			.clientName = "test_client",
-			.remoteStaticKey = std::move(pendingClientBinding->remoteStaticKey),
-			.staticKeys = std::move(pendingClientBinding->staticKeys),
-		}
-	);
+	ServerConfigStorage::ClientBinding approvedBinding{
+		.clientName = "test_client",
+		.nsdIdentificationHash = Cryptography::IdentificationTagsUtils::getIdentificationHash(pendingClientBinding->handshakeHash, std::as_bytes(std::span(Protocol::Salts::NsdIdTagSaltString))),
+		.encryptedRequestIdentificationHash = Cryptography::IdentificationTagsUtils::getIdentificationHash(pendingClientBinding->handshakeHash, std::as_bytes(std::span(Protocol::Salts::EncryptedRequestIdTagSaltString))),
+		.remoteStaticKey = std::move(pendingClientBinding->remoteStaticKey),
+		.staticKeys = std::move(pendingClientBinding->staticKeys),
+	};
 
 	// server receive
+	constexpr size_t MessagePreludeSize = sizeof(uint64_t);
+
 	if (auto result = Network::recv(serverSocket, buffer, -1, readBytes); result.has_value())
 	{
 		Debug::Log::printDebug("Could not recv the first file sending message from a client: {}", *result);
 		return;
 	}
 	ASSERT_GE(readBytes, MessagePreludeSize);
-	auto sendFilesRequest = Requests::parseRequest(buffer[2], std::span(buffer.data() + MessagePreludeSize, buffer.data() + readBytes));
-	ASSERT_TRUE(std::holds_alternative<Requests::SendFiles>(sendFilesRequest));
-	Requests::SendFiles sendFiles = std::get<Requests::SendFiles>(std::move(sendFilesRequest));
-	Requests::processSendFilesInteractiveRequest(sendFiles.connectionId, sendFiles.firstMessage, serverSocket, *configStorage, TEST_DATA_PATH);
+	const uint64_t serverReceivedTag = Serialization::readUint64(std::span(buffer).subspan(0, 8));
+	EXPECT_EQ(serverReceivedTag, clientSentTag);
+	Noise::CipherStateSending sendingCipherState;
+	Noise::CipherStateReceiving receivingCipherState;
+	auto sendFilesRequest = EncryptedRequests::processHandshakeAndParseRequest(std::span(buffer.data() + MessagePreludeSize, buffer.data() + readBytes), serverSocket, approvedBinding, sendingCipherState, receivingCipherState);
+	ASSERT_TRUE(std::holds_alternative<EncryptedRequests::SendFiles>(sendFilesRequest));
+	Requests::processSendFilesInteractiveRequest(serverSocket, std::filesystem::path(TEST_DATA_PATH) / "test_client", sendingCipherState, receivingCipherState);
 
 	ASSERT_EQ(fileNames.size(), fileContents.size());
 	for (size_t i = 0; i < fileNames.size(); ++i)

@@ -1,7 +1,7 @@
 // Copyright (C) Pavel Grebnev 2026
 // Distributed under the MIT License (license terms are at http://opensource.org/licenses/MIT).
 
-#include "client_shared/server_discovery_client.h"
+#include "client_shared/simple_nsd_client_wrapper.h"
 
 #include "common_shared/debug/log.h"
 #include "common_shared/nsd/simple_nsd/simple_nsd_client.h"
@@ -10,7 +10,7 @@
 static constexpr bool NsdDebug = false;
 #endif
 
-void ServerDiscoveryClient::startDiscovery() noexcept
+void SimpleNsdClientWrapper::startDiscovery() noexcept
 {
 	mDiscoveryThread = std::thread([&servers = mDiscoveredServers, &mutex = mDataMutex, &nsdStopFlag = mNsdStopFlag] {
 		std::optional<std::string> result = SimpleNsdClient::processServiceDiscoveryThread(
@@ -94,13 +94,13 @@ void ServerDiscoveryClient::startDiscovery() noexcept
 	});
 }
 
-std::vector<ServerConnectionInfo> ServerDiscoveryClient::getDiscoveryResults() noexcept
+std::vector<ServerConnectionInfo> SimpleNsdClientWrapper::getDiscoveryResults() noexcept
 {
 	std::unique_lock lock(mDataMutex);
 	return mDiscoveredServers;
 }
 
-void ServerDiscoveryClient::stopDiscovery() noexcept
+void SimpleNsdClientWrapper::stopDiscovery() noexcept
 {
 	mNsdStopFlag.store(true, std::memory_order::release);
 	mDiscoveredServers.clear();

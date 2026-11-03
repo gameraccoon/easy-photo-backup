@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include <filesystem>
 #include <functional>
 #include <future>
 #include <optional>
@@ -11,11 +10,21 @@
 
 #include "common_shared/network/utils.h"
 
-#include "server_shared/pairing_interactive_request.h"
-
 class ServerConfigStorage;
 
 namespace TcpServer
 {
-	std::optional<std::string> runServer(ServerConfigStorage& storage, const char* interfaceAddressStr, Network::AddressType addressType, const std::filesystem::path& targetDir, std::promise<uint16_t>& portPromise, const std::function<void(Requests::PendingClientBinding&& pendingClientBinding)>& pairingFn);
+	// run synchronously when a new client connected
+	using OnClientConnected = std::function<void()>;
+	// run asynchronously to process the connection
+	using ProcessClientFn = std::function<void(Network::RawSocket)>;
+
+	std::optional<std::string> runServer(
+		ServerConfigStorage& configStorage,
+		const char* interfaceAddressStr,
+		const Network::AddressType addressType,
+		std::promise<uint16_t>& portPromise,
+		const OnClientConnected& onClientConnectedFn,
+		const ProcessClientFn& processClientFn
+	);
 }

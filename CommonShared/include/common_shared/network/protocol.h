@@ -3,9 +3,7 @@
 
 #pragma once
 
-#include <array>
 #include <cstdint>
-#include <string>
 #include <vector>
 
 #include "common_shared/cryptography/types/dh_types.h"
@@ -16,16 +14,15 @@ namespace Protocol
 	// increase the version every time the protocol changes
 	// 0 - first stable version
 	// 1 - change in file sending protocol, allow to send multiple file headers
-	constexpr uint16_t NetworkProtocolVersion = 1;
+	// 2 - complete overhaul of the requests system to send tags instead of plaintest ID
+	//   + remove GetProtocolVersion and GetServerName request and answer
+	//   + make Pair request only work in "pairing mode"
+	constexpr uint16_t NetworkProtocolVersion = 2;
 
 	enum class RequestId : uint8_t
 	{
-		// make sure GetProtocolVersion does not change the ID or data
-		// as it should remain the same across all versions in order for it to work
-		GetProtocolVersion = 0,
-		GetServerName = 1,
-		Pair = 2,
-		SendFiles = 3,
+		Pair = 1,
+		SendFiles = 2,
 	};
 
 	enum class RequestAnswerId : uint8_t
@@ -33,12 +30,8 @@ namespace Protocol
 		// make sure UnsupportedProtocolVersion does not change the ID or data
 		// as it should remain the same across all versions in order for it to work
 		UnsupportedProtocolVersion = 0,
-		// make sure GetProtocolVersion does not change the ID or data
-		// as it should remain the same across all versions in order for it to work
-		GetProtocolVersion = 1,
-		GetServerName = 2,
-		Pair = 3,
-		SendFiles = 4,
+		Pair = 1,
+		SendFiles = 2,
 	};
 
 	constexpr size_t MaxRequestSize = 1024;
@@ -46,30 +39,20 @@ namespace Protocol
 
 	constexpr uint16_t MaxServerNameSize = 32;
 
-	namespace Requests
+	namespace PairingRequests
 	{
-		// make sure GetProtocolVersion does not change the ID or data
-		// as it should remain the same across all versions in order for it to work
-		struct GetProtocolVersion
-		{
-		};
-
-		struct GetServerName
-		{
-		};
-
 		struct Pair
 		{
 			std::vector<std::byte> firstMessage;
 		};
+	}
 
+	namespace EncryptedRequests
+	{
 		struct SendFiles
 		{
-			// note that this means there is no identity hiding for the client
-			Cryptography::HashResult connectionId;
-			std::vector<std::byte> firstMessage;
 		};
-	} // namespace Requests
+	} // namespace TaggedRequests
 
 	namespace RequestAnswers
 	{
@@ -78,18 +61,7 @@ namespace Protocol
 		struct UnsupportedProtocolVersion
 		{
 			uint16_t firstSupportedProtocolVersion = 0;
-		};
-
-		// make sure GetProtocolVersion does not change the ID or data
-		// as it should remain the same across all versions in order for it to work
-		struct GetProtocolVersion
-		{
-			uint16_t protocolVersion = 0;
-		};
-
-		struct GetServerName
-		{
-			std::string serverName;
+			uint16_t lastSupportedProtocolVersion = 0;
 		};
 
 		struct Pair
@@ -122,7 +94,7 @@ namespace Protocol
 		// This means that if the current file has errors on the receiving side, the first 32 KiB of it (minus metadata) will still be sent before the client can know that it was rejected.
 		// As soon as the rejection for the file of progress is sent, it is expected that the client will not send any more data, so in the very next message it is expected to receive the next file/batch metadata.
 
-		// The answer is split into chunks of 64 bytes, it is expected that the server waits for all the chunks before proceedin sending next file chunks.
+		// The answer is split into chunks of 64 bytes, it is expected that the server waits for all the chunks before proceeding sendingS next file chunks.
 
 		constexpr static size_t AnswerChunkSize = 64;
 		enum class FileReceiveStatus : uint8_t
@@ -143,5 +115,12 @@ namespace Protocol
 			// tried to partially receive file, but the previous part is missing
 			PartMissing = 7,
 		};
+	}
+
+	namespace Salts
+	{
+		// we need these to make sure we generate different hashes for different purposes
+		static constexpr std::string_view NsdIdTagSaltString = "nsd identification tag salt v1";
+		static constexpr std::string_view EncryptedRequestIdTagSaltString = "encrypted request identification tag salt v1";
 	}
 } // namespace Protocol

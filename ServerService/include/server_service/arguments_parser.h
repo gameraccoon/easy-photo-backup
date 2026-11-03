@@ -7,7 +7,6 @@
 
 struct AppArguments
 {
-	std::string pairingAppCommand;
 	std::string workingDir;
 	std::string targetDir;
 

@@ -4,14 +4,12 @@
 #pragma once
 
 #include <filesystem>
-#include <span>
 
-#include "common_shared/cryptography/types/hash_types.h"
 #include "common_shared/network/utils.h"
 
 class ServerConfigStorage;
 
 namespace Requests
 {
-	void processSendFilesInteractiveRequest(const Cryptography::HashResult& clientId, std::span<const std::byte> firstMessage, const Network::RawSocket socket, ServerConfigStorage& configStorage, const std::filesystem::path& fileTargetRoot);
+	void processSendFilesInteractiveRequest(const Network::RawSocket socket, const std::filesystem::path& clientFolder, Noise::CipherStateSending& sendingCipherState, Noise::CipherStateReceiving& receivingCipherState);
 }

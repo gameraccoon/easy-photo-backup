@@ -18,12 +18,25 @@ public:
 	struct ServerBinding
 	{
 		std::string serverName;
-		Cryptography::HashResult connectionId;
+		Cryptography::HashResult nsdIdentificationHash;
+		Cryptography::HashResult encryptedRequestIdentificationHash;
 		Cryptography::PublicKey remoteStaticKey;
 		Cryptography::Keypair staticKeys;
 
 		// the field is ignored when adding the record
 		uint8_t serverIdx = 0;
+	};
+
+	enum class IdentificationTagType : uint8_t
+	{
+		Nsd = 0,
+		EncryptedRequest = 1
+	};
+
+	struct ServerIdentificationHashData
+	{
+		Cryptography::HashResult hash;
+		uint8_t serverIdx;
 	};
 
 	using ServerId = std::array<std::byte, 16>;
@@ -39,6 +52,8 @@ public:
 	[[nodiscard]] std::optional<uint8_t> removeConfirmedServerBinding(const ServerId& serverId) noexcept;
 	[[nodiscard]] std::optional<ServerBinding> getConfirmedServerBinding(const ServerId& serverId) noexcept;
 	[[nodiscard]] bool hasConfirmedServerBinding(const ServerId& serverId) noexcept;
+
+	void getAllIdentificationHashes(IdentificationTagType tagType, std::vector<ServerIdentificationHashData>& result);
 
 private:
 	explicit ClientConfigStorage(Lmdb::ReadWriteEnvironment&& mEnvironment) noexcept;
@@ -75,12 +90,6 @@ public:
 		static uint64_t convertTimeToMs(const std::chrono::system_clock::time_point& timePoint) noexcept;
 	};
 
-	enum class IdentificationTagType : uint8_t
-	{
-		Nsd = 0,
-		EncryptedRequest = 1
-	};
-
 public:
 	ClientSentFilesStorage(ClientSentFilesStorage&&) noexcept = default;
 	ClientSentFilesStorage& operator=(ClientSentFilesStorage&&) noexcept = default;
@@ -99,7 +108,7 @@ public:
 	std::vector<ActivityJournalRecord> getActivityJournalRecords(uint32_t beginIdx, uint32_t endIdx) noexcept;
 
 	// two calls to this function should never return the same key index for the same server, unless the period shifts
-	[[nodiscard]] std::optional<uint32_t> consumeNextIdentificationKeyIndexInPeriod(uint8_t serverIdx, IdentificationTagType tagType, uint32_t currentPeriodIndex) noexcept;
+	[[nodiscard]] std::optional<uint32_t> consumeNextIdentificationKeyIndexInPeriod(uint8_t serverIdx, ClientConfigStorage::IdentificationTagType tagType, uint32_t currentPeriodIndex) noexcept;
 
 private:
 	explicit ClientSentFilesStorage(Lmdb::ReadWriteEnvironment&& mEnvironment) noexcept;

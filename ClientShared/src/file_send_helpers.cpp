@@ -3,6 +3,7 @@
 
 #include "client_shared/file_send_helpers.h"
 
+#include "common_shared/cryptography/utils/identification_tags.h"
 #include "common_shared/debug/assert.h"
 #include "common_shared/template_utils.h"
 
@@ -86,12 +87,14 @@ namespace FileSendHelpers
 			return std::nullopt;
 		}
 
+		const uint64_t identificationTag = Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(serverBinding->encryptedRequestIdentificationHash, Cryptography::IdentificationTagsUtils::getCurrentDayIndex(), 0);
+
 		RequestAnswers::RequestAnswer SendFilesAnswer = Requests::prepareConnectionAndProcess(
 			serverInfo.address.ip.data(),
 			serverInfo.address.addressType,
 			serverInfo.address.port,
-			[&storageSentFiles = clientSentFilesStorage, &serverBinding, files = std::move(files), &previouslySentBytes, &commonRoot](Network::RawSocket socket) mutable -> RequestAnswers::RequestAnswer {
-				return Requests::sendAndProcessSendFilesInteractiveRequest(socket, storageSentFiles, *serverBinding, std::move(files), previouslySentBytes, std::filesystem::path(commonRoot));
+			[identificationTag, &storageSentFiles = clientSentFilesStorage, &serverBinding, files = std::move(files), &previouslySentBytes, &commonRoot](Network::RawSocket socket) mutable -> RequestAnswers::RequestAnswer {
+				return Requests::sendAndProcessSendFilesInteractiveRequest(socket, identificationTag, storageSentFiles, *serverBinding, std::move(files), previouslySentBytes, std::filesystem::path(commonRoot));
 			}
 		);
 

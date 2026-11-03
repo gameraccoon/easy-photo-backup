@@ -10,7 +10,7 @@
 
 #include "client_shared/server_connection_info.h"
 
-class ServerDiscoveryClient
+class SimpleNsdClientWrapper
 {
 public:
 	void startDiscovery() noexcept;

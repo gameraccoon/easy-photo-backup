@@ -214,12 +214,22 @@ bool ClientConfigStorage::addConfirmedServerBinding(const ServerId& serverId, co
 	}
 
 	std::vector<std::byte> value;
-	value.resize(1 + 1 + binding.serverName.size() + binding.connectionId.size() + binding.remoteStaticKey.size() + binding.staticKeys.publicKey.size() + binding.staticKeys.secretKey.size());
+	value.resize(
+		1 // serverIdx
+		+ 1 // serverName length
+		+ binding.serverName.size()
+		+ binding.nsdIdentificationHash.size()
+		+ binding.encryptedRequestIdentificationHash.size()
+		+ binding.remoteStaticKey.size()
+		+ binding.staticKeys.publicKey.size()
+		+ binding.staticKeys.secretKey.size()
+	);
 	Serialization::GenericSerializationWrapper serializer{ value };
 
 	if (!serializer.writeUint8(*firstFreeIndex, "serverIdx")) { return false; }
 	if (!serializer.writeShortString(binding.serverName, "serverName")) { return false; }
-	if (!serializer.writeFixedData(binding.connectionId, "connectionId")) { return false; }
+	if (!serializer.writeFixedData(binding.nsdIdentificationHash, "nsdIdentificationHash")) { return false; }
+	if (!serializer.writeFixedData(binding.encryptedRequestIdentificationHash, "encryptedRequestIdentificationHash")) { return false; }
 	if (!serializer.writeFixedData(binding.remoteStaticKey, "remoteStaticKey")) { return false; }
 	if (!serializer.writeFixedData(binding.staticKeys.publicKey, "publicKey")) { return false; }
 	if (!serializer.writeFixedData(binding.staticKeys.secretKey, "secretKey")) { return false; }
@@ -296,7 +306,8 @@ std::optional<ClientConfigStorage::ServerBinding> ClientConfigStorage::getConfir
 
 	if (!deserializer.readUint8(result.serverIdx, "serverIdx")) { return std::nullopt; }
 	if (!deserializer.readShortString(result.serverName, "serverName")) { return std::nullopt; }
-	if (!deserializer.readFixedData(result.connectionId, "connectionId")) { return std::nullopt; }
+	if (!deserializer.readFixedData(result.nsdIdentificationHash, "nsdIdentificationHash")) { return std::nullopt; }
+	if (!deserializer.readFixedData(result.encryptedRequestIdentificationHash, "encryptedRequestIdentificationHash")) { return std::nullopt; }
 	if (!deserializer.readFixedData(result.remoteStaticKey, "remoteStaticKey")) { return std::nullopt; }
 	if (!deserializer.readFixedData(result.staticKeys.publicKey, "publicKey")) { return std::nullopt; }
 	if (!deserializer.readFixedData(result.staticKeys.secretKey, "secretKey")) { return std::nullopt; }
@@ -327,6 +338,72 @@ bool ClientConfigStorage::hasConfirmedServerBinding(const ServerId& serverId) no
 		return false;
 	}
 	return isFound;
+}
+
+void ClientConfigStorage::getAllIdentificationHashes(IdentificationTagType tagType, std::vector<ServerIdentificationHashData>& result)
+{
+	result.clear();
+
+	Lmdb::Result<Lmdb::ReadOnlySingleDbWrapper> wrapper = Lmdb::openReadOnlySingleDbTransaction(mEnvironment, ClientStorageInternal::ConfirmedDatabaseName);
+	if (wrapper.isError())
+	{
+		return;
+	}
+
+	Lmdb::Result<Lmdb::ReadOnlyCursor> cursor = Lmdb::ReadOnlyCursor::open(wrapper->transaction, wrapper->database);
+	if (cursor.isError())
+	{
+		return;
+	}
+
+	Lmdb::ReturnCode returnCode = cursor->first();
+	if (returnCode == Lmdb::ReturnCode::Success)
+	{
+		Lmdb::Result<Lmdb::CursorDataView> view = cursor->viewCurrent();
+		while (view.isValid())
+		{
+			Serialization::GenericDeserializationWrapper deserializer{ view->value };
+
+			std::byte serverIdx;
+			if (!deserializer.readByte(serverIdx, "serverIdx")) { break; }
+
+			result.emplace_back();
+			result.back().serverIdx = static_cast<uint8_t>(serverIdx);
+
+			if (!deserializer.skipShortString("serverName"))
+			{
+				result.pop_back();
+				break;
+			}
+			if (tagType == IdentificationTagType::Nsd)
+			{
+				if (!deserializer.readFixedData(result.back().hash, "nsdIdentificationHash"))
+				{
+					result.pop_back();
+					break;
+				}
+			}
+			else
+			{
+				if (!deserializer.skipBytes(Cryptography::HASHLEN))
+				{
+					result.pop_back();
+					break;
+				}
+				if (!deserializer.readFixedData(result.back().hash, "encryptedRequestIdentificationHash"))
+				{
+					result.pop_back();
+					break;
+				}
+			}
+
+			if (cursor->next() != Lmdb::ReturnCode::Success) [[unlikely]]
+			{
+				break;
+			}
+			view = cursor->viewCurrent();
+		}
+	}
 }
 
 ClientConfigStorage::ClientConfigStorage(Lmdb::ReadWriteEnvironment&& environment) noexcept
@@ -764,11 +841,11 @@ void ClientSentFilesStorage::deleteServer(uint8_t serverIdx) noexcept
 		std::array<std::byte, 2> key;
 
 		key[0] = static_cast<std::byte>(serverIdx);
-		key[1] = static_cast<std::byte>(IdentificationTagType::Nsd);
+		key[1] = static_cast<std::byte>(ClientConfigStorage::IdentificationTagType::Nsd);
 		[[maybe_unused]] Lmdb::ReturnCode returnCode1 = identificationTagsDb->deleteKey(key);
 
 		key[0] = static_cast<std::byte>(serverIdx);
-		key[1] = static_cast<std::byte>(IdentificationTagType::EncryptedRequest);
+		key[1] = static_cast<std::byte>(ClientConfigStorage::IdentificationTagType::EncryptedRequest);
 		[[maybe_unused]] Lmdb::ReturnCode returnCode2 = identificationTagsDb->deleteKey(key);
 	}
 
@@ -956,7 +1033,7 @@ std::vector<ClientSentFilesStorage::ActivityJournalRecord> ClientSentFilesStorag
 	return ClientStorageInternal::readActivityJournalRecords(*cursor, beginIdx, endIdx);
 }
 
-std::optional<uint32_t> ClientSentFilesStorage::consumeNextIdentificationKeyIndexInPeriod(uint8_t serverIdx, IdentificationTagType tagType, uint32_t currentPeriodIndex) noexcept
+std::optional<uint32_t> ClientSentFilesStorage::consumeNextIdentificationKeyIndexInPeriod(uint8_t serverIdx, ClientConfigStorage::IdentificationTagType tagType, uint32_t currentPeriodIndex) noexcept
 {
 	Lmdb::Result<Lmdb::ReadWriteSingleDbWrapper> wrapper = Lmdb::openReadWriteSingleDbTransaction(mEnvironment, ClientStorageInternal::IdentificationTagIndicesDatabaseName);
 	if (wrapper.isError()) [[unlikely]]

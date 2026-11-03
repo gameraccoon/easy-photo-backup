@@ -4,6 +4,8 @@
 #pragma once
 
 #include <array>
+#include <optional>
+#include <vector>
 
 #include "common_shared/cryptography/types/dh_types.h"
 #include "common_shared/cryptography/types/hash_types.h"
@@ -16,11 +18,19 @@ public:
 	{
 		// can be changed on insertion if conflicts with other record names
 		std::string clientName;
+		Cryptography::HashResult nsdIdentificationHash;
+		Cryptography::HashResult encryptedRequestIdentificationHash;
 		Cryptography::PublicKey remoteStaticKey;
 		Cryptography::Keypair staticKeys;
 	};
 
-	using ConnectionId = Cryptography::HashResult;
+	using ConnectionIdx = uint32_t;
+
+	enum class IdentificationTagType : uint8_t
+	{
+		Nsd = 0,
+		EncryptedRequest = 1
+	};
 
 public:
 	ServerConfigStorage(ServerConfigStorage&&) noexcept = default;
@@ -28,10 +38,12 @@ public:
 
 	[[nodiscard]] static std::optional<ServerConfigStorage> openStorage(const std::filesystem::path& storageRootPath) noexcept;
 
-	void addConfirmedClientBinding(const ConnectionId& connectionId, ClientBinding&& binding) noexcept;
-	bool removeConfirmedClientBinding(const ConnectionId& connectionId) noexcept;
-	[[nodiscard]] std::optional<ClientBinding> getConfirmedClientBinding(const ConnectionId& connectionId) noexcept;
-	[[nodiscard]] bool hasConfirmedClientBinding(const ConnectionId& connectionId) noexcept;
+	std::optional<ConnectionIdx> addConfirmedClientBinding(ClientBinding&& binding) noexcept;
+	bool removeConfirmedClientBinding(ConnectionIdx connectionIdx) noexcept;
+	[[nodiscard]] std::optional<ClientBinding> getConfirmedClientBinding(ConnectionIdx connectionIdx) noexcept;
+	[[nodiscard]] bool hasConfirmedClientBinding(ConnectionIdx connectionIdx) noexcept;
+
+	void updateIdentificationHashes(IdentificationTagType tagType, std::vector<Cryptography::HashResult>& inOutHashes, std::vector<ConnectionIdx>& inOutIds, size_t& outNumAdded, std::vector<size_t>& indexesToRemove) noexcept;
 
 	[[nodiscard]] std::optional<std::array<std::byte, 16>> getOrGenerateServerId() noexcept;
 

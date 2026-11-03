@@ -3,10 +3,10 @@
 
 #include "client_shared/send_files_interactive_request.h"
 
+#include "common_shared/cryptography/noise/cipher_utils.h"
 #include "common_shared/cryptography/noise/noise_kk_handshake.h"
 #include "common_shared/debug/assert.h"
 #include "common_shared/network/protocol.h"
-#include "common_shared/network/raw_sockets.h"
 #include "common_shared/network/utils.h"
 #include "common_shared/serialization/number_serialization.h"
 
@@ -14,16 +14,14 @@
 
 namespace Requests
 {
-	bool processKkHandshake(Network::RawSocket socket, const ClientConfigStorage::ServerBinding& serverBinding, Noise::CipherStateSending& outSendingCipherState, Noise::CipherStateReceiving& outReceivingCipherState) noexcept
+	bool processKkHandshake(Network::RawSocket socket, const uint64_t identificationTag, const ClientConfigStorage::ServerBinding& serverBinding, Noise::CipherStateSending& outSendingCipherState, Noise::CipherStateReceiving& outReceivingCipherState) noexcept
 	{
 		using namespace Noise;
 
-		constexpr size_t FirstMessagePreludeSize = sizeof(Protocol::NetworkProtocolVersion) + sizeof(Protocol::RequestId) + DHLEN;
+		constexpr size_t FirstMessagePreludeSize = sizeof(uint64_t);
 		constexpr size_t SecondMessagePreludeSize = sizeof(Protocol::RequestAnswerId);
 
 		InitiatorHandshakeState handshakeState = NoiseKK::initializeInitiator(serverBinding.staticKeys, serverBinding.remoteStaticKey);
-
-		Cryptography::HashResult connectionId = serverBinding.connectionId.clone();
 
 		constexpr size_t BufferSize = SecondMessagePreludeSize + DHLEN + DHLEN + DHLEN + CipherAuthDataSize;
 		Cryptography::ByteSequence<Cryptography::ByteSequenceTag::TempInternalBuffer, BufferSize> buffer;
@@ -32,11 +30,8 @@ namespace Requests
 			static_assert(buffer.size() >= NoiseKK::Message1ExpectedSize + FirstMessagePreludeSize, "Buffer size is too small to fit the first KK message");
 
 			size_t cursor = 0;
-
-			Serialization::writeUint16(buffer.raw[0], buffer.raw[1], Protocol::NetworkProtocolVersion);
-			buffer.raw[2] = static_cast<std::byte>(Protocol::RequestId::SendFiles);
-			static_assert(buffer.raw.size() >= connectionId.size() + 3);
-			std::copy(connectionId.raw.begin(), connectionId.raw.end(), buffer.raw.begin() + 3);
+			static_assert(buffer.raw.size() >= sizeof(uint64_t));
+			Serialization::writeUint64(std::span<std::byte>(buffer).subspan(0, sizeof(uint64_t)), identificationTag);
 			cursor += FirstMessagePreludeSize;
 
 			NoiseKK::AppendHandshakeMessage1Result result = NoiseKK::appendHandshakeMessage1(
@@ -115,35 +110,64 @@ namespace Requests
 		return false;
 	}
 
-	RequestAnswers::RequestAnswer sendAndProcessSendFilesInteractiveRequest(Network::RawSocket socket, ClientSentFilesStorage& storageSentFiles, const ClientConfigStorage::ServerBinding& serverBinding, std::vector<std::filesystem::path>&& files, const std::vector<uint64_t>& previouslySentBytes, const std::filesystem::path& commonRoot) noexcept
+	RequestAnswers::RequestAnswer sendAndProcessSendFilesInteractiveRequest(
+		Network::RawSocket socket,
+		uint64_t identificationTag,
+		ClientSentFilesStorage& storageSentFiles,
+		const ClientConfigStorage::ServerBinding& serverBinding,
+		std::vector<std::filesystem::path>&& files,
+		const std::vector<uint64_t>& previouslySentBytes,
+		const std::filesystem::path& commonRoot
+	) noexcept
 	{
 		constexpr const int FileTransferMessagesTimeoutSeconds = 20;
 		constexpr const int FileTransferMessagesTimeoutMicroseconds = 0;
 
 		Noise::CipherStateSending sendingCipherState;
 		Noise::CipherStateReceiving receivingCipherState;
-		if (!processKkHandshake(socket, serverBinding, sendingCipherState, receivingCipherState))
+		if (!processKkHandshake(socket, identificationTag, serverBinding, sendingCipherState, receivingCipherState))
 		{
 			reportDebugError("Failed to process KK handshake");
 			return RequestAnswers::ErrorNoHandling{};
 		}
 
 		// increase the timeouts for the rest of the handshake
-		if (const auto result = Network::setSocketTimeout(socket, SO_RCVTIMEO, FileTransferMessagesTimeoutSeconds, FileTransferMessagesTimeoutMicroseconds); result.has_value())
+		if (const auto result = Network::setSocketTimeout(socket, Network::SOCKET_OPTION_RCVTIMEO, FileTransferMessagesTimeoutSeconds, FileTransferMessagesTimeoutMicroseconds); result.has_value())
 		{
 			reportDebugError("Could not set SO_RCVTIMEO to a connection socket: {}", *result);
 			return RequestAnswers::ErrorNoHandling{};
 		}
 
-		if (const auto result = Network::setSocketTimeout(socket, SO_SNDTIMEO, FileTransferMessagesTimeoutSeconds, FileTransferMessagesTimeoutMicroseconds); result.has_value())
+		if (const auto result = Network::setSocketTimeout(socket, Network::SOCKET_OPTION_SNDTIMEO, FileTransferMessagesTimeoutSeconds, FileTransferMessagesTimeoutMicroseconds); result.has_value())
 		{
 			reportDebugError("Could not set SO_SNDTIMEO to a connection socket: {}", *result);
 			return RequestAnswers::ErrorNoHandling{};
 		}
 
+		std::array<std::byte, 3 + Cryptography::DHLEN> buffer;
+		Serialization::writeUint16(buffer[0], buffer[1], Protocol::NetworkProtocolVersion);
+		buffer[2] = static_cast<std::byte>(Protocol::RequestId::SendFiles);
+		auto sendResult = Network::sendEncrypted(socket, buffer, 3, sendingCipherState);
+		if (sendResult.has_value()) [[unlikely]]
+		{
+			reportDebugError("Could : {}", *sendResult);
+			return RequestAnswers::ErrorNoHandling{};
+		}
+
+		Noise::Utils::rekey(sendingCipherState);
+
 		Debug::Log::printDebug("Start sending files");
 
-		FileTransferSendLogic::sendFiles(std::move(files), previouslySentBytes, commonRoot, socket, storageSentFiles, serverBinding.serverIdx, sendingCipherState, receivingCipherState);
+		FileTransferSendLogic::sendFiles(
+			std::move(files),
+			previouslySentBytes,
+			commonRoot,
+			socket,
+			storageSentFiles,
+			serverBinding.serverIdx,
+			sendingCipherState,
+			receivingCipherState
+		);
 
 		return Protocol::RequestAnswers::SendFiles{};
 	}

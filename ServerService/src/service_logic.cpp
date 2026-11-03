@@ -1,6 +1,8 @@
 // Copyright (C) Pavel Grebnev 2026
 // Distributed under the MIT License (license terms are at http://opensource.org/licenses/MIT).
 
+#include "server_service/service_logic.h"
+
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -9,81 +11,59 @@
 #include <format>
 #include <thread>
 
-#ifdef _WIN32
-#include <io.h>
-#endif
-
 #include "server_service/arguments_parser.h"
-#include "server_service/service_logic.h"
 
-#include "common_shared/cryptography/utils/connection_id_utils.h"
-#include "common_shared/cryptography/utils/short_authentification_string_utils.h"
+#include "common_shared/cryptography/utils/identification_tags.h"
 #include "common_shared/debug/log.h"
 #include "common_shared/network/utils.h"
+#include "common_shared/nsd/hidden_nsd/hidden_nsd_server.h"
 #include "common_shared/nsd/nsd_utils.h"
-#include "common_shared/nsd/simple_nsd/simple_nsd_server.h"
 
+#include "server_shared/encrypted_request_function.h"
 #include "server_shared/server_storage.h"
 #include "server_shared/tcp_server.h"
 
-#ifdef _WIN32
-#define POPEN _popen
-#define PCLOSE _pclose
-#else
-#define POPEN popen
-#define PCLOSE pclose
-#endif
-
 namespace ServiceLogic
 {
-	static std::optional<std::string> launchProcessAndReadOutput(const char* command, size_t outputSizeLimit)
+	struct EncryptedRequestIdentificationData
 	{
-		std::optional<std::string> output;
-		FILE* pipe = POPEN(command, "r");
-		if (pipe)
-		{
-			char buffer[256];
-			output = std::string();
-			while (fgets(buffer, sizeof(buffer), pipe) != nullptr)
-			{
-				*output += buffer;
-				if (output->size() >= outputSizeLimit)
-				{
-					output->resize(outputSizeLimit);
-					break;
-				}
-			}
+		uint32_t currentTagPeriod{};
+		std::vector<Cryptography::HashResult> encryptedRequestHashes;
+		std::vector<uint32_t> encryptedRequestIndexes;
+		Cryptography::IdentificationTagMap<TcpServer::Encrypted::IdentificationTagsWindowPerDay> encryptedRequestIdentificationTags;
+		std::mutex encryptedRequestIdentificationTagsMutex;
+	};
 
-			int status = PCLOSE(pipe);
-			if (status == -1)
-			{
-				output = std::nullopt;
-			}
-			else
-			{
-#ifdef _WIN32
-				if (status != 0)
-				{
-					output = std::nullopt;
-				}
-#else
-				if (WIFEXITED(status))
-				{
-					int returnCode = WEXITSTATUS(status);
-					if (returnCode != 0)
-					{
-						output = std::nullopt;
-					}
-				}
-#endif
-			}
+	static void populateClientHashes(ServerConfigStorage& configStorage, EncryptedRequestIdentificationData& outClientHashes)
+	{
+		std::vector<size_t> indexesToRemove;
+		size_t numAdded;
+		configStorage.updateIdentificationHashes(ServerConfigStorage::IdentificationTagType::EncryptedRequest, outClientHashes.encryptedRequestHashes, outClientHashes.encryptedRequestIndexes, numAdded, indexesToRemove);
+
+		uint32_t currentTagPeriod = Cryptography::IdentificationTagsUtils::getCurrentDayIndex();
+		outClientHashes.encryptedRequestIdentificationTags.resetMap(outClientHashes.encryptedRequestHashes, currentTagPeriod);
+	}
+
+	static void updateClientHashesForNsd(ServerConfigStorage& configStorage, std::vector<Cryptography::HashResult>& clientHashes, std::vector<uint32_t>& clientIndexes, size_t numClientsAdded, std::vector<size_t>& clientsToRemove)
+	{
+		configStorage.updateIdentificationHashes(ServerConfigStorage::IdentificationTagType::Nsd, clientHashes, clientIndexes, numClientsAdded, clientsToRemove);
+	}
+
+	static void updateClientHashesForEncryptedRequests(ServerConfigStorage& configStorage, EncryptedRequestIdentificationData& inOutClientHashes)
+	{
+		std::vector<size_t> indexesToRemove;
+		size_t numAdded;
+		configStorage.updateIdentificationHashes(ServerConfigStorage::IdentificationTagType::EncryptedRequest, inOutClientHashes.encryptedRequestHashes, inOutClientHashes.encryptedRequestIndexes, numAdded, indexesToRemove);
+		std::sort(indexesToRemove.begin(), indexesToRemove.end(), std::greater<>());
+		for (size_t idx : indexesToRemove)
+		{
+			assertFatalRelease(idx < inOutClientHashes.encryptedRequestHashes.size() && idx < inOutClientHashes.encryptedRequestIndexes.size(), "Logical error: invalid index to remove");
+			inOutClientHashes.encryptedRequestHashes.erase(inOutClientHashes.encryptedRequestHashes.begin() + idx);
+			inOutClientHashes.encryptedRequestIndexes.erase(inOutClientHashes.encryptedRequestIndexes.begin() + idx);
 		}
 
-		if (output.has_value() && output->ends_with('\n'))
-		{
-			output->pop_back();
-		}
-		return output;
+		uint32_t currentTagPeriod = Cryptography::IdentificationTagsUtils::getCurrentDayIndex();
+		inOutClientHashes.encryptedRequestIdentificationTags.resetMap(inOutClientHashes.encryptedRequestHashes, currentTagPeriod);
 	}
 
 	void startService(const AppArguments& arguments)
@@ -120,7 +100,7 @@ namespace ServiceLogic
 		const Network::RawSocket socket = std::get<Network::RawSocket>(openSocketResult);
 		std::atomic_bool nsdCloseSocketFlag{};
 
-		auto stopNsdServer = [socket, &nsdCloseSocketFlag] {
+		const auto stopNsdServer = [socket, &nsdCloseSocketFlag] {
 			if (nsdCloseSocketFlag.load(std::memory_order::acquire) == false)
 			{
 				nsdCloseSocketFlag.store(true, std::memory_order::seq_cst);
@@ -131,44 +111,45 @@ namespace ServiceLogic
 		std::promise<uint16_t> portPromise{};
 		std::future<uint16_t> portFuture = portPromise.get_future();
 
-		std::atomic_bool pairingWindowIsOpen = false;
-		auto onPairingRequestReceivedLambda = [&configStorage, &pairingWindowIsOpen, command = arguments.pairingAppCommand](Requests::PendingClientBinding&& pendingClientBinding) {
-			if (pairingWindowIsOpen.load(std::memory_order_relaxed))
+		EncryptedRequestIdentificationData approvedClientHashes;
+		populateClientHashes(*configStorage, approvedClientHashes);
+		auto onClientConnectedFn = [&configStorage, &approvedClientHashes] {
+			updateClientHashesForEncryptedRequests(*configStorage, approvedClientHashes);
+			const uint32_t newTagPeriod = Cryptography::IdentificationTagsUtils::getCurrentDayIndex();
+			if (newTagPeriod != approvedClientHashes.currentTagPeriod)
 			{
-				// ToDo: notify the user somehow that there was another request that got rejected
-				return;
-			}
-
-			pairingWindowIsOpen.store(true, std::memory_order_relaxed);
-
-			std::optional<std::string> clientName = launchProcessAndReadOutput(std::string(command + " " + Cryptography::generateSas(pendingClientBinding.handshakeHash, 6)).c_str(), 255);
-			if (clientName.has_value())
-			{
-				if (clientName->empty())
+				if (newTagPeriod > approvedClientHashes.currentTagPeriod)
 				{
-					clientName = "unnamed";
+					approvedClientHashes.encryptedRequestIdentificationTagsMutex.lock();
+					approvedClientHashes.encryptedRequestIdentificationTags.updateTagMap(approvedClientHashes.encryptedRequestHashes, newTagPeriod, approvedClientHashes.currentTagPeriod);
+					approvedClientHashes.encryptedRequestIdentificationTagsMutex.unlock();
+					approvedClientHashes.currentTagPeriod = newTagPeriod;
 				}
-				else
+				else if (newTagPeriod + 2 < approvedClientHashes.currentTagPeriod)
 				{
-					// ToDo: sanitize the client name to be useful as native fs folder name
+					// if we went back a lot, we should just reset the map
+					approvedClientHashes.encryptedRequestIdentificationTagsMutex.lock();
+					approvedClientHashes.encryptedRequestIdentificationTags.resetMap(approvedClientHashes.encryptedRequestHashes, approvedClientHashes.currentTagPeriod);
+					approvedClientHashes.encryptedRequestIdentificationTagsMutex.unlock();
 				}
-
-				configStorage->addConfirmedClientBinding(
-					Cryptography::generateConnectionId(pendingClientBinding.remoteStaticKey, pendingClientBinding.staticKeys.publicKey),
-					ServerConfigStorage::ClientBinding{
-						.clientName = std::move(*clientName),
-						.remoteStaticKey = std::move(pendingClientBinding.remoteStaticKey),
-						.staticKeys = std::move(pendingClientBinding.staticKeys),
-					}
-				);
 			}
-			pairingWindowIsOpen.store(false, std::memory_order_relaxed);
 		};
 
 		std::filesystem::path targetDir = arguments.targetDir.empty() ? "./server_target_directory" : arguments.targetDir;
 		std::filesystem::create_directories(targetDir);
-		auto serverThread = std::thread([&configStorage, &portPromise, targetDir = std::move(targetDir), &onPairingRequestReceivedLambda] {
-			TcpServer::runServer(*configStorage, "0.0.0.0", Network::AddressType::IpV4, targetDir, portPromise, onPairingRequestReceivedLambda);
+		const auto processClientFn = [&targetDir, &configStorage, &approvedClientHashes](Network::RawSocket socket) {
+			TcpServer::Encrypted::handleClient(socket, targetDir, *configStorage, approvedClientHashes.encryptedRequestIdentificationTags, approvedClientHashes.encryptedRequestIdentificationTagsMutex);
+		};
+
+		auto serverThread = std::thread([&configStorage, &portPromise, targetDir = std::move(targetDir), &onClientConnectedFn, &processClientFn] {
+			TcpServer::runServer(
+				*configStorage,
+				"0.0.0.0",
+				Network::AddressType::IpV4,
+				portPromise,
+				onClientConnectedFn,
+				processClientFn
+			);
 		});
 
 		if (auto status = portFuture.wait_for(std::chrono::seconds(3)); status != std::future_status::ready)
@@ -179,33 +160,37 @@ namespace ServiceLogic
 
 		const uint16_t serverPort = portFuture.get();
 
-		std::thread nsdThread([socket, &nsdCloseSocketFlag, serverId, serverPort] {
+		const auto updateClientHashesForNsdFn = [&configStorage](std::vector<Cryptography::HashResult>& clientHashes, std::vector<uint32_t>& clientIndexes, size_t numClientsAdded, std::vector<size_t>& clientsToRemove) {
+			updateClientHashesForNsd(*configStorage, clientHashes, clientIndexes, numClientsAdded, clientsToRemove);
+		};
+
+		std::thread nsdThread([socket, &nsdCloseSocketFlag, serverId, serverPort, &updateClientHashesForNsdFn] {
 			std::array<std::byte, 18> extraData;
 			extraData[0] = static_cast<std::byte>(1); // protocol id
 			extraData[1] = static_cast<std::byte>(0); // the rest is the server ID
 			static_assert(extraData.size() >= 2 + serverId.size());
 			std::copy(serverId.begin(), serverId.end(), extraData.begin() + 2);
 
-			SimpleNsdServer::ListenResult result = SimpleNsdServer::listen(
+			HiddenNsdServer::ListenResult result = HiddenNsdServer::listen(
 				socket,
 				Network::AddressType::IpV4,
 				"0.0.0.0",
 				5354,
 				serverPort,
 				extraData,
-				"_easy-photo-backup._tcp"
+				updateClientHashesForNsdFn
 			);
 
-			if (std::holds_alternative<SimpleNsdServer::SetupError>(result))
+			if (std::holds_alternative<HiddenNsdServer::SetupError>(result))
 			{
-				Debug::Log::printDebug("NSD server setup error: '{}'", std::get<SimpleNsdServer::SetupError>(result).error);
+				Debug::Log::printDebug("NSD server setup error: '{}'", std::get<HiddenNsdServer::SetupError>(result).error);
 			}
 			else
 			{
 				// if we didn't stop intentionally
 				if (nsdCloseSocketFlag.load(std::memory_order::acquire) == false)
 				{
-					Debug::Log::printDebug("NSD server error: '{}'", std::get<SimpleNsdServer::SocketError>(result).error);
+					Debug::Log::printDebug("NSD server error: '{}'", std::get<HiddenNsdServer::SocketError>(result).error);
 					nsdCloseSocketFlag.store(true, std::memory_order::release);
 					Network::closeSocket(socket);
 				}
