@@ -141,7 +141,7 @@ namespace Cryptography
 		}
 
 	private:
-		void removeTagsForPeriods(const uint32_t firstPeriodIndexToKeep)
+		void removeTagsForPeriods(const uint32_t firstPeriodIndexToKeep) noexcept
 		{
 			std::erase_if(mTags, [firstPeriodIndexToKeep](const std::pair<uint64_t, TagPayload>& pair) {
 				return pair.second.periodIndex < firstPeriodIndexToKeep;
@@ -152,5 +152,12 @@ namespace Cryptography
 		std::unordered_map<uint64_t, TagPayload> mTags;
 	};
 
-	uint64_t getSingleIdentificationTag(const Cryptography::HashResult& clientHash, uint32_t periodIndex, uint32_t tagIndexInPeriod);
+	namespace IdentificationTagsUtils
+	{
+		[[nodiscard]] HashResult getIdentificationHash(const HashResult& handshakeHash, std::span<const std::byte> salt) noexcept;
+
+		[[nodiscard]] uint64_t getSingleIdentificationTag(const Cryptography::HashResult& clientHash, uint32_t periodIndex, uint32_t tagIndexInPeriod) noexcept;
+
+		[[nodiscard]] int32_t getCurrentDayIndex() noexcept;
+	}
 } // namespace Cryptography

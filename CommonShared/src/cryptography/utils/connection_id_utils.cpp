@@ -16,5 +16,4 @@ namespace Cryptography
 		Cryptography::hashWithContext_blake2b(serverPublicKey.raw, clientPublicKey.raw, connectionId);
 		return connectionId;
 	}
-
 }

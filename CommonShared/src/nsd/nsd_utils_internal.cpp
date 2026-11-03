@@ -369,10 +369,4 @@ namespace NsdInternalUtils
 		debugAssert(discoveredServersData.discoveryGenerations.size() < 8, "Too many servers during debugging ({}), is this a bug or are we stress-testing?", discoveredServersData.discoveryGenerations.size());
 		discoveredServersData.discoveryGenerations[0].clear();
 	}
-
-	int32_t getCurrentPeriodIndex()
-	{
-		const std::chrono::time_point now{ std::chrono::system_clock::now() };
-		return static_cast<int32_t>(std::chrono::duration_cast<std::chrono::days>(now.time_since_epoch()).count());
-	}
 } // namespace NsdInternalUtils

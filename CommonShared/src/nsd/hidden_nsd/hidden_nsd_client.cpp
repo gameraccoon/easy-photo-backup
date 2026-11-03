@@ -128,7 +128,7 @@ namespace HiddenNsdClient
 
 		NsdInternalUtils::ClientDiscoveredServersData discoveredServersData;
 
-		const int32_t currentPeriodIndex = NsdInternalUtils::getCurrentPeriodIndex();
+		const int32_t currentPeriodIndex = Cryptography::IdentificationTagsUtils::getCurrentDayIndex();
 
 		constexpr size_t BUFFER_SIZE = 1024;
 		std::array<std::byte, BUFFER_SIZE> buffer;
@@ -150,7 +150,7 @@ namespace HiddenNsdClient
 				for (size_t i = 0; i < serverData.size(); ++i)
 				{
 					const auto& oneServerData = serverData[i];
-					const uint64_t tag = Cryptography::getSingleIdentificationTag(oneServerData.hash, currentPeriodIndex, oneServerData.keyIndexInPeriod + broadcastsDone);
+					const uint64_t tag = Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(oneServerData.hash, currentPeriodIndex, oneServerData.keyIndexInPeriod + broadcastsDone);
 					Serialization::writeUint64(query, tag);
 					sentTags.emplace_back(tag, i, oneServerData.keyIndexInPeriod + broadcastsDone);
 					if (const auto result = NsdInternalUtils::broadcastNdsUdpRequest(socket, addressType, query, broadcastPort); result.has_value()) [[unlikely]]
