@@ -3,7 +3,6 @@
 
 #include <filesystem>
 
-#include "tests/helper_utils.h"
 #include <gtest/gtest.h>
 
 #include "client_shared/client_storage.h"
@@ -748,4 +747,112 @@ TEST(ClientSentFilesStorage, ActivityJournalRecord_Format_ReturnsExpectedString)
 			std::string("start\nfiles to send: 0\ntime: 2026-08-10 13:39:47")
 		);
 	}
+}
+
+TEST_F(ClientSentFilesStorageTest, Storage_ConsumeIdentificationKey_IncrementsIndexInCurrentPeriod)
+{
+	std::optional<ClientSentFilesStorage> storage = ClientSentFilesStorage::openStorage(TEST_DATA_PATH);
+	ASSERT_TRUE(storage.has_value());
+
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(0, ClientSentFilesStorage::IdentificationTagType::Nsd, 0), std::optional<uint32_t>(0));
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(0, ClientSentFilesStorage::IdentificationTagType::Nsd, 0), std::optional<uint32_t>(1));
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(0, ClientSentFilesStorage::IdentificationTagType::Nsd, 0), std::optional<uint32_t>(2));
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(0, ClientSentFilesStorage::IdentificationTagType::Nsd, 0), std::optional<uint32_t>(3));
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(0, ClientSentFilesStorage::IdentificationTagType::Nsd, 0), std::optional<uint32_t>(4));
+
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(0, ClientSentFilesStorage::IdentificationTagType::Nsd, 10), std::optional<uint32_t>(0));
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(0, ClientSentFilesStorage::IdentificationTagType::Nsd, 10), std::optional<uint32_t>(1));
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(0, ClientSentFilesStorage::IdentificationTagType::Nsd, 10), std::optional<uint32_t>(2));
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(0, ClientSentFilesStorage::IdentificationTagType::Nsd, 10), std::optional<uint32_t>(3));
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(0, ClientSentFilesStorage::IdentificationTagType::Nsd, 10), std::optional<uint32_t>(4));
+}
+
+TEST_F(ClientSentFilesStorageTest, Storage_ConsumeIdentificationKey_DifferentServersOrTagTypesDoNotAffectEachOther)
+{
+	std::optional<ClientSentFilesStorage> storage = ClientSentFilesStorage::openStorage(TEST_DATA_PATH);
+	ASSERT_TRUE(storage.has_value());
+
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(0, ClientSentFilesStorage::IdentificationTagType::Nsd, 10), std::optional<uint32_t>(0));
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(0, ClientSentFilesStorage::IdentificationTagType::Nsd, 10), std::optional<uint32_t>(1));
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(0, ClientSentFilesStorage::IdentificationTagType::Nsd, 10), std::optional<uint32_t>(2));
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(0, ClientSentFilesStorage::IdentificationTagType::Nsd, 10), std::optional<uint32_t>(3));
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(0, ClientSentFilesStorage::IdentificationTagType::Nsd, 10), std::optional<uint32_t>(4));
+
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(2, ClientSentFilesStorage::IdentificationTagType::Nsd, 10), std::optional<uint32_t>(0));
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(2, ClientSentFilesStorage::IdentificationTagType::Nsd, 10), std::optional<uint32_t>(1));
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(2, ClientSentFilesStorage::IdentificationTagType::Nsd, 10), std::optional<uint32_t>(2));
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(2, ClientSentFilesStorage::IdentificationTagType::Nsd, 10), std::optional<uint32_t>(3));
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(2, ClientSentFilesStorage::IdentificationTagType::Nsd, 10), std::optional<uint32_t>(4));
+
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(2, ClientSentFilesStorage::IdentificationTagType::EncryptedRequest, 10), std::optional<uint32_t>(0));
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(2, ClientSentFilesStorage::IdentificationTagType::EncryptedRequest, 10), std::optional<uint32_t>(1));
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(2, ClientSentFilesStorage::IdentificationTagType::EncryptedRequest, 10), std::optional<uint32_t>(2));
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(2, ClientSentFilesStorage::IdentificationTagType::EncryptedRequest, 10), std::optional<uint32_t>(3));
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(2, ClientSentFilesStorage::IdentificationTagType::EncryptedRequest, 10), std::optional<uint32_t>(4));
+}
+
+TEST_F(ClientSentFilesStorageTest, Storage_JumpForwardAndBackAndConsumeIdentificationKey_IncrementsIndexInPeriodsUnlessJumpsByTwoOrMore)
+{
+	std::optional<ClientSentFilesStorage> storage = ClientSentFilesStorage::openStorage(TEST_DATA_PATH);
+	ASSERT_TRUE(storage.has_value());
+
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(0, ClientSentFilesStorage::IdentificationTagType::EncryptedRequest, 5), std::optional<uint32_t>(0));
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(0, ClientSentFilesStorage::IdentificationTagType::EncryptedRequest, 5), std::optional<uint32_t>(1));
+
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(0, ClientSentFilesStorage::IdentificationTagType::EncryptedRequest, 6), std::optional<uint32_t>(0));
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(0, ClientSentFilesStorage::IdentificationTagType::EncryptedRequest, 6), std::optional<uint32_t>(1));
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(0, ClientSentFilesStorage::IdentificationTagType::EncryptedRequest, 6), std::optional<uint32_t>(2));
+
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(0, ClientSentFilesStorage::IdentificationTagType::EncryptedRequest, 5), std::optional<uint32_t>(2));
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(0, ClientSentFilesStorage::IdentificationTagType::EncryptedRequest, 5), std::optional<uint32_t>(3));
+
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(0, ClientSentFilesStorage::IdentificationTagType::EncryptedRequest, 4), std::optional<uint32_t>(0));
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(0, ClientSentFilesStorage::IdentificationTagType::EncryptedRequest, 4), std::optional<uint32_t>(1));
+
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(0, ClientSentFilesStorage::IdentificationTagType::EncryptedRequest, 6), std::optional<uint32_t>(0));
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(0, ClientSentFilesStorage::IdentificationTagType::EncryptedRequest, 6), std::optional<uint32_t>(1));
+
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(0, ClientSentFilesStorage::IdentificationTagType::EncryptedRequest, 4), std::optional<uint32_t>(0));
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(0, ClientSentFilesStorage::IdentificationTagType::EncryptedRequest, 4), std::optional<uint32_t>(1));
+
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(0, ClientSentFilesStorage::IdentificationTagType::EncryptedRequest, 5), std::optional<uint32_t>(4));
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(0, ClientSentFilesStorage::IdentificationTagType::EncryptedRequest, 5), std::optional<uint32_t>(5));
+
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(0, ClientSentFilesStorage::IdentificationTagType::EncryptedRequest, 8), std::optional<uint32_t>(0));
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(0, ClientSentFilesStorage::IdentificationTagType::EncryptedRequest, 8), std::optional<uint32_t>(1));
+}
+
+TEST_F(ClientSentFilesStorageTest, Storage_DeleteServer_RemovesIdentificationKeys)
+{
+	std::optional<ClientSentFilesStorage> storage = ClientSentFilesStorage::openStorage(TEST_DATA_PATH);
+	ASSERT_TRUE(storage.has_value());
+
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(0, ClientSentFilesStorage::IdentificationTagType::Nsd, 5), std::optional<uint32_t>(0));
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(0, ClientSentFilesStorage::IdentificationTagType::Nsd, 5), std::optional<uint32_t>(1));
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(0, ClientSentFilesStorage::IdentificationTagType::EncryptedRequest, 5), std::optional<uint32_t>(0));
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(0, ClientSentFilesStorage::IdentificationTagType::EncryptedRequest, 5), std::optional<uint32_t>(1));
+
+	storage->deleteServer(0);
+
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(0, ClientSentFilesStorage::IdentificationTagType::Nsd, 5), std::optional<uint32_t>(0));
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(0, ClientSentFilesStorage::IdentificationTagType::EncryptedRequest, 5), std::optional<uint32_t>(0));
+}
+
+TEST_F(ClientSentFilesStorageTest, Storage_DeleteServer_IdentificationKeysForOtherServersStay)
+{
+	std::optional<ClientSentFilesStorage> storage = ClientSentFilesStorage::openStorage(TEST_DATA_PATH);
+	ASSERT_TRUE(storage.has_value());
+
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(0, ClientSentFilesStorage::IdentificationTagType::Nsd, 5), std::optional<uint32_t>(0));
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(0, ClientSentFilesStorage::IdentificationTagType::EncryptedRequest, 5), std::optional<uint32_t>(0));
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(1, ClientSentFilesStorage::IdentificationTagType::Nsd, 5), std::optional<uint32_t>(0));
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(1, ClientSentFilesStorage::IdentificationTagType::EncryptedRequest, 5), std::optional<uint32_t>(0));
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(1, ClientSentFilesStorage::IdentificationTagType::EncryptedRequest, 5), std::optional<uint32_t>(1));
+
+	storage->deleteServer(0);
+
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(0, ClientSentFilesStorage::IdentificationTagType::Nsd, 5), std::optional<uint32_t>(0));
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(0, ClientSentFilesStorage::IdentificationTagType::EncryptedRequest, 5), std::optional<uint32_t>(0));
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(1, ClientSentFilesStorage::IdentificationTagType::Nsd, 5), std::optional<uint32_t>(1));
+	EXPECT_EQ(storage->consumeNextIdentificationKeyIndexInPeriod(1, ClientSentFilesStorage::IdentificationTagType::EncryptedRequest, 5), std::optional<uint32_t>(2));
 }

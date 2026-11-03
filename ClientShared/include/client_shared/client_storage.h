@@ -75,6 +75,12 @@ public:
 		static uint64_t convertTimeToMs(const std::chrono::system_clock::time_point& timePoint) noexcept;
 	};
 
+	enum class IdentificationTagType : uint8_t
+	{
+		Nsd = 0,
+		EncryptedRequest = 1
+	};
+
 public:
 	ClientSentFilesStorage(ClientSentFilesStorage&&) noexcept = default;
 	ClientSentFilesStorage& operator=(ClientSentFilesStorage&&) noexcept = default;
@@ -91,6 +97,9 @@ public:
 	std::vector<ActivityJournalRecord> getLastActivityJournalRecords(uint32_t recordsCount, uint32_t& outEndIdx) noexcept;
 	// endIdx is non-inclusive
 	std::vector<ActivityJournalRecord> getActivityJournalRecords(uint32_t beginIdx, uint32_t endIdx) noexcept;
+
+	// two calls to this function should never return the same key index for the same server, unless the period shifts
+	[[nodiscard]] std::optional<uint32_t> consumeNextIdentificationKeyIndexInPeriod(uint8_t serverIdx, IdentificationTagType tagType, uint32_t currentPeriodIndex) noexcept;
 
 private:
 	explicit ClientSentFilesStorage(Lmdb::ReadWriteEnvironment&& mEnvironment) noexcept;
