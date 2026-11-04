@@ -11,6 +11,8 @@ static constexpr bool NsdDebug = false;
 
 std::vector<ServerConnectionInfo> HiddenNsdClientWrapper::runDiscovery(const std::vector<HiddenNsdClient::NsdServerData>& serverData, uint32_t numRequests) noexcept
 {
+	std::vector<ServerConnectionInfo> discoveredServers;
+
 	std::optional<std::string> result = HiddenNsdClient::processServiceDiscoveryThread(
 		Network::AddressType::IpV4,
 		5354,
@@ -18,7 +20,7 @@ std::vector<ServerConnectionInfo> HiddenNsdClientWrapper::runDiscovery(const std
 		numRequests,
 		0.5f,
 		serverData,
-		[&servers = mDiscoveredServers](auto&& event) {
+		[&servers = discoveredServers](auto&& event) {
 			if (event.state == NsdUtils::DiscoveryState::Added)
 			{
 				int version = -1;
@@ -88,5 +90,5 @@ std::vector<ServerConnectionInfo> HiddenNsdClientWrapper::runDiscovery(const std
 		Debug::Log::printDebug("NSD client stopped without errors");
 	}
 #endif // DEBUG_CHECKS
-	return mDiscoveredServers;
+	return discoveredServers;
 }

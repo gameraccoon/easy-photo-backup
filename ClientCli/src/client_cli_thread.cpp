@@ -77,7 +77,6 @@ namespace ClientCli
 
 		const std::filesystem::path filesDirectory = "client_files_to_send";
 		SimpleNsdClientWrapper simpleServerDiscoveryClient;
-		HiddenNsdClientWrapper hiddenServerDiscoveryClient;
 		std::vector<ServerConnectionInfo> simpleDiscoveryResults;
 		std::vector<ServerConnectionInfo> hiddenDiscoveryResults;
 
@@ -152,7 +151,7 @@ namespace ClientCli
 						);
 					}
 				}
-				hiddenDiscoveryResults = hiddenServerDiscoveryClient.runDiscovery(serverData, numRequests);
+				hiddenDiscoveryResults = HiddenNsdClientWrapper::runDiscovery(serverData, numRequests);
 			}
 			else if (command == "pair")
 			{
