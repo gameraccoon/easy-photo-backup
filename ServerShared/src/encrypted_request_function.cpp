@@ -110,4 +110,4 @@ namespace TcpServer::Encrypted
 			identificationTagsMutex
 		);
 	}
-} // namespace TcpServer
+} // namespace TcpServer::Encrypted

@@ -33,4 +33,4 @@ namespace EncryptedRequests
 		Noise::CipherStateSending& outSendingCipherState,
 		Noise::CipherStateReceiving& outReceivingCipherState
 	);
-} // namespace Requests
+} // namespace EncryptedRequests

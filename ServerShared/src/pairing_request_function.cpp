@@ -106,4 +106,4 @@ namespace TcpServer::Pairing
 
 		handlePairingRequests(socket, std::span(buffer).subspan(0, readBytes), onPairingRequestFn);
 	}
-} // namespace TcpServer
+} // namespace TcpServer::Pairing

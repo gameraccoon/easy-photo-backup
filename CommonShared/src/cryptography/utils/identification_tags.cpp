@@ -31,4 +31,4 @@ namespace Cryptography::IdentificationTagsUtils
 		const std::chrono::time_point now{ std::chrono::system_clock::now() };
 		return static_cast<int32_t>(std::chrono::duration_cast<std::chrono::days>(now.time_since_epoch()).count());
 	}
-} // namespace Cryptography
+} // namespace Cryptography::IdentificationTagsUtils

@@ -53,7 +53,7 @@ namespace Protocol
 		struct SendFiles
 		{
 		};
-	} // namespace TaggedRequests
+	} // namespace EncryptedRequests
 
 	namespace RequestAnswers
 	{

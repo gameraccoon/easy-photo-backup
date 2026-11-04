@@ -150,4 +150,4 @@ namespace EncryptedRequests
 			return RequestReadError{ std::format("Unknown request ID {}", static_cast<int>(requestId)) };
 		}
 	}
-} // namespace Requests
+} // namespace EncryptedRequests

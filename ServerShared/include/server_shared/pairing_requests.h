@@ -21,4 +21,4 @@ namespace PairingRequests
 		Pair>;
 
 	RequestVariant parseRequest(std::byte requestId, std::span<std::byte const> requestData);
-} // namespace Requests
+} // namespace PairingRequests
