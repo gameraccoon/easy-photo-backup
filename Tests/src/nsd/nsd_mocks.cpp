@@ -205,6 +205,11 @@ void NsdTestMocks::closeServerSocket(const size_t serverSocketIdx)
 
 bool NsdTestMocks::getAddressFromIpV4String(const char* address, uint16_t port, NsdInternalUtils::NetworkAddressKey& outNetAddress)
 {
+	if (address == nullptr)
+	{
+		return false;
+	}
+
 	sockaddr_in addr{};
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(port);

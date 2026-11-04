@@ -169,31 +169,48 @@ namespace Network
 
 	std::variant<NetworkAddress, std::string> parseAddress(const void* const addr, const size_t addrLen)
 	{
-		std::array<char, INET6_ADDRSTRLEN> name = {};
-
-		char portStr[10];
-		if (getnameinfo(static_cast<const sockaddr*>(addr), static_cast<socklen_t>(addrLen), name.data(), name.size(), portStr, sizeof(portStr), NI_NUMERICHOST | NI_NUMERICSERV) < 0) [[unlikely]]
+		if (addr == nullptr) [[unlikely]]
 		{
-			reportDebugError("Can't convert socket address to string, error code {}", getLastSocketError());
-			return std::format("Can't convert socket address to string, error code {}", getLastSocketError());
+			return "Address to parse should not be nullptr";
+		}
+
+		const auto* sa = static_cast<const sockaddr*>(addr);
+
+		std::array<char, INET6_ADDRSTRLEN> name = {};
+		char portStr[16] = {};
+		if (auto errorCode = getnameinfo(sa, static_cast<socklen_t>(addrLen), name.data(), name.size(), portStr, sizeof(portStr), NI_NUMERICHOST | NI_NUMERICSERV) != 0) [[unlikely]]
+		{
+			reportDebugError("Can't convert socket address to string, error code {} and {}", getLastSocketError(), errorCode);
+			return std::format("Can't convert socket address to string, error code {} and {}", getLastSocketError(), errorCode);
 		}
 
 		NetworkAddress resultAddress;
 
 		// processing short IPv6 addresses (end with %)
-		const auto it = std::find(name.data(), name.data() + INET6_ADDRSTRLEN, '%');
-		if (it != name.data() + INET6_ADDRSTRLEN)
+		std::string_view nameView(name.data());
+		if (const auto pos = nameView.find('%'); pos != std::string_view::npos)
 		{
-			resultAddress.ip = std::string(name.data(), it);
+			resultAddress.ip = std::string(nameView.substr(0, pos));
 		}
 		else
 		{
-			resultAddress.ip = name.data();
+			resultAddress.ip = std::string(nameView);
 		}
 
 		resultAddress.port = static_cast<uint16_t>(parseInt(portStr).value_or(0));
 
-		resultAddress.addressType = static_cast<const sockaddr*>(addr)->sa_family == AF_INET6 ? AddressType::IpV6 : AddressType::IpV4;
+		if (sa->sa_family == AF_INET)
+		{
+			resultAddress.addressType = AddressType::IpV4;
+		}
+		else if (sa->sa_family == AF_INET6)
+		{
+			resultAddress.addressType = AddressType::IpV6;
+		}
+		else
+		{
+			return std::format("Unsupported socket address family: {}", sa->sa_family);
+		}
 
 		return resultAddress;
 	}
