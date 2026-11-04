@@ -5,6 +5,7 @@
 
 #include <filesystem>
 #include <functional>
+#include <mutex>
 
 #include "common_shared/cryptography/utils/identification_tags.h"
 #include "common_shared/network/utils.h"

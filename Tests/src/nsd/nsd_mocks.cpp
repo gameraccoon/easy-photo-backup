@@ -11,11 +11,11 @@ void NsdTestMocks::setUp()
 		std::scoped_lock l(dataMutex);
 		clients.push_back(std::make_unique<ClientSocket>());
 		clients.back()->clientIp = std::format("10.101.1.{}", clients.size());
-		clients.back()->port = 1000 + clients.size();
+		clients.back()->port = static_cast<uint16_t>(1000 + clients.size());
 		if (!getAddressFromIpV4String(clients.back()->clientIp.c_str(), clients.back()->port, clients.back()->netAddress))
 		{
 			ADD_FAILURE() << "Can't generate address from client IP";
-			return -1;
+			return static_cast<Network::RawSocket>(-1);
 		}
 		return Network::RawSocket(clients.size() - 1);
 	};
@@ -49,7 +49,7 @@ void NsdTestMocks::setUp()
 				server->requestPipe.sendEmplace(clientSocketIdx, port, std::vector(data.begin(), data.end()));
 			}
 		}
-		return data.size();
+		return static_cast<int>(data.size());
 	};
 	NsdInternalUtils::gRecvRequestMock = [this](const Network::RawSocket socket, std::span<std::byte> inOutBuffer, NsdInternalUtils::NetworkAddressKey& outNetAddress) -> int {
 		std::unique_lock lock(dataMutex);
@@ -103,7 +103,7 @@ void NsdTestMocks::setUp()
 		}
 		std::copy(message->data.begin(), message->data.end(), inOutBuffer.begin());
 		outNetAddress = clients[clientSocketIdx]->netAddress;
-		return message->data.size();
+		return static_cast<int>(message->data.size());
 	};
 	NsdInternalUtils::gSendAnswerMock = [this](const Network::RawSocket socket, std::span<const std::byte> data, const NsdInternalUtils::NetworkAddressKey& netAddress) -> int {
 		std::scoped_lock l(dataMutex);
@@ -127,7 +127,7 @@ void NsdTestMocks::setUp()
 		}
 
 		// UDP message got sent to nowhere, not an error
-		return data.size();
+		return static_cast<int>(data.size());
 	};
 	NsdInternalUtils::gRecvAnswerMock = [this](const Network::RawSocket socket, std::span<std::byte> inOutBuffer, NsdInternalUtils::NetworkAddressKey& outNetAddress) -> int {
 		std::scoped_lock l(dataMutex);
@@ -165,7 +165,7 @@ void NsdTestMocks::setUp()
 		}
 		std::copy(message->data.begin(), message->data.end(), inOutBuffer.begin());
 		outNetAddress = servers[serverSocketIdx]->netAddress;
-		return message->data.size();
+		return static_cast<int>(message->data.size());
 	};
 }
 

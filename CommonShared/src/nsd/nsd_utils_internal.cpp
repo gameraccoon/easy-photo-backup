@@ -159,7 +159,7 @@ namespace NsdInternalUtils
 #else
 		using SendToResult = ssize_t;
 #endif
-		const SendToResult sentSize = sendto(socket, query.data(), static_cast<int>(query.size()), 0, reinterpret_cast<const sockaddr*>(&address), sizeof(address));
+		const SendToResult sentSize = sendto(socket, reinterpret_cast<const char*>(query.data()), static_cast<int>(query.size()), 0, reinterpret_cast<const sockaddr*>(&address), sizeof(address));
 
 		if (sentSize == -1) [[unlikely]]
 		{

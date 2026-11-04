@@ -38,7 +38,7 @@ namespace HiddenNsdServer
 				// it can be that we don't need to add anything, if we are going to regenerate the whole map anyway
 				if (firstIndexToAdd <= lastIndexToAdd)
 				{
-					tagMap.appendOneClientTagsForPeriods(clientHash, clientHashes.size() - 1, firstIndexToAdd, lastIndexToAdd);
+					tagMap.appendOneClientTagsForPeriods(clientHash, static_cast<uint32_t>(clientHashes.size() - 1), firstIndexToAdd, lastIndexToAdd);
 				}
 			}
 		}
@@ -88,7 +88,7 @@ namespace HiddenNsdServer
 
 		// shift the client indexes in the map
 		tagMap.forEachPayload([&indexRedirectors](auto& payload) {
-			payload.clientIndex = indexRedirectors[payload.clientIndex];
+			payload.clientIndex = static_cast<uint32_t>(indexRedirectors[payload.clientIndex]);
 		});
 
 		clientsToRemove.clear();

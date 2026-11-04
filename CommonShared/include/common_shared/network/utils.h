@@ -56,7 +56,9 @@ namespace Network
 	};
 
 	extern const int SOCKET_OPTION_REUSEADDR;
+#if !_WIN32
 	extern const int SOCKET_OPTION_REUSEPORT;
+#endif // !_WIN32
 	extern const int SOCKET_OPTION_BROADCAST;
 	extern const int SOCKET_OPTION_RCVTIMEO;
 	extern const int SOCKET_OPTION_SNDTIMEO;

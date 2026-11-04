@@ -4,6 +4,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string_view>
 #include <vector>
 
 #include "common_shared/cryptography/types/dh_types.h"
@@ -120,7 +121,7 @@ namespace Protocol
 	namespace Salts
 	{
 		// we need these to make sure we generate different hashes for different purposes
-		static constexpr std::string_view NsdIdTagSaltString = "nsd identification tag salt v1";
-		static constexpr std::string_view EncryptedRequestIdTagSaltString = "encrypted request identification tag salt v1";
+		constexpr std::string_view NsdIdTagSaltString = "nsd identification tag salt v1";
+		constexpr std::string_view EncryptedRequestIdTagSaltString = "encrypted request identification tag salt v1";
 	}
 } // namespace Protocol

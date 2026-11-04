@@ -324,7 +324,7 @@ TEST(IdentificationTags, PartiallyConsumedPopulatedTagMap_MovePeriodForwardByOne
 	{
 		for (uint32_t indexInPeriod = 0; indexInPeriod < consumedInPeriod[i]; ++indexInPeriod)
 		{
-			EXPECT_TRUE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash, 319 + i, indexInPeriod)).has_value());
+			EXPECT_TRUE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash, static_cast<uint32_t>(319 + i), indexInPeriod)).has_value());
 		}
 	}
 
@@ -339,7 +339,7 @@ TEST(IdentificationTags, PartiallyConsumedPopulatedTagMap_MovePeriodForwardByOne
 	{
 		for (uint32_t indexInPeriod = 0; indexInPeriod < PeriodSize; ++indexInPeriod)
 		{
-			EXPECT_EQ(indexInPeriod >= consumedInPeriod[i], tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash, 319 + i, indexInPeriod)).has_value());
+			EXPECT_EQ(indexInPeriod >= consumedInPeriod[i], tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash, static_cast<uint32_t>(319 + i), indexInPeriod)).has_value());
 		}
 	}
 	// this is the completely new period
