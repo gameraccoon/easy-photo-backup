@@ -136,13 +136,14 @@ namespace ClientCli
 			}
 			else if (command == "hnsd")
 			{
+				constexpr const uint32_t numRequests = 2;
 				std::vector<HiddenNsdClient::NsdServerData> serverData;
 				std::vector<ClientConfigStorage::ServerIdentificationHashData> serverHashes;
 				clientConfigStorage->getAllIdentificationHashes(ClientConfigStorage::IdentificationTagType::Nsd, serverHashes);
 				serverData.reserve(serverHashes.size());
 				for (ClientConfigStorage::ServerIdentificationHashData& hashData : serverHashes)
 				{
-					std::optional<uint32_t> indexResult = clientSentFilesStorage->consumeNextIdentificationKeyIndexInPeriod(hashData.serverIdx, ClientConfigStorage::IdentificationTagType::Nsd, Cryptography::IdentificationTagsUtils::getCurrentDayIndex());
+					std::optional<uint32_t> indexResult = clientSentFilesStorage->consumeNextIdentificationKeyIndicesInPeriod(hashData.serverIdx, ClientConfigStorage::IdentificationTagType::Nsd, Cryptography::IdentificationTagsUtils::getCurrentDayIndex(), numRequests);
 					if (indexResult.has_value())
 					{
 						serverData.emplace_back(
@@ -151,7 +152,7 @@ namespace ClientCli
 						);
 					}
 				}
-				hiddenDiscoveryResults = hiddenServerDiscoveryClient.runDiscovery(serverData);
+				hiddenDiscoveryResults = hiddenServerDiscoveryClient.runDiscovery(serverData, numRequests);
 			}
 			else if (command == "pair")
 			{

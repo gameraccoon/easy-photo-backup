@@ -239,7 +239,7 @@ namespace HiddenNsdServer
 
 			updateClientAndPeriodData(lastPeriodIndex, updateHashesFn, clientHashes, clientIds, tagMap, clientsToRemove);
 
-			if (messageLength != expectedPacketSize)
+			if (messageLength % expectedPacketSize != 0)
 			{
 				continue;
 			}
@@ -251,24 +251,34 @@ namespace HiddenNsdServer
 				continue;
 			}
 
-			const uint64_t tag = Serialization::readUint64(std::as_bytes(std::span(buf)).subspan(0, expectedPacketSize));
-
-			std::optional<TagMap::TagPayload> tagPayload = tagMap.consumeTag(tag);
-
-			if (!tagPayload.has_value())
+			bool hadMatch = false;
+			for (size_t i = 0; i < static_cast<size_t>(messageLength); i += expectedPacketSize)
 			{
-				throttledIps.emplace_back(binaryIp, timeNow + std::chrono::seconds(3));
-				continue;
+				const uint64_t tag = Serialization::readUint64(std::as_bytes(std::span(buf)).subspan(i, expectedPacketSize));
+
+				std::optional<TagMap::TagPayload> tagPayload = tagMap.consumeTag(tag);
+
+				if (tagPayload.has_value())
+				{
+					hadMatch = true;
+					if (Cryptography::EncryptResult result = composeAnswer(*tagPayload, clientHashes, responsePlaintext, std::span(buf).subspan(0, responsePlaintextSize + Cryptography::CipherAuthDataSize)); result != Cryptography::EncryptResult::Success)
+					{
+						break;
+					}
+
+					if (const int sentSize = NsdInternalUtils::sendNsdAnswer(socket, std::span(buf).subspan(0, responsePlaintextSize + Cryptography::CipherAuthDataSize), clientAddr); sentSize == -1)
+					{
+						return SocketError{ std::format("Failed to send response to UDP socket, error code {}.", Network::getLastSocketError()) };
+					}
+
+					break;
+				}
 			}
 
-			if (Cryptography::EncryptResult result = composeAnswer(*tagPayload, clientHashes, responsePlaintext, std::span(buf).subspan(0, responsePlaintextSize + Cryptography::CipherAuthDataSize)); result != Cryptography::EncryptResult::Success)
+			if (!hadMatch)
 			{
-				continue;
-			}
-
-			if (const int sentSize = NsdInternalUtils::sendNsdAnswer(socket, std::span(buf).subspan(0, responsePlaintextSize + Cryptography::CipherAuthDataSize), clientAddr); sentSize == -1)
-			{
-				return SocketError{ std::format("Failed to send response to UDP socket, error code {}.", Network::getLastSocketError()) };
+				// reduce the potential load on the server and the guessing speed
+				throttledIps.emplace_back(binaryIp, timeNow + std::chrono::milliseconds(800));
 			}
 		}
 	}

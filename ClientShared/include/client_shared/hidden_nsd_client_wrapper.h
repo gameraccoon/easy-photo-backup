@@ -13,7 +13,7 @@
 class HiddenNsdClientWrapper
 {
 public:
-	std::vector<ServerConnectionInfo> runDiscovery(const std::vector<HiddenNsdClient::NsdServerData>& serverData) noexcept;
+	std::vector<ServerConnectionInfo> runDiscovery(const std::vector<HiddenNsdClient::NsdServerData>& serverData, uint32_t numRequests) noexcept;
 
 private:
 	std::mutex mDataMutex;

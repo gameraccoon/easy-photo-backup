@@ -108,7 +108,7 @@ public:
 	std::vector<ActivityJournalRecord> getActivityJournalRecords(uint32_t beginIdx, uint32_t endIdx) noexcept;
 
 	// two calls to this function should never return the same key index for the same server, unless the period shifts
-	[[nodiscard]] std::optional<uint32_t> consumeNextIdentificationKeyIndexInPeriod(uint8_t serverIdx, ClientConfigStorage::IdentificationTagType tagType, uint32_t currentPeriodIndex) noexcept;
+	[[nodiscard]] std::optional<uint32_t> consumeNextIdentificationKeyIndicesInPeriod(uint8_t serverIdx, ClientConfigStorage::IdentificationTagType tagType, uint32_t currentPeriodIndex, uint32_t count) noexcept;
 
 private:
 	explicit ClientSentFilesStorage(Lmdb::ReadWriteEnvironment&& mEnvironment) noexcept;

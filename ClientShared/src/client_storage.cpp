@@ -21,7 +21,7 @@ namespace ClientStorageInternal
 	static constexpr std::zstring_view SentFilesDatabaseName = "sent_files";
 	static constexpr std::zstring_view PartiallySentDatabaseName = "part_sent";
 	static constexpr std::zstring_view ActivityJournalDatabaseName = "activity";
-	static constexpr std::zstring_view IdentificationTagIndicesDatabaseName = "tagIndexes";
+	static constexpr std::zstring_view IdentificationTagIndicesDatabaseName = "tagIndices";
 
 	static constexpr size_t ActivityRecordValueStaticDataSize = 22;
 
@@ -30,7 +30,7 @@ namespace ClientStorageInternal
 		std::vector<ClientSentFilesStorage::ActivityJournalRecord> result;
 		if (beginIdx > endIdx) [[unlikely]]
 		{
-			reportReleaseError("Min and max indexes are in the wrong order. beginIdx={} endIdx={}", beginIdx, endIdx);
+			reportReleaseError("Min and max indices are in the wrong order. beginIdx={} endIdx={}", beginIdx, endIdx);
 			return result;
 		}
 
@@ -95,7 +95,7 @@ namespace ClientStorageInternal
 			result.push_back(std::move(record));
 
 			++index;
-			if (index >= endIdx) // normal exit condition, assumes indexes don't have gaps
+			if (index >= endIdx) // normal exit condition, assumes indices don't have gaps
 			{
 				break;
 			}
@@ -166,7 +166,7 @@ bool ClientConfigStorage::addConfirmedServerBinding(const ServerId& serverId, co
 	}
 
 	// find first free
-	std::array<bool, 256> takenIndexes = {};
+	std::array<bool, 256> takenIndices = {};
 	Lmdb::Result<Lmdb::ReadOnlyCursor> cursor = Lmdb::ReadOnlyCursor::open(wrapper->transaction, wrapper->database);
 	if (cursor.isError()) [[unlikely]]
 	{
@@ -186,7 +186,7 @@ bool ClientConfigStorage::addConfirmedServerBinding(const ServerId& serverId, co
 		{
 			if (view->value.size() > 1)
 			{
-				takenIndexes[static_cast<size_t>(view->value[0])] = true;
+				takenIndices[static_cast<size_t>(view->value[0])] = true;
 			}
 
 			if (cursor->next() != Lmdb::ReturnCode::Success) [[unlikely]]
@@ -200,7 +200,7 @@ bool ClientConfigStorage::addConfirmedServerBinding(const ServerId& serverId, co
 	std::optional<uint8_t> firstFreeIndex{};
 	for (size_t i = 0; i < 256; ++i)
 	{
-		if (takenIndexes[i] == false)
+		if (takenIndices[i] == false)
 		{
 			firstFreeIndex = static_cast<uint8_t>(i);
 			break;
@@ -209,7 +209,7 @@ bool ClientConfigStorage::addConfirmedServerBinding(const ServerId& serverId, co
 
 	if (!firstFreeIndex.has_value())
 	{
-		reportDebugError("All 256 server indexes are taken, can't pair more servers");
+		reportDebugError("All 256 server indices are taken, can't pair more servers");
 		return false;
 	}
 
@@ -1033,8 +1033,13 @@ std::vector<ClientSentFilesStorage::ActivityJournalRecord> ClientSentFilesStorag
 	return ClientStorageInternal::readActivityJournalRecords(*cursor, beginIdx, endIdx);
 }
 
-std::optional<uint32_t> ClientSentFilesStorage::consumeNextIdentificationKeyIndexInPeriod(uint8_t serverIdx, ClientConfigStorage::IdentificationTagType tagType, uint32_t currentPeriodIndex) noexcept
+std::optional<uint32_t> ClientSentFilesStorage::consumeNextIdentificationKeyIndicesInPeriod(uint8_t serverIdx, ClientConfigStorage::IdentificationTagType tagType, uint32_t currentPeriodIndex, uint32_t count) noexcept
 {
+	if (count < 1)
+	{
+		return std::nullopt;
+	}
+
 	Lmdb::Result<Lmdb::ReadWriteSingleDbWrapper> wrapper = Lmdb::openReadWriteSingleDbTransaction(mEnvironment, ClientStorageInternal::IdentificationTagIndicesDatabaseName);
 	if (wrapper.isError()) [[unlikely]]
 	{
@@ -1052,7 +1057,7 @@ std::optional<uint32_t> ClientSentFilesStorage::consumeNextIdentificationKeyInde
 		return std::nullopt;
 	}
 
-	std::array<uint32_t, 3> periodIndexes = {};
+	std::array<uint32_t, 3> periodIndices = {};
 	uint32_t resultIndex = 0;
 	if (returnCode != Lmdb::ReturnCode::NotFound)
 	{
@@ -1065,13 +1070,13 @@ std::optional<uint32_t> ClientSentFilesStorage::consumeNextIdentificationKeyInde
 
 		uint32_t lastCurrentPeriod = 0;
 		if (!deserializer.readUint32(lastCurrentPeriod, "currentPeriod")) { return std::nullopt; }
-		if (!deserializer.readUint32(periodIndexes[0], "previousPeriodIndex")) { return std::nullopt; }
-		if (!deserializer.readUint32(periodIndexes[1], "currentPeriodIndex")) { return std::nullopt; }
-		if (!deserializer.readUint32(periodIndexes[2], "nextPeriodIndex")) { return std::nullopt; }
+		if (!deserializer.readUint32(periodIndices[0], "previousPeriodIndex")) { return std::nullopt; }
+		if (!deserializer.readUint32(periodIndices[1], "currentPeriodIndex")) { return std::nullopt; }
+		if (!deserializer.readUint32(periodIndices[2], "nextPeriodIndex")) { return std::nullopt; }
 
 		if (deserializer.getBytesRead() != value.size()) [[unlikely]]
 		{
-			reportReleaseError("Deserialization of identification tag indexes read incorrect number of bytes: got {}, read {}", value.size(), deserializer.getBytesRead());
+			reportReleaseError("Deserialization of identification tag indices read incorrect number of bytes: got {}, read {}", value.size(), deserializer.getBytesRead());
 			return std::nullopt;
 		}
 
@@ -1083,12 +1088,12 @@ std::optional<uint32_t> ClientSentFilesStorage::consumeNextIdentificationKeyInde
 
 				if (shiftLeft > 2)
 				{
-					periodIndexes = {};
+					periodIndices = {};
 				}
 				else
 				{
-					std::fill(periodIndexes.begin(), periodIndexes.begin() + shiftLeft, uint32_t(0));
-					std::rotate(periodIndexes.begin(), periodIndexes.begin() + shiftLeft, periodIndexes.end());
+					std::fill(periodIndices.begin(), periodIndices.begin() + shiftLeft, uint32_t(0));
+					std::rotate(periodIndices.begin(), periodIndices.begin() + shiftLeft, periodIndices.end());
 				}
 			}
 			else
@@ -1097,32 +1102,33 @@ std::optional<uint32_t> ClientSentFilesStorage::consumeNextIdentificationKeyInde
 
 				if (shiftRight > 2)
 				{
-					periodIndexes = {};
+					periodIndices = {};
 				}
 				else
 				{
-					std::fill(periodIndexes.begin() + (periodIndexes.size() - shiftRight), periodIndexes.end(), uint32_t(0));
-					std::rotate(periodIndexes.begin(), periodIndexes.begin() + (periodIndexes.size() - shiftRight), periodIndexes.end());
+					std::fill(periodIndices.begin() + (periodIndices.size() - shiftRight), periodIndices.end(), uint32_t(0));
+					std::rotate(periodIndices.begin(), periodIndices.begin() + (periodIndices.size() - shiftRight), periodIndices.end());
 				}
 			}
 		}
 	}
 
-	resultIndex = periodIndexes[1];
-	periodIndexes[1] += 1;
-
-	if (resultIndex == std::numeric_limits<uint32_t>::max())
+	// check for unsigned overflow
+	if (periodIndices[1] + count < count)
 	{
-		reportDebugError("We have overflown possible indexes for a period, this is probably a logical error");
+		reportDebugError("We have overflown possible indices for a period, this is probably a logical error");
 		return std::nullopt;
 	}
+
+	resultIndex = periodIndices[1];
+	periodIndices[1] += count;
 
 	Serialization::GenericSerializationWrapper serializer{ value };
 
 	if (!serializer.writeUint32(currentPeriodIndex, "currentPeriod")) { return std::nullopt; }
-	if (!serializer.writeUint32(periodIndexes[0], "previousPeriodIndex")) { return std::nullopt; }
-	if (!serializer.writeUint32(periodIndexes[1], "currentPeriodIndex")) { return std::nullopt; }
-	if (!serializer.writeUint32(periodIndexes[2], "nextPeriodIndex")) { return std::nullopt; }
+	if (!serializer.writeUint32(periodIndices[0], "previousPeriodIndex")) { return std::nullopt; }
+	if (!serializer.writeUint32(periodIndices[1], "currentPeriodIndex")) { return std::nullopt; }
+	if (!serializer.writeUint32(periodIndices[2], "nextPeriodIndex")) { return std::nullopt; }
 	assertFatalRelease(serializer.getBytesWritten() == value.size(), "Logical error, serialization of confirmed binding leaves not filled bytes, buffer size: {} written: {}", value.size(), serializer.getBytesWritten());
 
 	returnCode = wrapper->database.put(key, value);

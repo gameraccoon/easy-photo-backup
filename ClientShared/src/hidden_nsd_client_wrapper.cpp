@@ -9,13 +9,13 @@
 static constexpr bool NsdDebug = false;
 #endif
 
-std::vector<ServerConnectionInfo> HiddenNsdClientWrapper::runDiscovery(const std::vector<HiddenNsdClient::NsdServerData>& serverData) noexcept
+std::vector<ServerConnectionInfo> HiddenNsdClientWrapper::runDiscovery(const std::vector<HiddenNsdClient::NsdServerData>& serverData, uint32_t numRequests) noexcept
 {
 	std::optional<std::string> result = HiddenNsdClient::processServiceDiscoveryThread(
 		Network::AddressType::IpV4,
 		5354,
 		1.0f,
-		5,
+		numRequests,
 		0.5f,
 		serverData,
 		[&servers = mDiscoveredServers](auto&& event) {
