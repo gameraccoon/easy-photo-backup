@@ -112,7 +112,7 @@ namespace FileTransferReceiveLogic
 
 		struct TransferData
 		{
-			// not synchronized with the indexes on the sending side
+			// not synchronized with the indices on the sending side
 			size_t currentFileIndex = std::numeric_limits<size_t>::max();
 			std::vector<Protocol::FileExchange::FileReceiveStatus> filesAwaitingConfirmation;
 			size_t currentFileAwaitingConfirmationIdx = 0;

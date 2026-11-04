@@ -29,37 +29,37 @@ namespace ServiceLogic
 	{
 		uint32_t currentTagPeriod{};
 		std::vector<Cryptography::HashResult> encryptedRequestHashes;
-		std::vector<uint32_t> encryptedRequestIndexes;
+		std::vector<uint32_t> encryptedRequestIndices;
 		Cryptography::IdentificationTagMap<TcpServer::Encrypted::IdentificationTagsWindowPerDay> encryptedRequestIdentificationTags;
 		std::mutex encryptedRequestIdentificationTagsMutex;
 	};
 
 	static void populateClientHashes(ServerConfigStorage& configStorage, EncryptedRequestIdentificationData& outClientHashes)
 	{
-		std::vector<size_t> indexesToRemove;
+		std::vector<size_t> indicesToRemove;
 		size_t numAdded;
-		configStorage.updateIdentificationHashes(ServerConfigStorage::IdentificationTagType::EncryptedRequest, outClientHashes.encryptedRequestHashes, outClientHashes.encryptedRequestIndexes, numAdded, indexesToRemove);
+		configStorage.updateIdentificationHashes(ServerConfigStorage::IdentificationTagType::EncryptedRequest, outClientHashes.encryptedRequestHashes, outClientHashes.encryptedRequestIndices, numAdded, indicesToRemove);
 
 		uint32_t currentTagPeriod = Cryptography::IdentificationTagsUtils::getCurrentDayIndex();
 		outClientHashes.encryptedRequestIdentificationTags.resetMap(outClientHashes.encryptedRequestHashes, currentTagPeriod);
 	}
 
-	static void updateClientHashesForNsd(ServerConfigStorage& configStorage, std::vector<Cryptography::HashResult>& clientHashes, std::vector<uint32_t>& clientIndexes, size_t numClientsAdded, std::vector<size_t>& clientsToRemove)
+	static void updateClientHashesForNsd(ServerConfigStorage& configStorage, std::vector<Cryptography::HashResult>& clientHashes, std::vector<uint32_t>& clientIndices, size_t numClientsAdded, std::vector<size_t>& clientsToRemove)
 	{
-		configStorage.updateIdentificationHashes(ServerConfigStorage::IdentificationTagType::Nsd, clientHashes, clientIndexes, numClientsAdded, clientsToRemove);
+		configStorage.updateIdentificationHashes(ServerConfigStorage::IdentificationTagType::Nsd, clientHashes, clientIndices, numClientsAdded, clientsToRemove);
 	}
 
 	static void updateClientHashesForEncryptedRequests(ServerConfigStorage& configStorage, EncryptedRequestIdentificationData& inOutClientHashes)
 	{
-		std::vector<size_t> indexesToRemove;
+		std::vector<size_t> indicesToRemove;
 		size_t numAdded;
-		configStorage.updateIdentificationHashes(ServerConfigStorage::IdentificationTagType::EncryptedRequest, inOutClientHashes.encryptedRequestHashes, inOutClientHashes.encryptedRequestIndexes, numAdded, indexesToRemove);
-		std::sort(indexesToRemove.begin(), indexesToRemove.end(), std::greater<>());
-		for (size_t idx : indexesToRemove)
+		configStorage.updateIdentificationHashes(ServerConfigStorage::IdentificationTagType::EncryptedRequest, inOutClientHashes.encryptedRequestHashes, inOutClientHashes.encryptedRequestIndices, numAdded, indicesToRemove);
+		std::sort(indicesToRemove.begin(), indicesToRemove.end(), std::greater<>());
+		for (size_t idx : indicesToRemove)
 		{
-			assertFatalRelease(idx < inOutClientHashes.encryptedRequestHashes.size() && idx < inOutClientHashes.encryptedRequestIndexes.size(), "Logical error: invalid index to remove");
+			assertFatalRelease(idx < inOutClientHashes.encryptedRequestHashes.size() && idx < inOutClientHashes.encryptedRequestIndices.size(), "Logical error: invalid index to remove");
 			inOutClientHashes.encryptedRequestHashes.erase(inOutClientHashes.encryptedRequestHashes.begin() + idx);
-			inOutClientHashes.encryptedRequestIndexes.erase(inOutClientHashes.encryptedRequestIndexes.begin() + idx);
+			inOutClientHashes.encryptedRequestIndices.erase(inOutClientHashes.encryptedRequestIndices.begin() + idx);
 		}
 
 		uint32_t currentTagPeriod = Cryptography::IdentificationTagsUtils::getCurrentDayIndex();
@@ -160,8 +160,8 @@ namespace ServiceLogic
 
 		const uint16_t serverPort = portFuture.get();
 
-		const auto updateClientHashesForNsdFn = [&configStorage](std::vector<Cryptography::HashResult>& clientHashes, std::vector<uint32_t>& clientIndexes, size_t numClientsAdded, std::vector<size_t>& clientsToRemove) {
-			updateClientHashesForNsd(*configStorage, clientHashes, clientIndexes, numClientsAdded, clientsToRemove);
+		const auto updateClientHashesForNsdFn = [&configStorage](std::vector<Cryptography::HashResult>& clientHashes, std::vector<uint32_t>& clientIndices, size_t numClientsAdded, std::vector<size_t>& clientsToRemove) {
+			updateClientHashesForNsd(*configStorage, clientHashes, clientIndices, numClientsAdded, clientsToRemove);
 		};
 
 		std::thread nsdThread([socket, &nsdCloseSocketFlag, serverId, serverPort, &updateClientHashesForNsdFn] {

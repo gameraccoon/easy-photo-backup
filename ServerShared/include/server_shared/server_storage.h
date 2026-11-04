@@ -43,7 +43,7 @@ public:
 	[[nodiscard]] std::optional<ClientBinding> getConfirmedClientBinding(ConnectionIdx connectionIdx) noexcept;
 	[[nodiscard]] bool hasConfirmedClientBinding(ConnectionIdx connectionIdx) noexcept;
 
-	void updateIdentificationHashes(IdentificationTagType tagType, std::vector<Cryptography::HashResult>& inOutHashes, std::vector<ConnectionIdx>& inOutIds, size_t& outNumAdded, std::vector<size_t>& indexesToRemove) noexcept;
+	void updateIdentificationHashes(IdentificationTagType tagType, std::vector<Cryptography::HashResult>& inOutHashes, std::vector<ConnectionIdx>& inOutIds, size_t& outNumAdded, std::vector<size_t>& indicesToRemove) noexcept;
 
 	[[nodiscard]] std::optional<std::array<std::byte, 16>> getOrGenerateServerId() noexcept;
 

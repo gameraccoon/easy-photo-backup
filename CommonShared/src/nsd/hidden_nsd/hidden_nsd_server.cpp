@@ -86,7 +86,7 @@ namespace HiddenNsdServer
 		clientHashes.resize(writeIdx);
 		clientIds.resize(writeIdx);
 
-		// shift the client indexes in the map
+		// shift the client indices in the map
 		tagMap.forEachPayload([&indexRedirectors](auto& payload) {
 			payload.clientIndex = static_cast<uint32_t>(indexRedirectors[payload.clientIndex]);
 		});

@@ -124,7 +124,7 @@ namespace FileTransferSendLogic
 		{
 			size_t currentFileIndex = 0;
 
-			// we move out paths from here, but keep indexes stable
+			// we move out paths from here, but keep indices stable
 			std::vector<std::filesystem::path> nativePaths;
 			std::vector<size_t> filesAwaitingConfirmation;
 			uint64_t firstAwaitingFileBytesConfirmed = 0;
@@ -501,14 +501,14 @@ namespace FileTransferSendLogic
 			bytesFilledInChunk = ChunkSize;
 		}
 
-		void recordAndClearConfirmations(const std::vector<size_t>& errorIndexes, const std::vector<size_t>& skipFileIndexes) noexcept
+		void recordAndClearConfirmations(const std::vector<size_t>& errorIndices, const std::vector<size_t>& skipFileIndices) noexcept
 		{
 			const bool fileInProgress = hasFileInProgress();
 			size_t errorIndexPos = 0;
 			size_t skipFileIndexPos = 0;
 			const size_t originalConfirmationSize = transferData.filesAwaitingConfirmation.size();
-			const size_t errorIndexesSize = errorIndexes.size();
-			const size_t skipIndexesSize = skipFileIndexes.size();
+			const size_t errorIndicesSize = errorIndices.size();
+			const size_t skipIndicesSize = skipFileIndices.size();
 			const size_t currentFileIndex = transferData.currentFileIndex;
 			bool isFileInProgressFailed = false;
 
@@ -521,13 +521,13 @@ namespace FileTransferSendLogic
 				bool isFileSkipped = false;
 				bool fileHasErrors = false;
 
-				if (errorIndexPos < errorIndexesSize && errorIndexes[errorIndexPos] == readPos)
+				if (errorIndexPos < errorIndicesSize && errorIndices[errorIndexPos] == readPos)
 				{
 					++errorIndexPos;
 					fileHasErrors = true;
 				}
 
-				if (skipFileIndexPos < skipIndexesSize && skipFileIndexes[skipFileIndexPos] == readPos)
+				if (skipFileIndexPos < skipIndicesSize && skipFileIndices[skipFileIndexPos] == readPos)
 				{
 					++skipFileIndexPos;
 					isFileSkipped = true;
@@ -538,7 +538,7 @@ namespace FileTransferSendLogic
 					isFileInProgressFailed = true;
 				}
 
-				debugAssert(fileHasErrors || !isFileSkipped, "Can't have skipped file indexes that are not in error indexes");
+				debugAssert(fileHasErrors || !isFileSkipped, "Can't have skipped file indices that are not in error indices");
 
 				// files can be skipped before they are fully sent
 				if ((!fileHasErrors && isFileFullySent) || isFileSkipped)
@@ -560,7 +560,7 @@ namespace FileTransferSendLogic
 			// erase removed records
 			transferData.filesAwaitingConfirmation.resize(writePos);
 
-			if (errorIndexes.size() > 0)
+			if (errorIndices.size() > 0)
 			{
 				transferData.recommendedNextBatchSize = static_cast<uint8_t>(std::min(transferData.recommendedNextBatchSize * 10, 127));
 			}
@@ -660,8 +660,8 @@ namespace FileTransferSendLogic
 			// process error cases, or multi-block bistet
 			size_t errorStartIndex = 0;
 			size_t bytePosInBitset = 0;
-			std::vector<size_t> errorFileIndexes;
-			errorFileIndexes.reserve(statusesToRead);
+			std::vector<size_t> errorFileIndices;
+			errorFileIndices.reserve(statusesToRead);
 			for (size_t chunkIdx = 0; chunkIdx < bitsetChunks; ++chunkIdx)
 			{
 				if (posInChunk == AnswerChunkSize)
@@ -681,7 +681,7 @@ namespace FileTransferSendLogic
 					{
 						if ((byte & (static_cast<uint8_t>(1) << (7 - j))) != 0)
 						{
-							errorFileIndexes.push_back(errorStartIndex + j);
+							errorFileIndices.push_back(errorStartIndex + j);
 						}
 					}
 					errorStartIndex += 8;
@@ -690,17 +690,17 @@ namespace FileTransferSendLogic
 
 			assertFatalRelease(posInChunk == (BitsetOffset + bytesInBitset) % AnswerChunkSize || posInChunk == AnswerChunkSize, "Unexpected chunk pos {} == {}", posInChunk, (BitsetOffset + bytesInBitset) % AnswerChunkSize);
 
-			const size_t errorsArraySize = errorFileIndexes.size();
+			const size_t errorsArraySize = errorFileIndices.size();
 			const size_t chunksToReceive = (posInChunk + errorsArraySize + AnswerChunkSize - 1) / AnswerChunkSize;
 			assertFatalRelease(chunksToReceive != 0, "Can't have zero chunks to send as an answer");
 
 			errorStartIndex = 0;
-			std::vector<size_t> skipFileIndexes;
+			std::vector<size_t> skipFileIndices;
 			for (size_t chunkIdx = 0; chunkIdx < chunksToReceive; ++chunkIdx)
 			{
-				for (; errorStartIndex < errorFileIndexes.size() && posInChunk < AnswerChunkSize; ++errorStartIndex, ++posInChunk)
+				for (; errorStartIndex < errorFileIndices.size() && posInChunk < AnswerChunkSize; ++errorStartIndex, ++posInChunk)
 				{
-					const size_t fileIdx = errorFileIndexes[errorStartIndex];
+					const size_t fileIdx = errorFileIndices[errorStartIndex];
 					switch (static_cast<uint8_t>(receivingBuffer.raw[posInChunk]))
 					{
 					case static_cast<uint8_t>(Protocol::FileExchange::FileReceiveStatus::BadFilePath):
@@ -714,7 +714,7 @@ namespace FileTransferSendLogic
 						transferData.rejectedPartialFiles.push_back(getFileNativeFilePath(transferData.filesAwaitingConfirmation[fileIdx]));
 						break;
 					case static_cast<uint8_t>(Protocol::FileExchange::FileReceiveStatus::AlreadyExists):
-						skipFileIndexes.push_back(fileIdx);
+						skipFileIndices.push_back(fileIdx);
 						break;
 					default:
 						reportDebugError("Unknown file error status {}", static_cast<uint8_t>(receivingBuffer.raw[posInChunk]));
@@ -740,7 +740,7 @@ namespace FileTransferSendLogic
 				}
 			}
 
-			recordAndClearConfirmations(errorFileIndexes, skipFileIndexes);
+			recordAndClearConfirmations(errorFileIndices, skipFileIndices);
 			return true;
 		}
 	};
