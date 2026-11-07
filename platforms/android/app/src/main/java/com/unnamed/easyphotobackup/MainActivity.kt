@@ -22,7 +22,6 @@ import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
-import com.google.android.material.color.utilities.Variant
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -110,7 +109,7 @@ class MainActivity : AppCompatActivity() {
         binding.serverContainer.removeAllViews()
 
         val discoveryResults = withContext(Dispatchers.IO) {
-            val discoveryClient = ServerDiscoveryClient()
+            val discoveryClient = SimpleNsdClientNative()
             discoveryClient.startDiscovery()
             Thread.sleep(3000)
             val results = discoveryClient.getDiscoveryResults()
@@ -121,10 +120,6 @@ class MainActivity : AppCompatActivity() {
         for (discoveryResult in discoveryResults) {
             val isPaired = PairingHelpers.isServerPaired(clientConfigStorage, discoveryResult)
 
-            val serverName = withContext(Dispatchers.IO) {
-                PairingHelpers.requestServerName(discoveryResult)
-            }
-
             val row = LinearLayout(this@MainActivity).apply {
                 orientation = LinearLayout.HORIZONTAL
                 layoutParams = LinearLayout.LayoutParams(
@@ -132,6 +127,12 @@ class MainActivity : AppCompatActivity() {
                     LinearLayout.LayoutParams.WRAP_CONTENT
                 )
                 setPadding(0, 16, 0, 16)
+            }
+
+            val serverName = if (isPaired) {
+                PairingHelpers.getServerName(clientConfigStorage, discoveryResult).toString()
+            } else {
+                "unknown server"
             }
 
             val nameView = TextView(this@MainActivity).apply {
@@ -179,7 +180,8 @@ class MainActivity : AppCompatActivity() {
                                 val error = PairingHelpers.approveServer(
                                     clientConfigStorage,
                                     discoveryResult,
-                                    result.second!!
+                                    result.second!!,
+                                    "test server"
                                 )
 
                                 if (error != null) {

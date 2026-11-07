@@ -6,11 +6,9 @@ import android.content.Context
 import android.content.pm.ServiceInfo
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
-import android.net.NetworkInfo
 import android.os.Build
 import android.os.Environment
 import androidx.core.app.NotificationCompat
-import androidx.core.content.ContextCompat.getSystemService
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
@@ -57,24 +55,21 @@ class FileSendBackgroundWorker(
 
             setProgress(workDataOf("status" to "discovering"))
 
-            val discoveryClient = ServerDiscoveryClient()
-            discoveryClient.startDiscovery()
-            kotlinx.coroutines.delay(1.seconds)
-            val discoveryResults = discoveryClient.getDiscoveryResults()
-            discoveryClient.stopDiscovery()
+            val discoveryClient = HiddenNsdClientNative()
+            val discoveryResults = discoveryClient.runDiscovery(clientConfigStorage, clientSentFilesStorage, 2);
 
             val statuses = Vector<String>()
             val resultStatus: String
 
             if (!discoveryResults.isEmpty()) {
                 for (discoveryResult in discoveryResults) {
-                    val serverName = PairingHelpers.requestServerName(discoveryResult)
-
                     if (!PairingHelpers.isServerPaired(clientConfigStorage, discoveryResult)) {
-                        statuses.add("\nSkipped unknown server '$serverName'")
-                        clientSentFilesStorage.addActivityJournalRecord(2, serverName.toString())
+                        statuses.add("\nSkipped unknown server")
+                        clientSentFilesStorage.addActivityJournalRecord(2, "Unknown server")
                         continue
                     }
+
+                    val serverName = PairingHelpers.getServerName(clientConfigStorage, discoveryResult)
 
                     clientSentFilesStorage.addActivityJournalRecord(0, serverName.toString())
 

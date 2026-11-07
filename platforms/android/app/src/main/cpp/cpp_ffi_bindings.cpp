@@ -4,33 +4,35 @@
 #include <jni.h>
 
 #include "common_shared/cryptography/utils/connection_id_utils.h"
+#include "common_shared/requests/pairing_utils.h"
 
 #include "client_shared/client_storage.h"
 #include "client_shared/file_send_helpers.h"
 #include "client_shared/pairing_helpers.h"
 #include "client_shared/server_connection_info.h"
-#include "client_shared/server_discovery_client.h"
+#include "client_shared/hidden_nsd_client_wrapper.h"
+#include "client_shared/simple_nsd_client_wrapper.h"
 
-class ServerDiscoveryClientNative
+class SimpleNsdClientWrapperNative
 {
 public:
 	void startDiscovery()
 	{
-		mServerDiscoveryClient.startDiscovery();
+		mWrapper.startDiscovery();
 	}
 
 	[[nodiscard]] std::vector<ServerConnectionInfo> getDiscoveryResults()
 	{
-		return mServerDiscoveryClient.getDiscoveryResults();
+		return mWrapper.getDiscoveryResults();
 	}
 
 	void stopDiscovery()
 	{
-		mServerDiscoveryClient.stopDiscovery();
+		mWrapper.stopDiscovery();
 	}
 
 private:
-	ServerDiscoveryClient mServerDiscoveryClient;
+	SimpleNsdClientWrapper mWrapper;
 };
 
 class ServerConnectionInfoNative
@@ -89,45 +91,45 @@ public:
 };
 
 extern "C" JNIEXPORT jlong JNICALL
-Java_com_unnamed_easyphotobackup_ServerDiscoveryClient_create(
+Java_com_unnamed_easyphotobackup_SimpleNsdClientNative_create(
 	JNIEnv* env,
 	jobject /*this*/
 )
 {
-	ServerDiscoveryClientNative* obj = new ServerDiscoveryClientNative();
+	SimpleNsdClientWrapperNative* obj = new SimpleNsdClientWrapperNative();
 	return reinterpret_cast<jlong>(obj);
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_unnamed_easyphotobackup_ServerDiscoveryClient_destroy(
+Java_com_unnamed_easyphotobackup_SimpleNsdClientNative_destroy(
 	JNIEnv* env,
 	jobject /*this*/,
 	jlong handle
 )
 {
-	ServerDiscoveryClientNative* obj = reinterpret_cast<ServerDiscoveryClientNative*>(handle);
+	SimpleNsdClientWrapperNative* obj = reinterpret_cast<SimpleNsdClientWrapperNative*>(handle);
 	delete obj;
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_unnamed_easyphotobackup_ServerDiscoveryClient_startDiscoveryNative(
+Java_com_unnamed_easyphotobackup_SimpleNsdClientNative_startDiscoveryNative(
 	JNIEnv* env,
 	jobject /*this*/,
 	jlong handle
 )
 {
-	ServerDiscoveryClientNative* obj = reinterpret_cast<ServerDiscoveryClientNative*>(handle);
+	SimpleNsdClientWrapperNative* obj = reinterpret_cast<SimpleNsdClientWrapperNative*>(handle);
 	obj->startDiscovery();
 }
 
 extern "C" JNIEXPORT jlongArray JNICALL
-Java_com_unnamed_easyphotobackup_ServerDiscoveryClient_getDiscoveryResultsNative(
+Java_com_unnamed_easyphotobackup_SimpleNsdClientNative_getDiscoveryResultsNative(
 	JNIEnv* env,
 	jobject /*this*/,
 	jlong handle
 )
 {
-	ServerDiscoveryClientNative* obj = reinterpret_cast<ServerDiscoveryClientNative*>(handle);
+	SimpleNsdClientWrapperNative* obj = reinterpret_cast<SimpleNsdClientWrapperNative*>(handle);
 	std::vector<ServerConnectionInfo> discoveryResults = obj->getDiscoveryResults();
 
 	jlongArray result = env->NewLongArray(static_cast<jsize>(discoveryResults.size()));
@@ -151,14 +153,64 @@ Java_com_unnamed_easyphotobackup_ServerDiscoveryClient_getDiscoveryResultsNative
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_unnamed_easyphotobackup_ServerDiscoveryClient_stopDiscoveryNative(
+Java_com_unnamed_easyphotobackup_SimpleNsdClientNative_stopDiscoveryNative(
 	JNIEnv* env,
 	jobject /*this*/,
 	jlong handle
 )
 {
-	ServerDiscoveryClientNative* obj = reinterpret_cast<ServerDiscoveryClientNative*>(handle);
+	SimpleNsdClientWrapperNative* obj = reinterpret_cast<SimpleNsdClientWrapperNative*>(handle);
 	obj->stopDiscovery();
+}
+
+extern "C" JNIEXPORT jlongArray JNICALL
+Java_com_unnamed_easyphotobackup_HiddenNsdClientNative_runDiscoveryNative(
+	JNIEnv* env,
+	jobject /*this*/,
+	jlong clientConfigStorageHandle,
+	jlong clientSentFilesStorageHandle,
+	jint numRequests
+)
+{
+	ClientConfigStorageNative* clientConfigStorage = reinterpret_cast<ClientConfigStorageNative*>(clientConfigStorageHandle);
+	ClientSentFilesStorageNative* clientSentFilesStorage = reinterpret_cast<ClientSentFilesStorageNative*>(clientSentFilesStorageHandle);
+
+	std::vector<HiddenNsdClient::NsdServerData> serverData;
+	std::vector<ClientConfigStorage::ServerIdentificationHashData> serverHashes;
+	clientConfigStorage->storage.getAllIdentificationHashes(ClientConfigStorage::IdentificationTagType::Nsd, serverHashes);
+	serverData.reserve(serverHashes.size());
+	for (ClientConfigStorage::ServerIdentificationHashData& hashData : serverHashes)
+	{
+		std::optional<uint32_t> indexResult = clientSentFilesStorage->storage.consumeNextIdentificationKeyIndicesInPeriod(hashData.serverIdx, ClientConfigStorage::IdentificationTagType::Nsd, Cryptography::IdentificationTagsUtils::getCurrentDayIndex(), numRequests);
+		if (indexResult.has_value())
+		{
+			serverData.emplace_back(
+				std::move(hashData.hash),
+				*indexResult
+			);
+		}
+	}
+
+	std::vector<ServerConnectionInfo> discoveryResults = HiddenNsdClientWrapper::runDiscovery(serverData, numRequests);
+
+	jlongArray result = env->NewLongArray(static_cast<jsize>(discoveryResults.size()));
+
+	std::vector<jlong> handles;
+	handles.reserve(discoveryResults.size());
+
+	for (ServerConnectionInfo& discoveryResult : discoveryResults)
+	{
+		handles.push_back(reinterpret_cast<jlong>(new ServerConnectionInfoNative(std::move(discoveryResult))));
+	}
+
+	env->SetLongArrayRegion(
+		result,
+		0,
+		static_cast<jsize>(handles.size()),
+		handles.data()
+	);
+
+	return result;
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -270,25 +322,6 @@ Java_com_unnamed_easyphotobackup_ActivityJournalRecord_destroy(
 	delete obj;
 }
 
-extern "C" JNIEXPORT jstring JNICALL
-Java_com_unnamed_easyphotobackup_PairingHelpers_requestServerNameNative(
-	JNIEnv* env,
-	jobject /*this*/,
-	jlong serverInfoHandle
-)
-{
-	ServerConnectionInfoNative* info = reinterpret_cast<ServerConnectionInfoNative*>(serverInfoHandle);
-
-	std::optional<std::string> serverName = PairingHelpers::requestServerName(info->serverInfo.address);
-
-	if (!serverName.has_value())
-	{
-		return nullptr;
-	}
-
-	return env->NewStringUTF(serverName->c_str());
-}
-
 extern "C" JNIEXPORT jlong JNICALL
 Java_com_unnamed_easyphotobackup_PairingHelpers_exchangePairingInformationWithServerNative(
 	JNIEnv* env,
@@ -314,22 +347,30 @@ Java_com_unnamed_easyphotobackup_PairingHelpers_approveServerNative(
 	jobject /*this*/,
 	jlong clientConfigStorageHandle,
 	jlong serverInfoHandle,
-	jlong pendingServerBindingHandle
+	jlong pendingServerBindingHandle,
+	jstring serverNameJStr
 )
 {
 	ClientConfigStorageNative* clientConfigStorage = reinterpret_cast<ClientConfigStorageNative*>(clientConfigStorageHandle);
 	ServerConnectionInfoNative* info = reinterpret_cast<ServerConnectionInfoNative*>(serverInfoHandle);
 	PendingServerBindingNative* pendingServerBindingNative = reinterpret_cast<PendingServerBindingNative*>(pendingServerBindingHandle);
 
+	const char* serverNameChar = env->GetStringUTFChars(serverNameJStr, nullptr);
+	std::string serverName(serverNameChar);
+	env->ReleaseStringUTFChars(serverNameJStr, serverNameChar);
+
 	clientConfigStorage->storage.addConfirmedServerBinding(
 		info->serverInfo.serverId,
 		ClientConfigStorage::ServerBinding{
-			.serverName = "test_server",
-			.connectionId = Cryptography::generateConnectionId(pendingServerBindingNative->serverBinding.staticKeys.publicKey, pendingServerBindingNative->serverBinding.remoteStaticKey),
+			.serverName = std::move(serverName),
+			.nsdIdentificationHash = PairingUtils::generateNsdIdentificationHash(pendingServerBindingNative->serverBinding.handshakeHash),
+			.encryptedRequestIdentificationHash = PairingUtils::generateEncryptedRequestIdentificationHash(pendingServerBindingNative->serverBinding.handshakeHash),
 			.remoteStaticKey = std::move(pendingServerBindingNative->serverBinding.remoteStaticKey),
 			.staticKeys = std::move(pendingServerBindingNative->serverBinding.staticKeys),
 		}
 	);
+
+	// ToDo: pass back the error
 
 	return nullptr;
 }
@@ -369,6 +410,25 @@ Java_com_unnamed_easyphotobackup_PairingHelpers_isServerPairedNative(
 	ServerConnectionInfoNative* info = reinterpret_cast<ServerConnectionInfoNative*>(serverInfoHandle);
 
 	return clientConfigStorage->storage.hasConfirmedServerBinding(info->serverInfo.serverId);
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_unnamed_easyphotobackup_PairingHelpers_getServerNameNative(
+	JNIEnv* env,
+	jobject /*this*/,
+	jlong clientConfigStorageHandle,
+	jlong serverInfoHandle
+)
+{
+	ClientConfigStorageNative* obj = reinterpret_cast<ClientConfigStorageNative*>(clientConfigStorageHandle);
+	ServerConnectionInfoNative* info = reinterpret_cast<ServerConnectionInfoNative*>(serverInfoHandle);
+	std::optional<ClientConfigStorage::ServerBinding> serverBinding = obj->storage.getConfirmedServerBinding(info->serverInfo.serverId);
+	if (serverBinding.has_value())
+	{
+		return env->NewStringUTF(serverBinding->serverName.c_str());
+	}
+
+	return nullptr;
 }
 
 extern "C" JNIEXPORT jstring JNICALL

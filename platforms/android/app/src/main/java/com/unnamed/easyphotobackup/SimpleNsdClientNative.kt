@@ -2,7 +2,7 @@ package com.unnamed.easyphotobackup
 
 import java.lang.AutoCloseable
 
-class ServerDiscoveryClient : AutoCloseable {
+class SimpleNsdClientNative : AutoCloseable {
     private var nativeHandle: Long = create()
 
     private external fun create(): Long
