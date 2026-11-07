@@ -105,7 +105,7 @@ namespace PairingServiceLogic
 				nsdSocket,
 				Network::AddressType::IpV4,
 				"0.0.0.0",
-				5354,
+				5355,
 				serverPort,
 				extraData,
 				"_easy-photo-backup._tcp"

@@ -15,7 +15,7 @@ void SimpleNsdClientWrapper::startDiscovery() noexcept
 	mDiscoveryThread = std::thread([&servers = mDiscoveredServers, &mutex = mDataMutex, &nsdStopFlag = mNsdStopFlag] {
 		std::optional<std::string> result = SimpleNsdClient::processServiceDiscoveryThread(
 			Network::AddressType::IpV4,
-			5354,
+			5355,
 			1.0f,
 			"_easy-photo-backup._tcp",
 			nsdStopFlag,
