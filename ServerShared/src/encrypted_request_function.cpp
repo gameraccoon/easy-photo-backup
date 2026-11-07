@@ -43,9 +43,9 @@ namespace TcpServer::Encrypted
 
 		const uint64_t tag = Serialization::readUint64(message.subspan(0, 8));
 
-		identificationTagsMutex.unlock();
-		auto tagPayload = identificationTags.consumeTag(tag);
 		identificationTagsMutex.lock();
+		auto tagPayload = identificationTags.consumeTag(tag);
+		identificationTagsMutex.unlock();
 
 		std::optional<ServerConfigStorage::ClientBinding> clientBinding = configStorage.getConfirmedClientBinding(tagPayload->clientIndex);
 		if (!clientBinding.has_value())
