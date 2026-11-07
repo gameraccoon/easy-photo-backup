@@ -155,7 +155,7 @@ namespace HiddenNsdClient
 					{
 						size_t globalIndex = offset + i;
 						const auto& oneServerData = serverData[globalIndex];
-						const uint64_t tag = Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(oneServerData.hash, currentPeriodIndex, oneServerData.keyIndexInPeriod + broadcastsDone);
+						const uint64_t tag = Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(oneServerData.hash, currentPeriodIndex, oneServerData.keyIndexInPeriod + broadcastsDone);
 						Serialization::writeUint64(std::span(buffer).subspan(i * sizeof(tag), sizeof(tag)), tag);
 						sentTags.emplace_back(tag, globalIndex, oneServerData.keyIndexInPeriod + broadcastsDone);
 					}

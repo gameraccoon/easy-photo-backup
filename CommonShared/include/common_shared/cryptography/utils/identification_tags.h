@@ -154,9 +154,9 @@ namespace Cryptography
 
 	namespace IdentificationTagsUtils
 	{
-		[[nodiscard]] HashResult getIdentificationHash(const HashResult& handshakeHash, std::span<const std::byte> salt) noexcept;
+		[[nodiscard]] HashResult generateIdentificationHash(const HashResult& handshakeHash, std::span<const std::byte> salt) noexcept;
 
-		[[nodiscard]] uint64_t getSingleIdentificationTag(const Cryptography::HashResult& clientHash, uint32_t periodIndex, uint32_t tagIndexInPeriod) noexcept;
+		[[nodiscard]] uint64_t generateSingleIdentificationTag(const Cryptography::HashResult& clientHash, uint32_t periodIndex, uint32_t tagIndexInPeriod) noexcept;
 
 		[[nodiscard]] int32_t getCurrentDayIndex() noexcept;
 	}

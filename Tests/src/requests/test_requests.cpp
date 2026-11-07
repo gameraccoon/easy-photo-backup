@@ -10,6 +10,7 @@
 
 #include "common_shared/cryptography/utils/identification_tags.h"
 #include "common_shared/serialization/number_serialization.h"
+#include "common_shared/requests/pairing_utils.h"
 
 #include "client_shared/client_storage.h"
 #include "client_shared/file_send_helpers.h"
@@ -187,8 +188,8 @@ TEST_F(RequestsTest, PairConfirmAndExchangeFiles_FilesExchanged)
 			serverId,
 			ClientConfigStorage::ServerBinding{
 				.serverName = "test server",
-				.nsdIdentificationHash = Cryptography::IdentificationTagsUtils::getIdentificationHash(pairingInformation.handshakeHash, std::as_bytes(std::span(Protocol::Salts::NsdIdTagSaltString))),
-				.encryptedRequestIdentificationHash = Cryptography::IdentificationTagsUtils::getIdentificationHash(pairingInformation.handshakeHash, std::as_bytes(std::span(Protocol::Salts::EncryptedRequestIdTagSaltString))),
+				.nsdIdentificationHash = PairingUtils::generateNsdIdentificationHash(pairingInformation.handshakeHash),
+				.encryptedRequestIdentificationHash = PairingUtils::generateEncryptedRequestIdentificationHash(pairingInformation.handshakeHash),
 				.remoteStaticKey = pairingInformation.remoteStaticKey.clone(),
 				.staticKeys = pairingInformation.staticKeys.clone(),
 			}
@@ -239,8 +240,8 @@ TEST_F(RequestsTest, PairConfirmAndExchangeFiles_FilesExchanged)
 
 	ServerConfigStorage::ClientBinding approvedBinding{
 		.clientName = "test_client",
-		.nsdIdentificationHash = Cryptography::IdentificationTagsUtils::getIdentificationHash(pendingClientBinding->handshakeHash, std::as_bytes(std::span(Protocol::Salts::NsdIdTagSaltString))),
-		.encryptedRequestIdentificationHash = Cryptography::IdentificationTagsUtils::getIdentificationHash(pendingClientBinding->handshakeHash, std::as_bytes(std::span(Protocol::Salts::EncryptedRequestIdTagSaltString))),
+		.nsdIdentificationHash = PairingUtils::generateNsdIdentificationHash(pendingClientBinding->handshakeHash),
+		.encryptedRequestIdentificationHash = PairingUtils::generateEncryptedRequestIdentificationHash(pendingClientBinding->handshakeHash),
 		.remoteStaticKey = std::move(pendingClientBinding->remoteStaticKey),
 		.staticKeys = std::move(pendingClientBinding->staticKeys),
 	};

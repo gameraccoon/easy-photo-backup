@@ -7,14 +7,14 @@
 
 namespace Cryptography::IdentificationTagsUtils
 {
-	HashResult getIdentificationHash(const HashResult& handshakeHash, std::span<const std::byte> salt) noexcept
+	HashResult generateIdentificationHash(const HashResult& handshakeHash, std::span<const std::byte> salt) noexcept
 	{
 		HashResult hmac;
 		HMAC_blake2b(handshakeHash, salt, hmac);
 		return hmac;
 	}
 
-	uint64_t getSingleIdentificationTag(const Cryptography::HashResult& clientHash, uint32_t periodIndex, uint32_t tagIndexInPeriod) noexcept
+	uint64_t generateSingleIdentificationTag(const Cryptography::HashResult& clientHash, uint32_t periodIndex, uint32_t tagIndexInPeriod) noexcept
 	{
 		std::array<std::byte, 8> mixedInData;
 		Serialization::writeUint32(std::span(mixedInData).subspan(0, 4), periodIndex);

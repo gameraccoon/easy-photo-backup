@@ -13,6 +13,7 @@
 #include "common_shared/multithreading/message_pipe.h"
 #include "common_shared/network/protocol.h"
 #include "common_shared/nsd/nsd_utils.h"
+#include "common_shared/requests/pairing_utils.h"
 #include "common_shared/nsd/simple_nsd/simple_nsd_server.h"
 
 #include "server_shared/pairing_request_function.h"
@@ -149,8 +150,8 @@ namespace PairingServiceLogic
 					configStorage.addConfirmedClientBinding(
 						ServerConfigStorage::ClientBinding{
 							.clientName = std::string("TestClient"),
-							.nsdIdentificationHash = Cryptography::IdentificationTagsUtils::getIdentificationHash(binding->handshakeHash, std::as_bytes(std::span(Protocol::Salts::NsdIdTagSaltString))),
-							.encryptedRequestIdentificationHash = Cryptography::IdentificationTagsUtils::getIdentificationHash(binding->handshakeHash, std::as_bytes(std::span(Protocol::Salts::EncryptedRequestIdTagSaltString))),
+							.nsdIdentificationHash = PairingUtils::generateNsdIdentificationHash(binding->handshakeHash),
+							.encryptedRequestIdentificationHash = PairingUtils::generateEncryptedRequestIdentificationHash(binding->handshakeHash),
 							.remoteStaticKey = std::move(binding->remoteStaticKey),
 							.staticKeys = std::move(binding->staticKeys),
 						}

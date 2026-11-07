@@ -87,7 +87,7 @@ namespace FileSendHelpers
 			return std::nullopt;
 		}
 
-		const uint64_t identificationTag = Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(serverBinding->encryptedRequestIdentificationHash, Cryptography::IdentificationTagsUtils::getCurrentDayIndex(), 0);
+		const uint64_t identificationTag = Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(serverBinding->encryptedRequestIdentificationHash, Cryptography::IdentificationTagsUtils::getCurrentDayIndex(), 0);
 
 		RequestAnswers::RequestAnswer SendFilesAnswer = Requests::prepareConnectionAndProcess(
 			serverInfo.address.ip.data(),

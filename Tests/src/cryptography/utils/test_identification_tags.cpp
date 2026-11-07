@@ -7,6 +7,7 @@
 
 #include "common_shared/cryptography/utils/identification_tags.h"
 #include "common_shared/network/protocol.h"
+#include "common_shared/requests/pairing_utils.h"
 
 TEST(IdentificationTags, EmptyTagMap_Populate_ContainsTagsForThreePeriods)
 {
@@ -40,7 +41,7 @@ TEST(IdentificationTags, PopulatedTagMap_ConsumeTags_AllTagsFound)
 	{
 		for (uint32_t indexInPeriod = 0; indexInPeriod < PeriodSize; ++indexInPeriod)
 		{
-			auto value = tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash, periodIndex, indexInPeriod));
+			auto value = tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash, periodIndex, indexInPeriod));
 			ASSERT_TRUE(value.has_value());
 			EXPECT_EQ(value->clientIndex, static_cast<uint32_t>(0));
 			EXPECT_EQ(value->periodIndex, periodIndex);
@@ -59,12 +60,12 @@ TEST(IdentificationTags, PopulatedTagMap_ConsumeTagsTwice_OnlyFirstConsumed)
 	clients.push_back(clientHash.clone());
 	tagMap.resetMap(clients, 140);
 
-	EXPECT_TRUE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash, 140, 3)).has_value());
-	EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash, 140, 3)).has_value());
-	EXPECT_TRUE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash, 139, 6)).has_value());
-	EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash, 139, 6)).has_value());
-	EXPECT_TRUE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash, 141, 10)).has_value());
-	EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash, 141, 10)).has_value());
+	EXPECT_TRUE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash, 140, 3)).has_value());
+	EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash, 140, 3)).has_value());
+	EXPECT_TRUE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash, 139, 6)).has_value());
+	EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash, 139, 6)).has_value());
+	EXPECT_TRUE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash, 141, 10)).has_value());
+	EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash, 141, 10)).has_value());
 }
 
 TEST(IdentificationTags, PopulatedTagMap_ConsumeFromBeyondPopulatedPeriods_NotFound)
@@ -77,10 +78,10 @@ TEST(IdentificationTags, PopulatedTagMap_ConsumeFromBeyondPopulatedPeriods_NotFo
 	clients.push_back(clientHash.clone());
 	tagMap.resetMap(clients, 160);
 
-	EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash, 120, 10)).has_value());
-	EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash, 158, 0)).has_value());
-	EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash, 162, 4)).has_value());
-	EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash, 160, 16)).has_value());
+	EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash, 120, 10)).has_value());
+	EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash, 158, 0)).has_value());
+	EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash, 162, 4)).has_value());
+	EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash, 160, 16)).has_value());
 }
 
 TEST(IdentificationTags, PopulatedTagMap_MovePeriodForwardByOneAndConsumeAll_OnlyCorrectPeriodsAreConsumed)
@@ -98,18 +99,18 @@ TEST(IdentificationTags, PopulatedTagMap_MovePeriodForwardByOneAndConsumeAll_Onl
 
 	for (uint32_t indexInPeriod = 0; indexInPeriod < PeriodSize; ++indexInPeriod)
 	{
-		EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash, 179, indexInPeriod)).has_value());
+		EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash, 179, indexInPeriod)).has_value());
 	}
 	for (uint32_t periodIndex = 180; periodIndex <= 182; ++periodIndex)
 	{
 		for (uint32_t indexInPeriod = 0; indexInPeriod < PeriodSize; ++indexInPeriod)
 		{
-			EXPECT_TRUE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash, periodIndex, indexInPeriod)).has_value());
+			EXPECT_TRUE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash, periodIndex, indexInPeriod)).has_value());
 		}
 	}
 	for (uint32_t indexInPeriod = 0; indexInPeriod < PeriodSize; ++indexInPeriod)
 	{
-		EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash, 183, indexInPeriod)).has_value());
+		EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash, 183, indexInPeriod)).has_value());
 	}
 }
 
@@ -130,19 +131,19 @@ TEST(IdentificationTags, PopulatedTagMap_MovePeriodForwardByTwoAndConsumeAll_Onl
 	{
 		for (uint32_t indexInPeriod = 0; indexInPeriod < PeriodSize; ++indexInPeriod)
 		{
-			EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash, periodIndex, indexInPeriod)).has_value());
+			EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash, periodIndex, indexInPeriod)).has_value());
 		}
 	}
 	for (uint32_t periodIndex = 201; periodIndex <= 203; ++periodIndex)
 	{
 		for (uint32_t indexInPeriod = 0; indexInPeriod < PeriodSize; ++indexInPeriod)
 		{
-			EXPECT_TRUE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash, periodIndex, indexInPeriod)).has_value());
+			EXPECT_TRUE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash, periodIndex, indexInPeriod)).has_value());
 		}
 	}
 	for (uint32_t indexInPeriod = 0; indexInPeriod < PeriodSize; ++indexInPeriod)
 	{
-		EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash, 204, indexInPeriod)).has_value());
+		EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash, 204, indexInPeriod)).has_value());
 	}
 }
 
@@ -163,19 +164,19 @@ TEST(IdentificationTags, PopulatedTagMap_MovePeriodForwardByThreeAndConsumeAll_O
 	{
 		for (uint32_t indexInPeriod = 0; indexInPeriod < PeriodSize; ++indexInPeriod)
 		{
-			EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash, periodIndex, indexInPeriod)).has_value());
+			EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash, periodIndex, indexInPeriod)).has_value());
 		}
 	}
 	for (uint32_t periodIndex = 222; periodIndex <= 224; ++periodIndex)
 	{
 		for (uint32_t indexInPeriod = 0; indexInPeriod < PeriodSize; ++indexInPeriod)
 		{
-			EXPECT_TRUE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash, periodIndex, indexInPeriod)).has_value());
+			EXPECT_TRUE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash, periodIndex, indexInPeriod)).has_value());
 		}
 	}
 	for (uint32_t indexInPeriod = 0; indexInPeriod < PeriodSize; ++indexInPeriod)
 	{
-		EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash, 225, indexInPeriod)).has_value());
+		EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash, 225, indexInPeriod)).has_value());
 	}
 }
 
@@ -196,19 +197,19 @@ TEST(IdentificationTags, PopulatedTagMap_MovePeriodForwardByTenAndConsumeAll_Onl
 	{
 		for (uint32_t indexInPeriod = 0; indexInPeriod < PeriodSize; ++indexInPeriod)
 		{
-			EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash, periodIndex, indexInPeriod)).has_value());
+			EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash, periodIndex, indexInPeriod)).has_value());
 		}
 	}
 	for (uint32_t periodIndex = 249; periodIndex <= 251; ++periodIndex)
 	{
 		for (uint32_t indexInPeriod = 0; indexInPeriod < PeriodSize; ++indexInPeriod)
 		{
-			EXPECT_TRUE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash, periodIndex, indexInPeriod)).has_value());
+			EXPECT_TRUE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash, periodIndex, indexInPeriod)).has_value());
 		}
 	}
 	for (uint32_t indexInPeriod = 0; indexInPeriod < PeriodSize; ++indexInPeriod)
 	{
-		EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash, 252, indexInPeriod)).has_value());
+		EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash, 252, indexInPeriod)).has_value());
 	}
 }
 
@@ -227,18 +228,18 @@ TEST(IdentificationTags, PopulatedTagMap_MovePeriodBackwardByOneAndConsumeAll_Pe
 
 	for (uint32_t indexInPeriod = 0; indexInPeriod < PeriodSize; ++indexInPeriod)
 	{
-		EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash, 258, indexInPeriod)).has_value());
+		EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash, 258, indexInPeriod)).has_value());
 	}
 	for (uint32_t periodIndex = 259; periodIndex <= 261; ++periodIndex)
 	{
 		for (uint32_t indexInPeriod = 0; indexInPeriod < PeriodSize; ++indexInPeriod)
 		{
-			EXPECT_TRUE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash, periodIndex, indexInPeriod)).has_value());
+			EXPECT_TRUE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash, periodIndex, indexInPeriod)).has_value());
 		}
 	}
 	for (uint32_t indexInPeriod = 0; indexInPeriod < PeriodSize; ++indexInPeriod)
 	{
-		EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash, 262, indexInPeriod)).has_value());
+		EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash, 262, indexInPeriod)).has_value());
 	}
 }
 
@@ -259,19 +260,19 @@ TEST(IdentificationTags, PopulatedTagMap_MovePeriodBackwardByTwoAndConsumeAll_Pe
 	{
 		for (uint32_t indexInPeriod = 0; indexInPeriod < PeriodSize; ++indexInPeriod)
 		{
-			EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash, periodIndex, indexInPeriod)).has_value());
+			EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash, periodIndex, indexInPeriod)).has_value());
 		}
 	}
 	for (uint32_t periodIndex = 279; periodIndex <= 281; ++periodIndex)
 	{
 		for (uint32_t indexInPeriod = 0; indexInPeriod < PeriodSize; ++indexInPeriod)
 		{
-			EXPECT_TRUE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash, periodIndex, indexInPeriod)).has_value());
+			EXPECT_TRUE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash, periodIndex, indexInPeriod)).has_value());
 		}
 	}
 	for (uint32_t indexInPeriod = 0; indexInPeriod < PeriodSize; ++indexInPeriod)
 	{
-		EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash, 282, indexInPeriod)).has_value());
+		EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash, 282, indexInPeriod)).has_value());
 	}
 }
 
@@ -290,20 +291,20 @@ TEST(IdentificationTags, PopulatedTagMap_ResetPeriodBackwardByThreeAndConsumeAll
 
 	for (uint32_t indexInPeriod = 0; indexInPeriod < PeriodSize; ++indexInPeriod)
 	{
-		EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash, 295, indexInPeriod)).has_value());
+		EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash, 295, indexInPeriod)).has_value());
 	}
 	for (uint32_t periodIndex = 296; periodIndex <= 298; ++periodIndex)
 	{
 		for (uint32_t indexInPeriod = 0; indexInPeriod < PeriodSize; ++indexInPeriod)
 		{
-			EXPECT_TRUE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash, periodIndex, indexInPeriod)).has_value());
+			EXPECT_TRUE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash, periodIndex, indexInPeriod)).has_value());
 		}
 	}
 	for (uint32_t periodIndex = 299; periodIndex <= 301; ++periodIndex)
 	{
 		for (uint32_t indexInPeriod = 0; indexInPeriod < PeriodSize; ++indexInPeriod)
 		{
-			EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash, periodIndex, indexInPeriod)).has_value());
+			EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash, periodIndex, indexInPeriod)).has_value());
 		}
 	}
 }
@@ -324,7 +325,7 @@ TEST(IdentificationTags, PartiallyConsumedPopulatedTagMap_MovePeriodForwardByOne
 	{
 		for (uint32_t indexInPeriod = 0; indexInPeriod < consumedInPeriod[i]; ++indexInPeriod)
 		{
-			EXPECT_TRUE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash, static_cast<uint32_t>(319 + i), indexInPeriod)).has_value());
+			EXPECT_TRUE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash, static_cast<uint32_t>(319 + i), indexInPeriod)).has_value());
 		}
 	}
 
@@ -332,24 +333,24 @@ TEST(IdentificationTags, PartiallyConsumedPopulatedTagMap_MovePeriodForwardByOne
 
 	for (uint32_t indexInPeriod = 0; indexInPeriod < PeriodSize; ++indexInPeriod)
 	{
-		EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash, 319, indexInPeriod)).has_value());
+		EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash, 319, indexInPeriod)).has_value());
 	}
 	// we skip i == 0 (period 319), since that one is gone and this fact is checked above
 	for (size_t i = 1; i < 3; ++i)
 	{
 		for (uint32_t indexInPeriod = 0; indexInPeriod < PeriodSize; ++indexInPeriod)
 		{
-			EXPECT_EQ(indexInPeriod >= consumedInPeriod[i], tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash, static_cast<uint32_t>(319 + i), indexInPeriod)).has_value());
+			EXPECT_EQ(indexInPeriod >= consumedInPeriod[i], tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash, static_cast<uint32_t>(319 + i), indexInPeriod)).has_value());
 		}
 	}
 	// this is the completely new period
 	for (uint32_t indexInPeriod = 0; indexInPeriod < PeriodSize; ++indexInPeriod)
 	{
-		EXPECT_TRUE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash, 322, indexInPeriod)).has_value());
+		EXPECT_TRUE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash, 322, indexInPeriod)).has_value());
 	}
 	for (uint32_t indexInPeriod = 0; indexInPeriod < PeriodSize; ++indexInPeriod)
 	{
-		EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash, 323, indexInPeriod)).has_value());
+		EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash, 323, indexInPeriod)).has_value());
 	}
 }
 
@@ -370,13 +371,13 @@ TEST(IdentificationTags, TagMapPopulatedForTwoClients_ConsumeTags_TagsReturnCorr
 	{
 		for (uint32_t indexInPeriod = 0; indexInPeriod < PeriodSize; ++indexInPeriod)
 		{
-			auto value1 = tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash1, periodIndex, indexInPeriod));
+			auto value1 = tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash1, periodIndex, indexInPeriod));
 			ASSERT_TRUE(value1.has_value());
 			EXPECT_EQ(value1->clientIndex, static_cast<uint32_t>(0));
 			EXPECT_EQ(value1->periodIndex, periodIndex);
 			EXPECT_EQ(value1->keyIndexInPeriod, indexInPeriod);
 
-			auto value2 = tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash2, periodIndex, indexInPeriod));
+			auto value2 = tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash2, periodIndex, indexInPeriod));
 			ASSERT_TRUE(value2.has_value());
 			EXPECT_EQ(value2->clientIndex, static_cast<uint32_t>(1));
 			EXPECT_EQ(value2->periodIndex, periodIndex);
@@ -402,20 +403,20 @@ TEST(IdentificationTags, TagMapPopulatedForTwoClients_MoveForwardByOneAndConsume
 
 	for (uint32_t indexInPeriod = 0; indexInPeriod < PeriodSize; ++indexInPeriod)
 	{
-		EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash1, 359, indexInPeriod)).has_value());
-		EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash2, 359, indexInPeriod)).has_value());
+		EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash1, 359, indexInPeriod)).has_value());
+		EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash2, 359, indexInPeriod)).has_value());
 	}
 	for (uint32_t periodIndex = 360; periodIndex <= 362; ++periodIndex)
 	{
 		for (uint32_t indexInPeriod = 0; indexInPeriod < PeriodSize; ++indexInPeriod)
 		{
-			auto value1 = tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash1, periodIndex, indexInPeriod));
+			auto value1 = tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash1, periodIndex, indexInPeriod));
 			ASSERT_TRUE(value1.has_value());
 			EXPECT_EQ(value1->clientIndex, static_cast<uint32_t>(0));
 			EXPECT_EQ(value1->periodIndex, periodIndex);
 			EXPECT_EQ(value1->keyIndexInPeriod, indexInPeriod);
 
-			auto value2 = tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash2, periodIndex, indexInPeriod));
+			auto value2 = tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash2, periodIndex, indexInPeriod));
 			ASSERT_TRUE(value2.has_value());
 			EXPECT_EQ(value2->clientIndex, static_cast<uint32_t>(1));
 			EXPECT_EQ(value2->periodIndex, periodIndex);
@@ -424,8 +425,8 @@ TEST(IdentificationTags, TagMapPopulatedForTwoClients_MoveForwardByOneAndConsume
 	}
 	for (uint32_t indexInPeriod = 0; indexInPeriod < PeriodSize; ++indexInPeriod)
 	{
-		EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash1, 363, indexInPeriod)).has_value());
-		EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash2, 363, indexInPeriod)).has_value());
+		EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash1, 363, indexInPeriod)).has_value());
+		EXPECT_FALSE(tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash2, 363, indexInPeriod)).has_value());
 	}
 }
 
@@ -448,13 +449,13 @@ TEST(IdentificationTags, TagMapPopulatedForOneClients_AddOneClientTagsAndConsume
 	{
 		for (uint32_t indexInPeriod = 0; indexInPeriod < PeriodSize; ++indexInPeriod)
 		{
-			auto value1 = tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash1, periodIndex, indexInPeriod));
+			auto value1 = tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash1, periodIndex, indexInPeriod));
 			ASSERT_TRUE(value1.has_value());
 			EXPECT_EQ(value1->clientIndex, static_cast<uint32_t>(0));
 			EXPECT_EQ(value1->periodIndex, periodIndex);
 			EXPECT_EQ(value1->keyIndexInPeriod, indexInPeriod);
 
-			auto value2 = tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash2, periodIndex, indexInPeriod));
+			auto value2 = tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash2, periodIndex, indexInPeriod));
 			ASSERT_TRUE(value2.has_value());
 			EXPECT_EQ(value2->clientIndex, static_cast<uint32_t>(1));
 			EXPECT_EQ(value2->periodIndex, periodIndex);
@@ -482,10 +483,10 @@ TEST(IdentificationTags, TagMapPopulatedForTwoClients_RemoveOneClientTagsAndCons
 	{
 		for (uint32_t indexInPeriod = 0; indexInPeriod < PeriodSize; ++indexInPeriod)
 		{
-			auto value1 = tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash1, periodIndex, indexInPeriod));
+			auto value1 = tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash1, periodIndex, indexInPeriod));
 			EXPECT_FALSE(value1.has_value());
 
-			auto value2 = tagMap.consumeTag(Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(clientHash2, periodIndex, indexInPeriod));
+			auto value2 = tagMap.consumeTag(Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(clientHash2, periodIndex, indexInPeriod));
 			ASSERT_TRUE(value2.has_value());
 			EXPECT_EQ(value2->clientIndex, static_cast<uint32_t>(1));
 			EXPECT_EQ(value2->periodIndex, periodIndex);
@@ -498,15 +499,18 @@ TEST(IdentificationTags, HandshakeHash_PopulateIdentificationHashes_HashesMatchH
 {
 	Cryptography::HashResult handshakeHash;
 	vectorToArray(hexToBytes("afdbf85f658e89dda6fb9c8de0bd09bbd0cc9cc5f2996ccb482159c1b78792ad"), handshakeHash.raw);
-	assertSpansEqual(hexToBytes("8315eac699c411216743597eb0abf4dbad1f3c774ada4026596a1fb68faa222b"), Cryptography::IdentificationTagsUtils::getIdentificationHash(handshakeHash, std::as_bytes(std::span(Protocol::Salts::NsdIdTagSaltString))));
-	assertSpansEqual(hexToBytes("e776548ceb4128bc615e48006b220a1dae7337e96a4f366f4c58b30e6134ba5f"), Cryptography::IdentificationTagsUtils::getIdentificationHash(handshakeHash, std::as_bytes(std::span(Protocol::Salts::EncryptedRequestIdTagSaltString))));
+	assertSpansEqual(hexToBytes("8315eac699c411216743597eb0abf4dbad1f3c774ada4026596a1fb68faa222b"), Cryptography::IdentificationTagsUtils::generateIdentificationHash(handshakeHash, std::as_bytes(std::span(Protocol::Salts::NsdIdTagSaltString))));
+	assertSpansEqual(hexToBytes("e776548ceb4128bc615e48006b220a1dae7337e96a4f366f4c58b30e6134ba5f"), Cryptography::IdentificationTagsUtils::generateIdentificationHash(handshakeHash, std::as_bytes(std::span(Protocol::Salts::EncryptedRequestIdTagSaltString))));
+	// wrappers for the above, should result in the same values
+	assertSpansEqual(hexToBytes("8315eac699c411216743597eb0abf4dbad1f3c774ada4026596a1fb68faa222b"), PairingUtils::generateNsdIdentificationHash(handshakeHash));
+	assertSpansEqual(hexToBytes("e776548ceb4128bc615e48006b220a1dae7337e96a4f366f4c58b30e6134ba5f"), PairingUtils::generateEncryptedRequestIdentificationHash(handshakeHash));
 }
 
-TEST(IdentificationTags, HandshakeHash_GetSingleTagForPeriod_TagsMatchHistoricalValues)
+TEST(IdentificationTags, HandshakeHash_GenerateSingleTagForPeriod_TagsMatchHistoricalValues)
 {
 	Cryptography::HashResult identificationHash;
-	EXPECT_EQ(uint64_t(0xC3C4CC1EB899F683), Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(identificationHash, 10, 100));
-	EXPECT_EQ(uint64_t(0x02028E6A2A59D916), Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(identificationHash, 11, 100));
-	EXPECT_EQ(uint64_t(0x1AF0B2925A1C51BE), Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(identificationHash, 11, 101));
-	EXPECT_EQ(uint64_t(0xCB17E7170C8A3D94), Cryptography::IdentificationTagsUtils::getSingleIdentificationTag(identificationHash, 10, 101));
+	EXPECT_EQ(uint64_t(0xC3C4CC1EB899F683), Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(identificationHash, 10, 100));
+	EXPECT_EQ(uint64_t(0x02028E6A2A59D916), Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(identificationHash, 11, 100));
+	EXPECT_EQ(uint64_t(0x1AF0B2925A1C51BE), Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(identificationHash, 11, 101));
+	EXPECT_EQ(uint64_t(0xCB17E7170C8A3D94), Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(identificationHash, 10, 101));
 }

@@ -10,6 +10,7 @@
 #include "common_shared/cryptography/utils/short_authentification_string_utils.h"
 #include "common_shared/debug/log.h"
 #include "common_shared/network/protocol.h"
+#include "common_shared/requests/pairing_utils.h"
 
 #include "client_shared/client_storage.h"
 #include "client_shared/file_send_helpers.h"
@@ -188,8 +189,8 @@ namespace ClientCli
 					simpleDiscoveryResults[idx].serverId,
 					ClientConfigStorage::ServerBinding{
 						.serverName = "test_server",
-						.nsdIdentificationHash = Cryptography::IdentificationTagsUtils::getIdentificationHash(pairingExchange.handshakeHash, std::as_bytes(std::span(Protocol::Salts::NsdIdTagSaltString))),
-						.encryptedRequestIdentificationHash = Cryptography::IdentificationTagsUtils::getIdentificationHash(pairingExchange.handshakeHash, std::as_bytes(std::span(Protocol::Salts::EncryptedRequestIdTagSaltString))),
+						.nsdIdentificationHash = PairingUtils::generateNsdIdentificationHash(pairingExchange.handshakeHash),
+						.encryptedRequestIdentificationHash = PairingUtils::generateEncryptedRequestIdentificationHash(pairingExchange.handshakeHash),
 						.remoteStaticKey = std::move(pairingExchange.remoteStaticKey),
 						.staticKeys = std::move(pairingExchange.staticKeys),
 					}
