@@ -104,20 +104,27 @@ namespace HiddenNsdServer
 		return Cryptography::encrypt_chacha20poly1305(cipherKey, nonce, {}, plaintext, outCiphertext);
 	}
 
-	[[nodiscard]] static std::array<std::byte, 17> readBinaryIp(const sockaddr& clientAddr) noexcept
+	[[nodiscard]] static std::array<std::byte, 17> readBinaryIp(const sockaddr_storage& clientAddr, socklen_t addrLen) noexcept
 	{
 		std::array<std::byte, 17> result{};
-		if (clientAddr.sa_family == AF_INET)
+
+		if (clientAddr.ss_family == AF_INET)
 		{
-			result[0] = std::byte(1);
-			const auto* ipv4 = reinterpret_cast<const sockaddr_in*>(&clientAddr);
-			std::memcpy(result.data() + 1, &ipv4->sin_addr, 4);
+			if (addrLen >= static_cast<socklen_t>(sizeof(sockaddr_in)))
+			{
+				result[0] = std::byte(1);
+				const auto* ipv4 = reinterpret_cast<const sockaddr_in*>(&clientAddr);
+				std::memcpy(&result[1], &ipv4->sin_addr, 4);
+			}
 		}
-		else if (clientAddr.sa_family == AF_INET6)
+		else if (clientAddr.ss_family == AF_INET6)
 		{
-			result[0] = std::byte(2);
-			const auto* ipv6 = reinterpret_cast<const sockaddr_in6*>(&clientAddr);
-			std::memcpy(result.data() + 1, &ipv6->sin6_addr, 16);
+			if (addrLen >= static_cast<socklen_t>(sizeof(sockaddr_in6)))
+			{
+				result[0] = std::byte(2);
+				const auto* ipv6 = reinterpret_cast<const sockaddr_in6*>(&clientAddr);
+				std::memcpy(&result[1], &ipv6->sin6_addr, 16);
+			}
 		}
 		return result;
 	}
@@ -224,7 +231,7 @@ namespace HiddenNsdServer
 		NsdInternalUtils::NetworkAddressKey clientAddr;
 		while (true)
 		{
-			clientAddr.addrLen = sizeof(NsdInternalUtils::NetworkAddressKey::addr);
+			clientAddr.addrLen = sizeof(clientAddr.addr);
 			const int messageLength = NsdInternalUtils::receiveNsdRequest(socket, buf, clientAddr);
 			if (messageLength == -1)
 			{
@@ -245,7 +252,7 @@ namespace HiddenNsdServer
 			}
 
 			const std::chrono::steady_clock::time_point timeNow = std::chrono::steady_clock::now();
-			const std::array<std::byte, 17> binaryIp = readBinaryIp(clientAddr.addr);
+			const std::array<std::byte, 17> binaryIp = readBinaryIp(clientAddr.addr, clientAddr.addrLen);
 			if (isIpThrottledCheckAndUpdate(binaryIp, throttledIps, timeNow))
 			{
 				continue;

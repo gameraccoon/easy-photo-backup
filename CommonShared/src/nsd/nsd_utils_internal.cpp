@@ -224,7 +224,14 @@ namespace NsdInternalUtils
 
 		if (pfd.revents & POLLIN)
 		{
-			const int receivedBytes = static_cast<int>(recvfrom(socket, reinterpret_cast<char*>(inOutBuffer.data()), static_cast<int>(inOutBuffer.size()), 0, &outNetAddress.addr, &outNetAddress.addrLen));
+			const int receivedBytes = static_cast<int>(recvfrom(
+				socket,
+				reinterpret_cast<char*>(inOutBuffer.data()),
+				static_cast<int>(inOutBuffer.size()),
+				0,
+				reinterpret_cast<sockaddr*>(&outNetAddress.addr),
+				&outNetAddress.addrLen
+			));
 
 #ifdef DEBUG_CHECKS
 			if constexpr (debugPrintBuffers)
@@ -258,7 +265,14 @@ namespace NsdInternalUtils
 			return gSendAnswerMock(socket, inOutBuffer, netAddress);
 		}
 #endif // WITH_TESTS
-		return static_cast<int>(sendto(socket, reinterpret_cast<const char*>(inOutBuffer.data()), static_cast<int>(inOutBuffer.size()), 0, &netAddress.addr, netAddress.addrLen));
+		return static_cast<int>(sendto(
+			socket,
+			reinterpret_cast<const char*>(inOutBuffer.data()),
+			static_cast<int>(inOutBuffer.size()),
+			0,
+			reinterpret_cast<const sockaddr*>(&netAddress.addr),
+			netAddress.addrLen
+		));
 	}
 
 	int receiveNsdAnswer(const Network::RawSocket socket, std::span<std::byte> inOutBuffer, NetworkAddressKey& outNetAddress)
@@ -279,7 +293,14 @@ namespace NsdInternalUtils
 			return receivedBytes;
 		}
 #endif // WITH_TESTS
-		const int receivedBytes = static_cast<int>(recvfrom(socket, reinterpret_cast<char*>(inOutBuffer.data()), static_cast<int>(inOutBuffer.size()), 0, &outNetAddress.addr, &outNetAddress.addrLen));
+		const int receivedBytes = static_cast<int>(recvfrom(
+			socket,
+			reinterpret_cast<char*>(inOutBuffer.data()),
+			static_cast<int>(inOutBuffer.size()),
+			0,
+			reinterpret_cast<sockaddr*>(&outNetAddress.addr),
+			&outNetAddress.addrLen
+		));
 
 #ifdef DEBUG_CHECKS
 		if constexpr (debugPrintBuffers)

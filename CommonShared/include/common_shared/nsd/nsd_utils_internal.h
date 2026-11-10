@@ -18,7 +18,7 @@ namespace NsdInternalUtils
 {
 	struct NetworkAddressKey
 	{
-		sockaddr addr{};
+		sockaddr_storage addr{};
 		socklen_t addrLen = sizeof(sockaddr);
 
 		bool operator==(const NetworkAddressKey& other) const noexcept;
