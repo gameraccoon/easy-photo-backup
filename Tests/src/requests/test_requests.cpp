@@ -9,8 +9,8 @@
 #include <gtest/gtest.h>
 
 #include "common_shared/cryptography/utils/identification_tags.h"
-#include "common_shared/serialization/number_serialization.h"
 #include "common_shared/requests/pairing_utils.h"
+#include "common_shared/serialization/number_serialization.h"
 
 #include "client_shared/client_storage.h"
 #include "client_shared/file_send_helpers.h"

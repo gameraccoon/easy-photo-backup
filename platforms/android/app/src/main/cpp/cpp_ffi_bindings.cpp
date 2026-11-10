@@ -8,9 +8,9 @@
 
 #include "client_shared/client_storage.h"
 #include "client_shared/file_send_helpers.h"
+#include "client_shared/hidden_nsd_client_wrapper.h"
 #include "client_shared/pairing_helpers.h"
 #include "client_shared/server_connection_info.h"
-#include "client_shared/hidden_nsd_client_wrapper.h"
 #include "client_shared/simple_nsd_client_wrapper.h"
 
 class SimpleNsdClientWrapperNative

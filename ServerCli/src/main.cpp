@@ -13,8 +13,8 @@
 #include "common_shared/multithreading/message_pipe.h"
 #include "common_shared/network/protocol.h"
 #include "common_shared/nsd/nsd_utils.h"
-#include "common_shared/requests/pairing_utils.h"
 #include "common_shared/nsd/simple_nsd/simple_nsd_server.h"
+#include "common_shared/requests/pairing_utils.h"
 
 #include "server_shared/pairing_request_function.h"
 #include "server_shared/server_storage.h"
