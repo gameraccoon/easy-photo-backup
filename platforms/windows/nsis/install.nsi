@@ -1,13 +1,12 @@
 ; EasyPhotoBackupServer Installer Script
 
 !define APP_NAME "EasyPhotoBackupServer"
-!define EXEC_NAME "EasyPhotoBackupServer.exe"
+!define SERVICE_EXEC_NAME "EasyPhotoBackupServerService.exe"
+!define CLI_EXEC_NAME "EasyPhotoBackupServerCli.exe"
+!define CLI_SHORTCUT_NAME "EasyPhotoBackup Cli"
 
 ; TODO: ask user for a directory path
 !define TARGET_DIR "$DOCUMENTS\EasyPhotoBackup\Backups"
-
-!define PAIRING_APP "pairing_windows_cli.ps1"
-!define PAIRING_APP_WRAPPER "pairing_windows_cli_wrapper.cmd"
 
 !define RUN_REG_KEY "Software\Microsoft\Windows\CurrentVersion\Run"
 !define RUN_WRAPPER "${APP_NAME}.ps1"
@@ -20,14 +19,17 @@ InstallDir "$LOCALAPPDATA\${APP_NAME}"
 RequestExecutionLevel user
 
 Page directory
+Page components
 Page instfiles
 
 UninstPage uninstConfirm
 UninstPage instfiles
 
-Section "Install"
+Section "Core Components" sec_core
+  SectionIn RO
+
   ; Check if a previous installation already exists
-  IfFileExists "$INSTDIR\${EXEC_NAME}" 0 +4
+  IfFileExists "$INSTDIR\${SERVICE_EXEC_NAME}" 0 +4
     MessageBox MB_YESNO|MB_ICONQUESTION "A previous version of ${APP_NAME} is already installed. Do you want to uninstall and replace it?" IDYES proceed IDNO abortInst
     abortInst:
       Abort "Installation cancelled by user."
@@ -36,14 +38,13 @@ Section "Install"
   CreateDirectory "$INSTDIR"
   SetOutPath "$INSTDIR"
 
-  IfFileExists "$INSTDIR\${EXEC_NAME}" 0 +3
-    nsExec::ExecToStack 'taskkill /f /im "${EXEC_NAME}"'
+  IfFileExists "$INSTDIR\${SERVICE_EXEC_NAME}" 0 +3
+    nsExec::ExecToStack 'taskkill /f /im "${SERVICE_EXEC_NAME}"'
     Sleep 1000 ; short pause to ensure file handles are fully released
 
-  ; copy the executable
-  File /oname=${EXEC_NAME} "..\..\..\build\Release\ServerService.exe"
-  File "..\..\..\ServerPairing\${PAIRING_APP}"
-  File "..\..\..\ServerPairing\${PAIRING_APP_WRAPPER}"
+  ; copy the executables
+  File /oname=${SERVICE_EXEC_NAME} "..\..\..\build\Release\ServerService.exe"
+  File /oname=${CLI_EXEC_NAME} "..\..\..\build\Release\ServerCli.exe"
 
   WriteUninstaller "$INSTDIR\Uninstall.exe"
 
@@ -52,14 +53,14 @@ Section "Install"
   WriteRegStr HKCU "${UNINSTALL_REG_KEY}" "UninstallString" '"$INSTDIR\Uninstall.exe"'
   WriteRegStr HKCU "${UNINSTALL_REG_KEY}" "QuietUninstallString" '"$INSTDIR\Uninstall.exe" /S'
   WriteRegStr HKCU "${UNINSTALL_REG_KEY}" "InstallLocation" "$INSTDIR"
-  WriteRegStr HKCU "${UNINSTALL_REG_KEY}" "DisplayIcon" "$INSTDIR\${EXEC_NAME}"
+  WriteRegStr HKCU "${UNINSTALL_REG_KEY}" "DisplayIcon" "$INSTDIR\${CLI_EXEC_NAME}"
   WriteRegStr HKCU "${UNINSTALL_REG_KEY}" "Publisher" "${APP_NAME}"
   WriteRegDWORD HKCU "${UNINSTALL_REG_KEY}" "NoModify" 1
   WriteRegDWORD HKCU "${UNINSTALL_REG_KEY}" "NoRepair" 1
 
   ; create a wrapper file to hide launch arguments
   FileOpen $0 "$INSTDIR\${RUN_WRAPPER}" w
-  FileWrite $0 'Start-Process -FilePath "$INSTDIR\${EXEC_NAME}" -ArgumentList "--pairingApp `"$INSTDIR\${PAIRING_APP_WRAPPER}`" --workingDir `"$INSTDIR`" --targetDir `"${TARGET_DIR}`"" -WindowStyle Hidden$\r$\n'
+  FileWrite $0 'Start-Process -FilePath "$INSTDIR\${SERVICE_EXEC_NAME}" -ArgumentList --workingDir `"$INSTDIR`" --targetDir `"${TARGET_DIR}`"" -WindowStyle Hidden$\r$\n'
   FileClose $0
 
   ; schedule to be run on startup
@@ -69,9 +70,17 @@ Section "Install"
   nsExec::Exec 'powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "$INSTDIR\${RUN_WRAPPER}"'
 SectionEnd
 
-Section "Uninstall"
+Section "Start Menu Shortcut" sec_shortcut
+  Delete "$SMPROGRAMS\${APP_NAME}\${CLI_SHORTCUT_NAME}.lnk"
+  RMDir "$SMPROGRAMS\${APP_NAME}"
+
+  CreateDirectory "$SMPROGRAMS\${APP_NAME}"
+  CreateShortcut "$SMPROGRAMS\${APP_NAME}\${CLI_SHORTCUT_NAME}.lnk" "$INSTDIR\${CLI_EXEC_NAME}"
+SectionEnd
+
+Section "Uninstall" sec_uninstall
   ; kill the running server
-  nsExec::ExecToStack 'taskkill /f /im "${EXEC_NAME}"'
+  nsExec::ExecToStack 'taskkill /f /im "${SERVICE_EXEC_NAME}"'
 
   ; remove the login task
   DeleteRegValue HKCU "${RUN_REG_KEY}" "${APP_NAME}"
@@ -82,4 +91,8 @@ Section "Uninstall"
   ; delete the contents and the folder (including the uninstaller itself)
   Delete "$INSTDIR\*.*"
   RMDir /r "$INSTDIR"
+
+  ; delete the Start Menu shortcuts
+  Delete "$SMPROGRAMS\${APP_NAME}\${CLI_SHORTCUT_NAME}.lnk"
+  RMDir "$SMPROGRAMS\${APP_NAME}"
 SectionEnd
