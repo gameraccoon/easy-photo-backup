@@ -60,7 +60,7 @@ Section "Core Components" sec_core
 
   ; create a wrapper file to hide launch arguments
   FileOpen $0 "$INSTDIR\${RUN_WRAPPER}" w
-  FileWrite $0 'Start-Process -FilePath "$INSTDIR\${SERVICE_EXEC_NAME}" -ArgumentList --workingDir `"$INSTDIR`" --targetDir `"${TARGET_DIR}`"" -WindowStyle Hidden$\r$\n'
+  FileWrite $0 "Start-Process -FilePath '$INSTDIR\${SERVICE_EXEC_NAME}' -ArgumentList '--workingDir', '$INSTDIR', '--targetDir', '${TARGET_DIR}' -WindowStyle Hidden$\r$\n"
   FileClose $0
 
   ; schedule to be run on startup
