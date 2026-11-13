@@ -164,10 +164,15 @@ namespace PairingServiceLogic
 					continue;
 				}
 
+				printLnCli("Give this client a name");
+				std::string clientName = requestCli("> ");
+
+				// ToDo: add a generic function to sanitize server name, use it here
+
 				printLnCli("Pairing successful");
 				configStorage.addConfirmedClientBinding(
 					ServerConfigStorage::ClientBinding{
-						.clientName = std::string("TestClient"),
+						.clientName = clientName,
 						.nsdIdentificationHash = PairingUtils::generateNsdIdentificationHash(binding->handshakeHash),
 						.encryptedRequestIdentificationHash = PairingUtils::generateEncryptedRequestIdentificationHash(binding->handshakeHash),
 						.remoteStaticKey = std::move(binding->remoteStaticKey),
