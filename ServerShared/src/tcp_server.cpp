@@ -20,6 +20,7 @@
 namespace TcpServer
 {
 	std::optional<std::string> runServer(
+		Network::RawSocket socket,
 		ServerConfigStorage& /*configStorage*/,
 		const char* interfaceAddressStr,
 		const Network::AddressType addressType,
@@ -34,15 +35,7 @@ namespace TcpServer
 			return "Logical error: No processClientFn provided";
 		}
 
-		std::variant<Network::RawSocket, std::string> createSocketResult = createSocket(Network::SocketType::Tcp, addressType);
-		if (std::holds_alternative<std::string>(createSocketResult))
-		{
-			return std::get<std::string>(createSocketResult);
-		}
-
-		const Network::AutoclosingSocket socket = Network::AutoclosingSocket(std::get<Network::RawSocket>(std::move(createSocketResult)));
-
-		if (auto result = Network::setSocketOption(socket, SO_REUSEADDR); result.has_value())
+		if (auto result = Network::setSocketOption(socket, Network::SOCKET_OPTION_REUSEADDR); result.has_value())
 		{
 			reportDebugError("Could not set SO_REUSEADDR on the server TCP socket");
 			return result;

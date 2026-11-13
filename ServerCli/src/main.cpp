@@ -8,10 +8,8 @@
 #include <io.h>
 #endif
 
-#include "common_shared/cryptography/utils/identification_tags.h"
 #include "common_shared/cryptography/utils/short_authentification_string_utils.h"
 #include "common_shared/multithreading/message_pipe.h"
-#include "common_shared/network/protocol.h"
 #include "common_shared/nsd/nsd_utils.h"
 #include "common_shared/nsd/simple_nsd/simple_nsd_server.h"
 #include "common_shared/requests/pairing_utils.h"
@@ -71,19 +69,36 @@ namespace PairingServiceLogic
 			bindingsPipe.send(std::move(newClientBinding));
 		};
 
+		constexpr Network::AddressType serverAddressType = Network::AddressType::IpV4;
+		std::variant<Network::RawSocket, std::string> createSocketResult = createSocket(Network::SocketType::Tcp, serverAddressType);
+		if (std::holds_alternative<std::string>(createSocketResult))
+		{
+			printLnCli(std::format("Can't create server socket: {}", std::get<std::string>(createSocketResult)));
+			return;
+		}
+
+		const Network::RawSocket serverSocket = std::get<Network::RawSocket>(std::move(createSocketResult));
+		std::optional<Network::AutoclosingSocket> autoclosingServerSocket = std::optional<Network::AutoclosingSocket>(serverSocket);
+
 		std::promise<uint16_t> portPromise{};
 		std::future<uint16_t> portFuture = portPromise.get_future();
-		auto serverThread = std::thread([&configStorage, &portPromise, &onPairingRequestReceivedLambda] {
-			TcpServer::runServer(
+		auto serverThread = std::thread([serverSocket, &configStorage, &portPromise, &onPairingRequestReceivedLambda] {
+			auto result = TcpServer::runServer(
+				serverSocket,
 				configStorage,
 				"0.0.0.0",
-				Network::AddressType::IpV4,
+				serverAddressType,
 				portPromise,
 				nullptr,
 				[&onPairingRequestReceivedLambda](Network::RawSocket socket) {
 					TcpServer::Pairing::handleClient(socket, onPairingRequestReceivedLambda);
 				}
 			);
+
+			if (result.has_value())
+			{
+				printLnCli(std::format("Can't start server: {}", *result));
+			}
 		});
 
 		if (auto status = portFuture.wait_for(std::chrono::seconds(3)); status != std::future_status::ready)
@@ -144,24 +159,22 @@ namespace PairingServiceLogic
 				printLnCli("Did the other device confirm binding? Y/N");
 				std::string command = requestCli("> ");
 
-				if (command == "Y" || command == "y")
+				if (command != "Y" && command != "y")
 				{
-					printLnCli("Pairing successful");
-					configStorage.addConfirmedClientBinding(
-						ServerConfigStorage::ClientBinding{
-							.clientName = std::string("TestClient"),
-							.nsdIdentificationHash = PairingUtils::generateNsdIdentificationHash(binding->handshakeHash),
-							.encryptedRequestIdentificationHash = PairingUtils::generateEncryptedRequestIdentificationHash(binding->handshakeHash),
-							.remoteStaticKey = std::move(binding->remoteStaticKey),
-							.staticKeys = std::move(binding->staticKeys),
-						}
-					);
-					break;
+					continue;
 				}
-				else
-				{
-					printLnCli("Entered code did not match, try again");
-				}
+
+				printLnCli("Pairing successful");
+				configStorage.addConfirmedClientBinding(
+					ServerConfigStorage::ClientBinding{
+						.clientName = std::string("TestClient"),
+						.nsdIdentificationHash = PairingUtils::generateNsdIdentificationHash(binding->handshakeHash),
+						.encryptedRequestIdentificationHash = PairingUtils::generateEncryptedRequestIdentificationHash(binding->handshakeHash),
+						.remoteStaticKey = std::move(binding->remoteStaticKey),
+						.staticKeys = std::move(binding->staticKeys),
+					}
+				);
+				break;
 			}
 			else
 			{
@@ -174,6 +187,8 @@ namespace PairingServiceLogic
 			}
 		}
 
+		// close the server socket, which should stop the server
+		autoclosingServerSocket = std::nullopt;
 		serverThread.join();
 
 		stopNsdServerFn();

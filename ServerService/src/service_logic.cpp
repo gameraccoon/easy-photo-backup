@@ -89,22 +89,22 @@ namespace ServiceLogic
 		}
 		std::array<std::byte, 16> serverId = std::move(*serverIdResult);
 
-		auto openSocketResult = NsdUtils::openNsdServerSocket(Network::AddressType::IpV4);
+		auto openNsdSocketResult = NsdUtils::openNsdServerSocket(Network::AddressType::IpV4);
 
-		if (std::holds_alternative<std::string>(openSocketResult))
+		if (std::holds_alternative<std::string>(openNsdSocketResult))
 		{
-			Debug::Log::printDebug(std::get<std::string>(openSocketResult));
+			Debug::Log::printDebug(std::get<std::string>(openNsdSocketResult));
 			return;
 		}
 
-		const Network::RawSocket socket = std::get<Network::RawSocket>(openSocketResult);
+		const Network::RawSocket nsdSocket = std::get<Network::RawSocket>(openNsdSocketResult);
 		std::atomic_bool nsdCloseSocketFlag{};
 
-		const auto stopNsdServer = [socket, &nsdCloseSocketFlag] {
+		const auto stopNsdServer = [nsdSocket, &nsdCloseSocketFlag] {
 			if (nsdCloseSocketFlag.load(std::memory_order::acquire) == false)
 			{
 				nsdCloseSocketFlag.store(true, std::memory_order::seq_cst);
-				Network::closeSocket(socket);
+				Network::closeSocket(nsdSocket);
 			}
 		};
 
@@ -141,11 +141,22 @@ namespace ServiceLogic
 			TcpServer::Encrypted::handleClient(socket, targetDir, *configStorage, approvedClientHashes.encryptedRequestIdentificationTags, approvedClientHashes.encryptedRequestIdentificationTagsMutex);
 		};
 
-		auto serverThread = std::thread([&configStorage, &portPromise, targetDir = std::move(targetDir), &onClientConnectedFn, &processClientFn] {
+		constexpr Network::AddressType serverAddressType = Network::AddressType::IpV4;
+		std::variant<Network::RawSocket, std::string> createSocketResult = createSocket(Network::SocketType::Tcp, serverAddressType);
+		if (std::holds_alternative<std::string>(createSocketResult))
+		{
+			Debug::Log::printDebug("Can't create server socket: {}", std::get<std::string>(createSocketResult));
+		}
+
+		const Network::RawSocket serverSocket = std::get<Network::RawSocket>(std::move(createSocketResult));
+		Network::AutoclosingSocket autoclosingServerSocket = Network::AutoclosingSocket(serverSocket);
+
+		auto serverThread = std::thread([serverSocket, &configStorage, &portPromise, targetDir = std::move(targetDir), &onClientConnectedFn, &processClientFn] {
 			TcpServer::runServer(
+				serverSocket,
 				*configStorage,
 				"0.0.0.0",
-				Network::AddressType::IpV4,
+				serverAddressType,
 				portPromise,
 				onClientConnectedFn,
 				processClientFn
@@ -164,7 +175,7 @@ namespace ServiceLogic
 			updateClientHashesForNsd(*configStorage, clientHashes, clientIndices, numClientsAdded, clientsToRemove);
 		};
 
-		std::thread nsdThread([socket, &nsdCloseSocketFlag, serverId, serverPort, &updateClientHashesForNsdFn] {
+		std::thread nsdThread([nsdSocket, &nsdCloseSocketFlag, serverId, serverPort, &updateClientHashesForNsdFn] {
 			std::array<std::byte, 18> extraData;
 			extraData[0] = static_cast<std::byte>(1); // protocol id
 			extraData[1] = static_cast<std::byte>(0); // the rest is the server ID
@@ -172,7 +183,7 @@ namespace ServiceLogic
 			std::copy(serverId.begin(), serverId.end(), extraData.begin() + 2);
 
 			HiddenNsdServer::ListenResult result = HiddenNsdServer::listen(
-				socket,
+				nsdSocket,
 				Network::AddressType::IpV4,
 				"0.0.0.0",
 				5354,
@@ -192,7 +203,7 @@ namespace ServiceLogic
 				{
 					Debug::Log::printDebug("NSD server error: '{}'", std::get<HiddenNsdServer::SocketError>(result).error);
 					nsdCloseSocketFlag.store(true, std::memory_order::release);
-					Network::closeSocket(socket);
+					Network::closeSocket(nsdSocket);
 				}
 				else
 				{

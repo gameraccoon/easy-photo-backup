@@ -20,6 +20,7 @@ namespace TcpServer
 	using ProcessClientFn = std::function<void(Network::RawSocket)>;
 
 	std::optional<std::string> runServer(
+		Network::RawSocket socket,
 		ServerConfigStorage& configStorage,
 		const char* interfaceAddressStr,
 		const Network::AddressType addressType,
