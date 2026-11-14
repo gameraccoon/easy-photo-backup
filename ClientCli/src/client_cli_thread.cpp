@@ -229,10 +229,13 @@ namespace ClientCli
 					continue;
 				}
 
+				printLnCli("Give this server a name");
+				std::string serverName = requestCli("> ");
+
 				clientConfigStorage->addConfirmedServerBinding(
 					serverList[idx].serverId,
 					ClientConfigStorage::ServerBinding{
-						.serverName = "test_server",
+						.serverName = std::move(serverName),
 						.nsdIdentificationHash = PairingUtils::generateNsdIdentificationHash(pairingExchange.handshakeHash),
 						.encryptedRequestIdentificationHash = PairingUtils::generateEncryptedRequestIdentificationHash(pairingExchange.handshakeHash),
 						.remoteStaticKey = std::move(pairingExchange.remoteStaticKey),
