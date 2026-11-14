@@ -41,6 +41,12 @@ public:
 
 	using ServerId = std::array<std::byte, 16>;
 
+	struct ConfirmedServerListItem
+	{
+		ServerId serverId;
+		std::string serverName;
+	};
+
 public:
 	ClientConfigStorage(ClientConfigStorage&&) noexcept = default;
 	ClientConfigStorage& operator=(ClientConfigStorage&&) noexcept = default;
@@ -51,6 +57,7 @@ public:
 	// returns server idx that needs to be used to clean sent files cache of this server
 	[[nodiscard]] std::optional<uint8_t> removeConfirmedServerBinding(const ServerId& serverId) noexcept;
 	[[nodiscard]] std::optional<ServerBinding> getConfirmedServerBinding(const ServerId& serverId) noexcept;
+	[[nodiscard]] std::vector<ConfirmedServerListItem> getAllConfirmedServers() noexcept;
 	[[nodiscard]] bool hasConfirmedServerBinding(const ServerId& serverId) noexcept;
 
 	void getAllIdentificationHashes(IdentificationTagType tagType, std::vector<ServerIdentificationHashData>& result);

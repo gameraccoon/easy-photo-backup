@@ -25,6 +25,27 @@ namespace ClientStorageInternal
 
 	static constexpr size_t ActivityRecordValueStaticDataSize = 22;
 
+	static bool readConfirmedServerBinding(std::span<const std::byte> value, ClientConfigStorage::ServerBinding& outBinding) noexcept
+	{
+		Serialization::GenericDeserializationWrapper deserializer{ value };
+
+		if (!deserializer.readUint8(outBinding.serverIdx, "serverIdx")) { return false; }
+		if (!deserializer.readShortString(outBinding.serverName, "serverName")) { return false; }
+		if (!deserializer.readFixedData(outBinding.nsdIdentificationHash, "nsdIdentificationHash")) { return false; }
+		if (!deserializer.readFixedData(outBinding.encryptedRequestIdentificationHash, "encryptedRequestIdentificationHash")) { return false; }
+		if (!deserializer.readFixedData(outBinding.remoteStaticKey, "remoteStaticKey")) { return false; }
+		if (!deserializer.readFixedData(outBinding.staticKeys.publicKey, "publicKey")) { return false; }
+		if (!deserializer.readFixedData(outBinding.staticKeys.secretKey, "secretKey")) { return false; }
+
+		if (deserializer.getBytesRead() != value.size()) [[unlikely]]
+		{
+			reportReleaseError("Deserialization of server binding read incorrect number of bytes: got {}, read {}", value.size(), deserializer.getBytesRead());
+			return false;
+		}
+
+		return true;
+	}
+
 	static std::vector<ClientSentFilesStorage::ActivityJournalRecord> readActivityJournalRecords(Lmdb::ReadOnlyCursor& cursor, uint32_t beginIdx, uint32_t endIdx) noexcept
 	{
 		std::vector<ClientSentFilesStorage::ActivityJournalRecord> result;
@@ -302,20 +323,53 @@ std::optional<ClientConfigStorage::ServerBinding> ClientConfigStorage::getConfir
 	}
 
 	ServerBinding result{};
-	Serialization::GenericDeserializationWrapper deserializer{ value };
-
-	if (!deserializer.readUint8(result.serverIdx, "serverIdx")) { return std::nullopt; }
-	if (!deserializer.readShortString(result.serverName, "serverName")) { return std::nullopt; }
-	if (!deserializer.readFixedData(result.nsdIdentificationHash, "nsdIdentificationHash")) { return std::nullopt; }
-	if (!deserializer.readFixedData(result.encryptedRequestIdentificationHash, "encryptedRequestIdentificationHash")) { return std::nullopt; }
-	if (!deserializer.readFixedData(result.remoteStaticKey, "remoteStaticKey")) { return std::nullopt; }
-	if (!deserializer.readFixedData(result.staticKeys.publicKey, "publicKey")) { return std::nullopt; }
-	if (!deserializer.readFixedData(result.staticKeys.secretKey, "secretKey")) { return std::nullopt; }
-
-	if (deserializer.getBytesRead() != value.size()) [[unlikely]]
+	if (!ClientStorageInternal::readConfirmedServerBinding(value, result)) [[unlikely]]
 	{
-		reportReleaseError("Deserialization of server binding read incorrect number of bytes: got {}, read {}", value.size(), deserializer.getBytesRead());
 		return std::nullopt;
+	}
+
+	return result;
+}
+
+std::vector<ClientConfigStorage::ConfirmedServerListItem> ClientConfigStorage::getAllConfirmedServers() noexcept
+{
+	std::vector<ClientConfigStorage::ConfirmedServerListItem> result;
+	Lmdb::Result<Lmdb::ReadOnlySingleDbWrapper> wrapper = Lmdb::openReadOnlySingleDbTransaction(mEnvironment, ClientStorageInternal::ConfirmedDatabaseName);
+	if (wrapper.isError()) [[unlikely]]
+	{
+		return result;
+	}
+
+	Lmdb::Result<Lmdb::ReadOnlyCursor> cursor = Lmdb::ReadOnlyCursor::open(wrapper->transaction, wrapper->database);
+	if (cursor.isError())
+	{
+		return result;
+	}
+
+	Lmdb::ReturnCode returnCode = cursor->first();
+	if (returnCode == Lmdb::ReturnCode::Success)
+	{
+		Lmdb::Result<Lmdb::CursorDataView> view = cursor->viewCurrent();
+		while (view.isValid())
+		{
+			if (view->key.size() == sizeof(ServerId))
+			{
+				result.emplace_back();
+				std::copy(view->key.begin(), view->key.end(), result.back().serverId.begin());
+				if (view->value.size() > 2)
+				{
+					Serialization::GenericDeserializationWrapper deserializer{ view->value };
+					deserializer.skipBytes(1);
+					deserializer.readShortString(result.back().serverName, "serverName");
+				}
+			}
+
+			if (cursor->next() != Lmdb::ReturnCode::Success) [[unlikely]]
+			{
+				break;
+			}
+			view = cursor->viewCurrent();
+		}
 	}
 
 	return result;
