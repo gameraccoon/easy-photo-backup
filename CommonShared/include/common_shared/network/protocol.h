@@ -116,7 +116,7 @@ namespace Protocol
 			// tried to partially receive file, but the previous part is missing
 			PartMissing = 7,
 		};
-	}
+	} // namespace FileExchange
 
 	namespace Salts
 	{

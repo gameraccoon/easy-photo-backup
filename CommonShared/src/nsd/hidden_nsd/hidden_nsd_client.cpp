@@ -89,10 +89,12 @@ namespace HiddenNsdClient
 		outPort = Serialization::readUint16(plaintextBuffer[3], plaintextBuffer[4]);
 		const uint16_t receivedChecksum = Serialization::readUint16(plaintextBuffer[5 + extraDataLen], plaintextBuffer[6 + extraDataLen]);
 
-		const uint16_t actualChecksum = NsdInternalUtils::checksum16v1(std::span(
-			plaintextBuffer.data() + 3,
-			plaintextBuffer.data() + (3 + 2 + extraDataLen)
-		));
+		const uint16_t actualChecksum = NsdInternalUtils::checksum16v1(
+			std::span(
+				plaintextBuffer.data() + 3,
+				plaintextBuffer.data() + (3 + 2 + extraDataLen)
+			)
+		);
 
 		if (receivedChecksum != actualChecksum) [[unlikely]]
 		{

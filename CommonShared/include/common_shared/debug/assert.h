@@ -38,7 +38,8 @@ namespace Debug::Assert
 	} while (0)
 #else
 #define reportDebugError(...) \
-	do { \
+	do \
+	{ \
 	} while (0)
 #endif
 
@@ -54,7 +55,8 @@ namespace Debug::Assert
 	} while (0)
 #else
 #define debugAssert(...) \
-	do { \
+	do \
+	{ \
 	} while (0)
 #endif
 
@@ -66,7 +68,8 @@ namespace Debug::Assert
 	} while (0)
 
 #define assertRelease(cond, ...) \
-	do { \
+	do \
+	{ \
 		if (static_cast<bool>(cond) == false) [[unlikely]] \
 		{ \
 			Debug::Assert::logAssertHelper(COND_TO_STR(cond), __FILE__, __LINE__, __VA_ARGS__); \
@@ -82,7 +85,8 @@ namespace Debug::Assert
 	} while (0)
 
 #define assertFatalRelease(cond, ...) \
-	do { \
+	do \
+	{ \
 		if (static_cast<bool>(cond) == false) [[unlikely]] \
 		{ \
 			Debug::Assert::logAssertHelper(COND_TO_STR(cond), __FILE__, __LINE__, __VA_ARGS__); \
