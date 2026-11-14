@@ -41,7 +41,7 @@ namespace Serialization
 
 	bool GenericSerializationWrapper::writeByte(std::byte data, std::string_view logName) noexcept
 	{
-		if (mBytesWritten + 1 > mBuffer.size())
+		if (mBytesWritten + 1 > mBuffer.size()) [[unlikely]]
 		{
 			return Internal::reportBufferIsTooSmall(mBuffer.size(), mBytesWritten, logName, 1);
 		}
@@ -58,7 +58,7 @@ namespace Serialization
 
 	bool GenericSerializationWrapper::writeUint32(uint32_t data, std::string_view logName) noexcept
 	{
-		if (mBytesWritten + 4 > mBuffer.size())
+		if (mBytesWritten + 4 > mBuffer.size()) [[unlikely]]
 		{
 			return Internal::reportBufferIsTooSmall(mBuffer.size(), mBytesWritten, logName, 4);
 		}
@@ -70,7 +70,7 @@ namespace Serialization
 
 	bool GenericSerializationWrapper::writeUint64(uint64_t data, std::string_view logName) noexcept
 	{
-		if (mBytesWritten + 8 > mBuffer.size())
+		if (mBytesWritten + 8 > mBuffer.size()) [[unlikely]]
 		{
 			return Internal::reportBufferIsTooSmall(mBuffer.size(), mBytesWritten, logName, 8);
 		}
@@ -104,7 +104,7 @@ namespace Serialization
 
 	bool GenericDeserializationWrapper::readByte(std::byte& outData, std::string_view logName) noexcept
 	{
-		if (mBytesRead + 1 > mBuffer.size())
+		if (mBytesRead + 1 > mBuffer.size()) [[unlikely]]
 		{
 			return Internal::reportBufferIsTooSmall(mBuffer.size(), mBytesRead, logName, 1);
 		}
@@ -121,7 +121,7 @@ namespace Serialization
 
 	bool GenericDeserializationWrapper::readUint32(uint32_t& outData, std::string_view logName) noexcept
 	{
-		if (mBytesRead + 4 > mBuffer.size())
+		if (mBytesRead + 4 > mBuffer.size()) [[unlikely]]
 		{
 			return Internal::reportBufferIsTooSmall(mBuffer.size(), mBytesRead, logName, 4);
 		}
@@ -133,7 +133,7 @@ namespace Serialization
 
 	bool GenericDeserializationWrapper::readUint64(uint64_t& outData, std::string_view logName) noexcept
 	{
-		if (mBytesRead + 8 > mBuffer.size())
+		if (mBytesRead + 8 > mBuffer.size()) [[unlikely]]
 		{
 			return Internal::reportBufferIsTooSmall(mBuffer.size(), mBytesRead, logName, 8);
 		}
