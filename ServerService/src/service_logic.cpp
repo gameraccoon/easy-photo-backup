@@ -135,8 +135,9 @@ namespace ServiceLogic
 			}
 		};
 
-		std::filesystem::path targetDir = arguments.targetDir.empty() ? "./server_target_directory" : arguments.targetDir;
+		const std::filesystem::path targetDir = arguments.targetDir.empty() ? "./server_target_directory" : arguments.targetDir;
 		std::filesystem::create_directories(targetDir);
+
 		const auto processClientFn = [&targetDir, &configStorage, &approvedClientHashes](Network::RawSocket socket) {
 			TcpServer::Encrypted::handleClient(socket, targetDir, *configStorage, approvedClientHashes.encryptedRequestIdentificationTags, approvedClientHashes.encryptedRequestIdentificationTagsMutex);
 		};
@@ -151,7 +152,7 @@ namespace ServiceLogic
 		const Network::RawSocket serverSocket = std::get<Network::RawSocket>(std::move(createSocketResult));
 		Network::AutoclosingSocket autoclosingServerSocket = Network::AutoclosingSocket(serverSocket);
 
-		auto serverThread = std::thread([serverSocket, &configStorage, &portPromise, targetDir = std::move(targetDir), &onClientConnectedFn, &processClientFn] {
+		auto serverThread = std::thread([serverSocket, &configStorage, &portPromise, &onClientConnectedFn, &processClientFn] {
 			TcpServer::runServer(
 				serverSocket,
 				*configStorage,
