@@ -32,6 +32,12 @@ public:
 		EncryptedRequest = 1
 	};
 
+	struct ConfirmedClientListItem
+	{
+		ConnectionIdx connectionIdx;
+		std::string clientName;
+	};
+
 public:
 	ServerConfigStorage(ServerConfigStorage&&) noexcept = default;
 	ServerConfigStorage& operator=(ServerConfigStorage&&) noexcept = default;
@@ -41,6 +47,7 @@ public:
 	std::optional<ConnectionIdx> addConfirmedClientBinding(ClientBinding&& binding) noexcept;
 	bool removeConfirmedClientBinding(ConnectionIdx connectionIdx) noexcept;
 	[[nodiscard]] std::optional<ClientBinding> getConfirmedClientBinding(ConnectionIdx connectionIdx) noexcept;
+	[[nodiscard]] std::vector<ConfirmedClientListItem> getAllConfirmedClients() noexcept;
 	[[nodiscard]] bool hasConfirmedClientBinding(ConnectionIdx connectionIdx) noexcept;
 
 	void updateIdentificationHashes(IdentificationTagType tagType, std::vector<Cryptography::HashResult>& inOutHashes, std::vector<ConnectionIdx>& inOutIds, size_t& outNumAdded, std::vector<size_t>& indicesToRemove) noexcept;

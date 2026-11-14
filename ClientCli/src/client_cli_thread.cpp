@@ -53,7 +53,7 @@ namespace ClientCli
 		std::cin >> oneBasedIndex;
 		if (std::cin.fail())
 		{
-			printLnCli("Did not provide the index, format is pair <index>");
+			printLnCli("Did not provide the index");
 			return std::nullopt;
 		}
 

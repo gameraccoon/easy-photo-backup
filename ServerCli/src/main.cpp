@@ -43,6 +43,25 @@ static void printLnCli(std::string_view string) noexcept
 
 namespace PairingServiceLogic
 {
+	[[nodiscard]] static std::optional<size_t> readOneBasedIndex(size_t size) noexcept
+	{
+		int oneBasedIndex;
+		std::cin >> oneBasedIndex;
+		if (std::cin.fail())
+		{
+			printLnCli("Did not provide the index");
+			return std::nullopt;
+		}
+
+		if (oneBasedIndex < 1 || oneBasedIndex > static_cast<int>(size))
+		{
+			printLnCli("No element with this index");
+			return std::nullopt;
+		}
+
+		return static_cast<size_t>(oneBasedIndex - 1);
+	}
+
 	void startPairingInterface(const std::array<std::byte, 16>& serverId, ServerConfigStorage& configStorage)
 	{
 		auto openSocketResult = NsdUtils::openNsdServerSocket(Network::AddressType::IpV4);
@@ -172,7 +191,7 @@ namespace PairingServiceLogic
 				printLnCli("Pairing successful");
 				configStorage.addConfirmedClientBinding(
 					ServerConfigStorage::ClientBinding{
-						.clientName = clientName,
+						.clientName = std::move(clientName),
 						.nsdIdentificationHash = PairingUtils::generateNsdIdentificationHash(binding->handshakeHash),
 						.encryptedRequestIdentificationHash = PairingUtils::generateEncryptedRequestIdentificationHash(binding->handshakeHash),
 						.remoteStaticKey = std::move(binding->remoteStaticKey),
@@ -250,17 +269,77 @@ int main(int argc, char** argv)
 		if (command == "help")
 		{
 			printLnCli("help - print this help");
-			printLnCli("clients - manage paired clients");
+			printLnCli("list - list paired clients");
 			printLnCli("pair - pair a new client");
+			printLnCli("unpair - unpair a client");
 			printLnCli("quit - exit the server app");
 		}
 		else if (command == "quit" || command == "exit")
 		{
 			break;
 		}
+		else if (command == "list")
+		{
+			std::vector<ServerConfigStorage::ConfirmedClientListItem> clients = configStorage->getAllConfirmedClients();
+			if (clients.empty())
+			{
+				printLnCli("No paired clients, use 'pair' to start pairing");
+			}
+			else
+			{
+				printLnCli("Paired clients:");
+			}
+
+			for (ServerConfigStorage::ConfirmedClientListItem& client : clients)
+			{
+				printLnCli(std::format(" - {}", client.clientName));
+			}
+		}
 		else if (command == "pair")
 		{
 			PairingServiceLogic::startPairingInterface(*serverIdResult, *configStorage);
+		}
+		else if (command == "unpair")
+		{
+			std::vector<ServerConfigStorage::ConfirmedClientListItem> clients = configStorage->getAllConfirmedClients();
+			if (clients.empty())
+			{
+				printLnCli("No paired clients");
+				continue;
+			}
+			else
+			{
+				printLnCli("Choose a client to unpair:");
+			}
+			for (size_t i = 0; i < clients.size(); ++i)
+			{
+				ServerConfigStorage::ConfirmedClientListItem& client = clients[i];
+				printLnCli(std::format("{}. - {}", i + 1, client.clientName));
+			}
+
+			const std::optional<size_t> indexResult = PairingServiceLogic::readOneBasedIndex(clients.size());
+			if (!indexResult.has_value())
+			{
+				continue;
+			}
+
+			const size_t idx = *indexResult;
+
+			if (!configStorage->hasConfirmedClientBinding(clients[idx].connectionIdx))
+			{
+				printLnCli("Client is not paired");
+				continue;
+			}
+
+			bool isSuccess = configStorage->removeConfirmedClientBinding(clients[idx].connectionIdx);
+			if (isSuccess)
+			{
+				printLnCli("Client got removed from paired clients");
+			}
+			else
+			{
+				printLnCli("Could not remove paired client");
+			}
 		}
 		else
 		{

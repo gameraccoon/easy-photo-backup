@@ -288,6 +288,49 @@ std::optional<ServerConfigStorage::ClientBinding> ServerConfigStorage::getConfir
 	return result;
 }
 
+std::vector<ServerConfigStorage::ConfirmedClientListItem> ServerConfigStorage::getAllConfirmedClients() noexcept
+{
+	std::vector<ServerConfigStorage::ConfirmedClientListItem> result;
+	Lmdb::Result<Lmdb::ReadOnlySingleDbWrapper> wrapper = Lmdb::openReadOnlySingleDbTransaction(mEnvironment, ServerStorageInternal::ConfirmedDatabaseName);
+	if (wrapper.isError()) [[unlikely]]
+	{
+		return result;
+	}
+
+	Lmdb::Result<Lmdb::ReadOnlyCursor> cursor = Lmdb::ReadOnlyCursor::open(wrapper->transaction, wrapper->database);
+	if (cursor.isError())
+	{
+		return result;
+	}
+
+	Lmdb::ReturnCode returnCode = cursor->first();
+	if (returnCode == Lmdb::ReturnCode::Success)
+	{
+		Lmdb::Result<Lmdb::CursorDataView> view = cursor->viewCurrent();
+		while (view.isValid())
+		{
+			if (view->key.size() == sizeof(ConnectionIdx))
+			{
+				result.emplace_back();
+				result.back().connectionIdx = Serialization::readUint32(view->key);
+				if (view->value.size() > 2)
+				{
+					Serialization::GenericDeserializationWrapper deserializer{ view->value };
+					deserializer.readShortString(result.back().clientName, "clientName");
+				}
+			}
+
+			if (cursor->next() != Lmdb::ReturnCode::Success) [[unlikely]]
+			{
+				break;
+			}
+			view = cursor->viewCurrent();
+		}
+	}
+
+	return result;
+}
+
 bool ServerConfigStorage::hasConfirmedClientBinding(const ConnectionIdx connectionIdx) noexcept
 {
 	Lmdb::Result<Lmdb::ReadOnlySingleDbWrapper> wrapper = Lmdb::openReadOnlySingleDbTransaction(mEnvironment, ServerStorageInternal::ConfirmedDatabaseName);

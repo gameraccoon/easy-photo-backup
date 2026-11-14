@@ -110,9 +110,9 @@ public:
 	void truncateLastActivityJournalRecords(uint64_t oldestTimestampToLeaveMs) noexcept;
 	bool addActivityJournalRecord(ActivityJournalRecord&& newRecord) noexcept;
 	// outEndIdx points to the element after the last
-	std::vector<ActivityJournalRecord> getLastActivityJournalRecords(uint32_t recordsCount, uint32_t& outEndIdx) noexcept;
+	[[nodiscard]] std::vector<ActivityJournalRecord> getLastActivityJournalRecords(uint32_t recordsCount, uint32_t& outEndIdx) noexcept;
 	// endIdx is non-inclusive
-	std::vector<ActivityJournalRecord> getActivityJournalRecords(uint32_t beginIdx, uint32_t endIdx) noexcept;
+	[[nodiscard]] std::vector<ActivityJournalRecord> getActivityJournalRecords(uint32_t beginIdx, uint32_t endIdx) noexcept;
 
 	// two calls to this function should never return the same key index for the same server, unless the period shifts
 	[[nodiscard]] std::optional<uint32_t> consumeNextIdentificationKeyIndicesInPeriod(uint8_t serverIdx, ClientConfigStorage::IdentificationTagType tagType, uint32_t currentPeriodIndex, uint32_t count) noexcept;
