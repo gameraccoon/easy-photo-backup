@@ -18,7 +18,7 @@ namespace NsdInternalUtils
 {
 	struct NetworkAddressKey
 	{
-		sockaddr addr{};
+		sockaddr_storage addr{};
 		socklen_t addrLen = sizeof(sockaddr);
 
 		bool operator==(const NetworkAddressKey& other) const noexcept;
@@ -68,6 +68,4 @@ namespace NsdInternalUtils
 
 	void registerDiscoveredServer(ClientDiscoveredServersData& discoveredServersData, const NetworkAddressKey& netAddress, const std::vector<std::byte>& extraData, uint16_t port, const NsdUtils::DiscoveryResultFunction& resultFunction);
 	void removeOldDiscoveredServers(ClientDiscoveredServersData& discoveredServersData, const NsdUtils::DiscoveryResultFunction& resultFunction) noexcept;
-
-	[[nodiscard]] int32_t getCurrentPeriodIndex();
 } // namespace NsdInternalUtils

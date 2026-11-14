@@ -49,6 +49,9 @@ namespace Serialization
 		bool readFixedData(std::span<std::byte> outData, std::string_view logName) noexcept;
 		bool readShortString(std::string& outData, std::string_view logName, size_t lengthLimit = 255) noexcept;
 
+		bool skipBytes(size_t bytesToSkip) noexcept;
+		bool skipShortString(std::string_view logName) noexcept;
+
 		size_t getBytesRead() const noexcept { return mBytesRead; }
 
 	private:

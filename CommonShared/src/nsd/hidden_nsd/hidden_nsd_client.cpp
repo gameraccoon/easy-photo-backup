@@ -89,10 +89,12 @@ namespace HiddenNsdClient
 		outPort = Serialization::readUint16(plaintextBuffer[3], plaintextBuffer[4]);
 		const uint16_t receivedChecksum = Serialization::readUint16(plaintextBuffer[5 + extraDataLen], plaintextBuffer[6 + extraDataLen]);
 
-		const uint16_t actualChecksum = NsdInternalUtils::checksum16v1(std::span(
-			plaintextBuffer.data() + 3,
-			plaintextBuffer.data() + (3 + 2 + extraDataLen)
-		));
+		const uint16_t actualChecksum = NsdInternalUtils::checksum16v1(
+			std::span(
+				plaintextBuffer.data() + 3,
+				plaintextBuffer.data() + (3 + 2 + extraDataLen)
+			)
+		);
 
 		if (receivedChecksum != actualChecksum) [[unlikely]]
 		{
@@ -128,7 +130,7 @@ namespace HiddenNsdClient
 
 		NsdInternalUtils::ClientDiscoveredServersData discoveredServersData;
 
-		const int32_t currentPeriodIndex = NsdInternalUtils::getCurrentPeriodIndex();
+		const int32_t currentPeriodIndex = Cryptography::IdentificationTagsUtils::getCurrentDayIndex();
 
 		constexpr size_t BUFFER_SIZE = 1024;
 		std::array<std::byte, BUFFER_SIZE> buffer;
@@ -141,23 +143,31 @@ namespace HiddenNsdClient
 		const std::chrono::duration waitTimeAfterLastBroadcast = std::chrono::round<std::chrono::nanoseconds>(std::chrono::duration<float>(extraWaitTimeAfterLastBroadcastSec));
 
 		int broadcastsDone = 0;
-		std::array<std::byte, 8> query;
 		std::vector<SentTag> sentTags;
 		while (true)
 		{
 			if (broadcastsDone < numberOfBroadcasts && std::chrono::steady_clock::now() > lastBroadcastTime + timeBetweenBroadcasts)
 			{
-				for (size_t i = 0; i < serverData.size(); ++i)
+				const size_t chunkSize = BUFFER_SIZE / sizeof(uint64_t);
+				const size_t totalSize = serverData.size();
+				for (size_t offset = 0; offset < totalSize; offset += chunkSize)
 				{
-					const auto& oneServerData = serverData[i];
-					const uint64_t tag = Cryptography::getSingleIdentificationTag(oneServerData.hash, currentPeriodIndex, oneServerData.keyIndexInPeriod + broadcastsDone);
-					Serialization::writeUint64(query, tag);
-					sentTags.emplace_back(tag, i, oneServerData.keyIndexInPeriod + broadcastsDone);
-					if (const auto result = NsdInternalUtils::broadcastNdsUdpRequest(socket, addressType, query, broadcastPort); result.has_value()) [[unlikely]]
+					const size_t iterationsThisChunk = std::min(totalSize - offset, chunkSize);
+					for (size_t i = 0; i < iterationsThisChunk; ++i)
+					{
+						size_t globalIndex = offset + i;
+						const auto& oneServerData = serverData[globalIndex];
+						const uint64_t tag = Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(oneServerData.hash, currentPeriodIndex, oneServerData.keyIndexInPeriod + broadcastsDone);
+						Serialization::writeUint64(std::span(buffer).subspan(i * sizeof(tag), sizeof(tag)), tag);
+						sentTags.emplace_back(tag, globalIndex, oneServerData.keyIndexInPeriod + broadcastsDone);
+					}
+
+					if (const auto result = NsdInternalUtils::broadcastNdsUdpRequest(socket, addressType, std::span(buffer).subspan(0, iterationsThisChunk * sizeof(uint64_t)), broadcastPort); result.has_value()) [[unlikely]]
 					{
 						return result;
 					}
 				}
+
 				lastBroadcastTime = std::chrono::steady_clock::now();
 				++broadcastsDone;
 

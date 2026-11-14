@@ -24,9 +24,12 @@ target_include_directories(ServerShared PRIVATE
 
 target_sources(ServerShared
 	PRIVATE
+		${SERVER_SHARED_SRC_DIR}/encrypted_request_function.cpp
+		${SERVER_SHARED_SRC_DIR}/encrypted_requests.cpp
 		${SERVER_SHARED_SRC_DIR}/file_transfer_receive_logic.cpp
 		${SERVER_SHARED_SRC_DIR}/pairing_interactive_request.cpp
-		${SERVER_SHARED_SRC_DIR}/requests.cpp
+		${SERVER_SHARED_SRC_DIR}/pairing_request_function.cpp
+		${SERVER_SHARED_SRC_DIR}/pairing_requests.cpp
 		${SERVER_SHARED_SRC_DIR}/request_answers.cpp
 		${SERVER_SHARED_SRC_DIR}/send_files_interactive_request.cpp
 		${SERVER_SHARED_SRC_DIR}/server_storage.cpp

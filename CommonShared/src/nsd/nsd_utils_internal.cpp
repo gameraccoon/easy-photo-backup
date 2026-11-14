@@ -159,7 +159,7 @@ namespace NsdInternalUtils
 #else
 		using SendToResult = ssize_t;
 #endif
-		const SendToResult sentSize = sendto(socket, query.data(), static_cast<int>(query.size()), 0, reinterpret_cast<const sockaddr*>(&address), sizeof(address));
+		const SendToResult sentSize = sendto(socket, reinterpret_cast<const char*>(query.data()), static_cast<int>(query.size()), 0, reinterpret_cast<const sockaddr*>(&address), sizeof(address));
 
 		if (sentSize == -1) [[unlikely]]
 		{
@@ -224,7 +224,14 @@ namespace NsdInternalUtils
 
 		if (pfd.revents & POLLIN)
 		{
-			const int receivedBytes = static_cast<int>(recvfrom(socket, reinterpret_cast<char*>(inOutBuffer.data()), static_cast<int>(inOutBuffer.size()), 0, &outNetAddress.addr, &outNetAddress.addrLen));
+			const int receivedBytes = static_cast<int>(recvfrom(
+				socket,
+				reinterpret_cast<char*>(inOutBuffer.data()),
+				static_cast<int>(inOutBuffer.size()),
+				0,
+				reinterpret_cast<sockaddr*>(&outNetAddress.addr),
+				&outNetAddress.addrLen
+			));
 
 #ifdef DEBUG_CHECKS
 			if constexpr (debugPrintBuffers)
@@ -258,7 +265,14 @@ namespace NsdInternalUtils
 			return gSendAnswerMock(socket, inOutBuffer, netAddress);
 		}
 #endif // WITH_TESTS
-		return static_cast<int>(sendto(socket, reinterpret_cast<const char*>(inOutBuffer.data()), static_cast<int>(inOutBuffer.size()), 0, &netAddress.addr, netAddress.addrLen));
+		return static_cast<int>(sendto(
+			socket,
+			reinterpret_cast<const char*>(inOutBuffer.data()),
+			static_cast<int>(inOutBuffer.size()),
+			0,
+			reinterpret_cast<const sockaddr*>(&netAddress.addr),
+			netAddress.addrLen
+		));
 	}
 
 	int receiveNsdAnswer(const Network::RawSocket socket, std::span<std::byte> inOutBuffer, NetworkAddressKey& outNetAddress)
@@ -279,7 +293,14 @@ namespace NsdInternalUtils
 			return receivedBytes;
 		}
 #endif // WITH_TESTS
-		const int receivedBytes = static_cast<int>(recvfrom(socket, reinterpret_cast<char*>(inOutBuffer.data()), static_cast<int>(inOutBuffer.size()), 0, &outNetAddress.addr, &outNetAddress.addrLen));
+		const int receivedBytes = static_cast<int>(recvfrom(
+			socket,
+			reinterpret_cast<char*>(inOutBuffer.data()),
+			static_cast<int>(inOutBuffer.size()),
+			0,
+			reinterpret_cast<sockaddr*>(&outNetAddress.addr),
+			&outNetAddress.addrLen
+		));
 
 #ifdef DEBUG_CHECKS
 		if constexpr (debugPrintBuffers)
@@ -368,11 +389,5 @@ namespace NsdInternalUtils
 		std::rotate(discoveredServersData.discoveryGenerations.data(), discoveredServersData.discoveryGenerations.data() + (discoveredServersData.discoveryGenerations.size() - 1), discoveredServersData.discoveryGenerations.data() + discoveredServersData.discoveryGenerations.size());
 		debugAssert(discoveredServersData.discoveryGenerations.size() < 8, "Too many servers during debugging ({}), is this a bug or are we stress-testing?", discoveredServersData.discoveryGenerations.size());
 		discoveredServersData.discoveryGenerations[0].clear();
-	}
-
-	int32_t getCurrentPeriodIndex()
-	{
-		const std::chrono::time_point now{ std::chrono::system_clock::now() };
-		return static_cast<int32_t>(std::chrono::duration_cast<std::chrono::days>(now.time_since_epoch()).count());
 	}
 } // namespace NsdInternalUtils

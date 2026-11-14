@@ -55,6 +55,14 @@ namespace Network
 		Udp
 	};
 
+	extern const int SOCKET_OPTION_REUSEADDR;
+#if !_WIN32
+	extern const int SOCKET_OPTION_REUSEPORT;
+#endif // !_WIN32
+	extern const int SOCKET_OPTION_BROADCAST;
+	extern const int SOCKET_OPTION_RCVTIMEO;
+	extern const int SOCKET_OPTION_SNDTIMEO;
+
 	std::variant<NetworkAddress, std::string> parseAddress(const void* addr, size_t addrLen);
 
 	void initSocketLib();

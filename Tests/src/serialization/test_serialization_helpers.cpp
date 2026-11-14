@@ -40,6 +40,29 @@ TEST(SerializationHelpers, SerializeDeserializeDifferentTypes)
 	}
 }
 
+TEST(SerializationHelpers, SerializeAndSkipDifferentTypes)
+{
+	std::array<std::byte, 1024> buffer{};
+
+	{
+		Serialization::GenericSerializationWrapper serializer{ buffer };
+		EXPECT_TRUE(serializer.writeByte(std::byte(0x25), "test byte"));
+		EXPECT_TRUE(serializer.writeUint32(100500, "test uint32"));
+		EXPECT_TRUE(serializer.writeUint64(std::numeric_limits<uint64_t>::max(), "test uint64"));
+		EXPECT_TRUE(serializer.writeShortString("blablabla", "test short string"));
+		EXPECT_TRUE(serializer.writeFixedData(vectorToArray<12>(hexToBytes("abc012678456987654321098")), "test fixed data"));
+	}
+
+	{
+		Serialization::GenericDeserializationWrapper deserializer{ buffer };
+		EXPECT_TRUE(deserializer.skipBytes(1 + 4 + 8));
+		EXPECT_TRUE(deserializer.skipShortString("test skip short string"));
+		std::array<std::byte, 12> resultFixedData{};
+		EXPECT_TRUE(deserializer.readFixedData(resultFixedData, "test fixed data"));
+		EXPECT_EQ(resultFixedData, vectorToArray<12>(hexToBytes("abc012678456987654321098")));
+	}
+}
+
 TEST(SerializationHelpers, GenericSerializationWrapper_WriteToBufferWithNoSpace_Fails)
 {
 	std::array<std::byte, 32> buffer{};
@@ -81,6 +104,9 @@ TEST(SerializationHelpers, GenericDeserializationWrapper_ReadFromBufferWithNoSpa
 	EXPECT_FALSE(deserializer.readShortString(resultShortString, "test short string"));
 	std::array<std::byte, 12> resultFixedData{};
 	EXPECT_FALSE(deserializer.readFixedData(resultFixedData, "test fixed data"));
+
+	EXPECT_FALSE(deserializer.skipBytes(1));
+	EXPECT_FALSE(deserializer.skipShortString("test skip short string"));
 
 	EXPECT_EQ(buffer, vectorToArray<32>(hexToBytes("0000000000000000000000000000000000000000000000000000000000000000")));
 }

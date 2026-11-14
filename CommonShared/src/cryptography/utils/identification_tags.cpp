@@ -5,9 +5,16 @@
 
 #include <array>
 
-namespace Cryptography
+namespace Cryptography::IdentificationTagsUtils
 {
-	uint64_t getSingleIdentificationTag(const Cryptography::HashResult& clientHash, uint32_t periodIndex, uint32_t tagIndexInPeriod)
+	HashResult generateIdentificationHash(const HashResult& handshakeHash, std::span<const std::byte> salt) noexcept
+	{
+		HashResult hmac;
+		HMAC_blake2b(handshakeHash, salt, hmac);
+		return hmac;
+	}
+
+	uint64_t generateSingleIdentificationTag(const Cryptography::HashResult& clientHash, uint32_t periodIndex, uint32_t tagIndexInPeriod) noexcept
 	{
 		std::array<std::byte, 8> mixedInData;
 		Serialization::writeUint32(std::span(mixedInData).subspan(0, 4), periodIndex);
@@ -18,4 +25,10 @@ namespace Cryptography
 		const size_t j = tagIndexInPeriod % IDENTIFICATION_TAGS_PER_HASH;
 		return Serialization::readUint64(std::span<const std::byte>(tempResult).subspan(j * IDENTIFICATION_TAG_LEN_BYTES, IDENTIFICATION_TAG_LEN_BYTES));
 	}
-} // namespace Cryptography
+
+	int32_t getCurrentDayIndex() noexcept
+	{
+		const std::chrono::time_point now{ std::chrono::system_clock::now() };
+		return static_cast<int32_t>(std::chrono::duration_cast<std::chrono::days>(now.time_since_epoch()).count());
+	}
+} // namespace Cryptography::IdentificationTagsUtils

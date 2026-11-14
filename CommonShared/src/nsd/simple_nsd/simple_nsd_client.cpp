@@ -52,10 +52,12 @@ namespace SimpleNsdClient
 		outPort = Serialization::readUint16(inOutBuffer[3], inOutBuffer[4]);
 		const uint16_t receivedChecksum = Serialization::readUint16(inOutBuffer[5 + extraDataLen], inOutBuffer[6 + extraDataLen]);
 
-		const uint16_t actualChecksum = NsdInternalUtils::checksum16v1(std::span(
-			inOutBuffer.data() + 3,
-			inOutBuffer.data() + (3 + 2 + extraDataLen)
-		));
+		const uint16_t actualChecksum = NsdInternalUtils::checksum16v1(
+			std::span(
+				inOutBuffer.data() + 3,
+				inOutBuffer.data() + (3 + 2 + extraDataLen)
+			)
+		);
 
 		if (receivedChecksum != actualChecksum) [[unlikely]]
 		{

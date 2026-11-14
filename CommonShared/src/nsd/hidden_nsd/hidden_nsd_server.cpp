@@ -8,7 +8,6 @@
 #include <format>
 
 #include "common_shared/cryptography/primitives/cipher_functions.h"
-#include "common_shared/cryptography/utils/identification_tags.h"
 #include "common_shared/debug/assert.h"
 #include "common_shared/network/utils.h"
 #include "common_shared/nsd/nsd_utils_internal.h"
@@ -16,75 +15,49 @@
 
 namespace HiddenNsdServer
 {
-	// we store the amount of tags that is enough to cover all possible requets during one time period
-	constexpr size_t TagsPerPeriod = 256;
-
 	struct ThrottledIp
 	{
 		std::array<std::byte, 17> binaryIp;
 		std::chrono::steady_clock::time_point throttleEnd;
 	};
 
-	using TagMap = Cryptography::IdentificationTagMap<TagsPerPeriod>;
-
-	static void processClientModificationRequests(MessagePipe& clientModificationRequests, std::vector<Cryptography::HashResult>& clientHashes, TagMap& tagMap, int32_t lastPeriodIndex, int32_t currentPeriodIndex, std::vector<size_t>& clientsToRemove) noexcept
+	static void processClientModificationRequests(ClientHashes& clientHashes, TagMap& tagMap, int32_t lastPeriodIndex, int32_t currentPeriodIndex, size_t numAddedClients, const std::vector<size_t>& clientsToRemove) noexcept
 	{
-		auto requests = clientModificationRequests.recvAllCurrent();
-		if (!requests.has_value())
+		debugAssert(numAddedClients <= clientHashes.size(), "Logical error, numAddedClients was incorrect: {} for clients {}", numAddedClients, clientHashes.size());
+		clientHashes.reserve(clientHashes.size() + numAddedClients);
+		if (numAddedClients > 0 && numAddedClients <= clientHashes.size())
 		{
-			return;
+			for (size_t i = clientHashes.size() - numAddedClients; i < clientHashes.size(); ++i)
+			{
+				Cryptography::HashResult& clientHash = clientHashes[i];
+				assertFatalRelease(clientHashes.size() < std::numeric_limits<uint32_t>::max(), "Too many potential NSD clients, possible logical error, terminating");
+
+				// we intentially don't populate periods that will be removed or added right away to not do double work
+				const int32_t firstIndexToAdd = currentPeriodIndex - 1;
+				const int32_t lastIndexToAdd = lastPeriodIndex + 1;
+				// it can be that we don't need to add anything, if we are going to regenerate the whole map anyway
+				if (firstIndexToAdd <= lastIndexToAdd)
+				{
+					tagMap.appendOneClientTagsForPeriods(clientHash, static_cast<uint32_t>(clientHashes.size() - 1), firstIndexToAdd, lastIndexToAdd);
+				}
+			}
 		}
 
-		for (ClientModification& modification : *requests)
+		for (size_t indexToRemove : clientsToRemove)
 		{
-			if (modification.command == ClientModification::Command::Add)
-			{
-				// don't add the same hash twice, even if we previously wanted to remove it
-				// we never expect the same client to be readded
-				if (auto it = std::find(clientHashes.begin(), clientHashes.end(), modification.clientHash); it == clientHashes.end())
-				{
-					clientHashes.push_back(std::move(modification.clientHash));
-					assertFatalRelease(clientHashes.size() < std::numeric_limits<uint32_t>::max(), "Too many potential NSD clients, possible logical error, terminating");
-
-					// we intentially don't populate periods that will be removed or added right away to not do double work
-					const int32_t firstIndexToAdd = currentPeriodIndex - 1;
-					const int32_t lastIndexToAdd = lastPeriodIndex + 1;
-					// it can be that we don't need to add anything, if we are going to regenerate the whole map anyway
-					if (firstIndexToAdd <= lastIndexToAdd)
-					{
-						tagMap.appendOneClientTagsForPeriods(clientHashes.back(), clientHashes.size() - 1, firstIndexToAdd, lastIndexToAdd);
-					}
-				}
-				else
-				{
-					reportDebugError("Trying to add a client twice to NSD");
-				}
-			}
-			else if (modification.command == ClientModification::Command::Remove)
-			{
-				if (auto it = std::find(clientHashes.begin(), clientHashes.end(), modification.clientHash); it != clientHashes.end())
-				{
-					const size_t clientIndexToRemove = std::distance(clientHashes.begin(), it);
-					if (std::find(clientsToRemove.begin(), clientsToRemove.end(), clientIndexToRemove) == clientsToRemove.end())
-					{
-						clientsToRemove.push_back(clientIndexToRemove);
-						tagMap.removeClientTags(static_cast<uint32_t>(clientIndexToRemove));
-					}
-				}
-				else
-				{
-					reportDebugError("Trying to remove a non-existing client from NSD");
-				}
-			}
+			// we only clear the tag map for now, the hash will be removed at the end of the period
+			tagMap.removeClientTags(static_cast<uint32_t>(indexToRemove));
 		}
 	}
 
-	static void applyPendingRemovals(std::vector<Cryptography::HashResult>& clientHashes, TagMap& tagMap, std::vector<size_t>& clientsToRemove) noexcept
+	static void applyPendingRemovals(ClientHashes& clientHashes, ClientHashIds& clientIds, TagMap& tagMap, std::vector<size_t>& clientsToRemove) noexcept
 	{
 		if (clientsToRemove.empty())
 		{
 			return;
 		}
+
+		assertFatalRelease(clientHashes.size() != clientIds.size(), "Logical error, these vectors should always have the same size");
 
 		std::sort(clientsToRemove.begin(), clientsToRemove.end());
 		size_t writeIdx = 0;
@@ -105,15 +78,17 @@ namespace HiddenNsdServer
 			{
 				// shift to the left, overriding previous element
 				clientHashes[writeIdx] = std::move(clientHashes[readIdx]);
+				clientIds[writeIdx] = std::move(clientIds[readIdx]);
 			}
 			++writeIdx;
 		}
 
 		clientHashes.resize(writeIdx);
+		clientIds.resize(writeIdx);
 
-		// shift the client indexes in the map
+		// shift the client indices in the map
 		tagMap.forEachPayload([&indexRedirectors](auto& payload) {
-			payload.clientIndex = indexRedirectors[payload.clientIndex];
+			payload.clientIndex = static_cast<uint32_t>(indexRedirectors[payload.clientIndex]);
 		});
 
 		clientsToRemove.clear();
@@ -129,20 +104,27 @@ namespace HiddenNsdServer
 		return Cryptography::encrypt_chacha20poly1305(cipherKey, nonce, {}, plaintext, outCiphertext);
 	}
 
-	[[nodiscard]] static std::array<std::byte, 17> readBinaryIp(const sockaddr& clientAddr) noexcept
+	[[nodiscard]] static std::array<std::byte, 17> readBinaryIp(const sockaddr_storage& clientAddr, socklen_t addrLen) noexcept
 	{
 		std::array<std::byte, 17> result{};
-		if (clientAddr.sa_family == AF_INET)
+
+		if (clientAddr.ss_family == AF_INET)
 		{
-			result[0] = std::byte(1);
-			const auto* ipv4 = reinterpret_cast<const sockaddr_in*>(&clientAddr);
-			std::memcpy(result.data() + 1, &ipv4->sin_addr, 4);
+			if (addrLen >= static_cast<socklen_t>(sizeof(sockaddr_in)))
+			{
+				result[0] = std::byte(1);
+				const auto* ipv4 = reinterpret_cast<const sockaddr_in*>(&clientAddr);
+				std::memcpy(&result[1], &ipv4->sin_addr, 4);
+			}
 		}
-		else if (clientAddr.sa_family == AF_INET6)
+		else if (clientAddr.ss_family == AF_INET6)
 		{
-			result[0] = std::byte(2);
-			const auto* ipv6 = reinterpret_cast<const sockaddr_in6*>(&clientAddr);
-			std::memcpy(result.data() + 1, &ipv6->sin6_addr, 16);
+			if (addrLen >= static_cast<socklen_t>(sizeof(sockaddr_in6)))
+			{
+				result[0] = std::byte(2);
+				const auto* ipv6 = reinterpret_cast<const sockaddr_in6*>(&clientAddr);
+				std::memcpy(&result[1], &ipv6->sin6_addr, 16);
+			}
 		}
 		return result;
 	}
@@ -175,18 +157,20 @@ namespace HiddenNsdServer
 		return isThrottled;
 	}
 
-	static void updateClientAndPeriodData(int32_t& lastPeriodIndex, MessagePipe& clientModificationRequests, std::vector<Cryptography::HashResult>& clientHashes, TagMap& tagMap, std::vector<size_t>& clientsToRemove) noexcept
+	static void updateClientAndPeriodData(int32_t& lastPeriodIndex, const UpdateHashesFn& updateHashesFn, ClientHashes& clientHashes, ClientHashIds& clientIds, TagMap& tagMap, std::vector<size_t>& clientsToRemove) noexcept
 	{
 		// we never move back in time, if the clocks drift back we keep the last used period
 		// periods are also measured in days or at least hours, so 32bit overflow is not
 		// something we should be concerned about
-		const int32_t currentPeriodIndex = std::max(NsdInternalUtils::getCurrentPeriodIndex(), lastPeriodIndex);
+		const int32_t currentPeriodIndex = std::max(Cryptography::IdentificationTagsUtils::getCurrentDayIndex(), lastPeriodIndex);
 
-		processClientModificationRequests(clientModificationRequests, clientHashes, tagMap, lastPeriodIndex, currentPeriodIndex, clientsToRemove);
+		size_t numAddedClients = 0;
+		updateHashesFn(clientHashes, clientIds, numAddedClients, clientsToRemove);
+		processClientModificationRequests(clientHashes, tagMap, lastPeriodIndex, currentPeriodIndex, numAddedClients, clientsToRemove);
 
 		if (currentPeriodIndex > lastPeriodIndex)
 		{
-			applyPendingRemovals(clientHashes, tagMap, clientsToRemove);
+			applyPendingRemovals(clientHashes, clientIds, tagMap, clientsToRemove);
 			tagMap.updateTagMap(clientHashes, lastPeriodIndex, currentPeriodIndex);
 			lastPeriodIndex = currentPeriodIndex;
 		}
@@ -199,8 +183,7 @@ namespace HiddenNsdServer
 		const uint16_t port,
 		const uint16_t advertizedPort,
 		std::span<const std::byte> extraData,
-		std::vector<Cryptography::HashResult>&& inClientHashes,
-		MessagePipe& clientModificationRequests
+		const UpdateHashesFn& updateHashesFn
 	) noexcept
 	{
 		if (auto error = NsdInternalUtils::bindNsdServerSocket(socket, interfaceAddressStr, addressType, port); error.has_value())
@@ -228,13 +211,15 @@ namespace HiddenNsdServer
 			return SetupError{ std::format("The actual size of responsePlaintext is {} bytes, expected {} bytes.", responsePlaintext.size(), responsePlaintextSize) };
 		}
 
-		std::vector<Cryptography::HashResult> clientHashes = std::move(inClientHashes);
+		std::vector<Cryptography::HashResult> clientHashes;
+		std::vector<uint32_t> clientIds;
+		std::vector<size_t> clientsToRemove;
+		size_t initialClientsNum;
+		updateHashesFn(clientHashes, clientIds, initialClientsNum, clientsToRemove);
 
 		TagMap tagMap;
-		int32_t lastPeriodIndex = NsdInternalUtils::getCurrentPeriodIndex();
+		int32_t lastPeriodIndex = Cryptography::IdentificationTagsUtils::getCurrentDayIndex();
 		tagMap.updateTagMap(clientHashes, 0, lastPeriodIndex);
-
-		std::vector<size_t> clientsToRemove;
 
 		const int expectedPacketSize = 8;
 
@@ -246,7 +231,7 @@ namespace HiddenNsdServer
 		NsdInternalUtils::NetworkAddressKey clientAddr;
 		while (true)
 		{
-			clientAddr.addrLen = sizeof(NsdInternalUtils::NetworkAddressKey::addr);
+			clientAddr.addrLen = sizeof(clientAddr.addr);
 			const int messageLength = NsdInternalUtils::receiveNsdRequest(socket, buf, clientAddr);
 			if (messageLength == -1)
 			{
@@ -259,38 +244,48 @@ namespace HiddenNsdServer
 				continue;
 			}
 
-			updateClientAndPeriodData(lastPeriodIndex, clientModificationRequests, clientHashes, tagMap, clientsToRemove);
+			updateClientAndPeriodData(lastPeriodIndex, updateHashesFn, clientHashes, clientIds, tagMap, clientsToRemove);
 
-			if (messageLength != expectedPacketSize)
+			if (messageLength % expectedPacketSize != 0)
 			{
 				continue;
 			}
 
 			const std::chrono::steady_clock::time_point timeNow = std::chrono::steady_clock::now();
-			const std::array<std::byte, 17> binaryIp = readBinaryIp(clientAddr.addr);
+			const std::array<std::byte, 17> binaryIp = readBinaryIp(clientAddr.addr, clientAddr.addrLen);
 			if (isIpThrottledCheckAndUpdate(binaryIp, throttledIps, timeNow))
 			{
 				continue;
 			}
 
-			const uint64_t tag = Serialization::readUint64(std::as_bytes(std::span(buf)).subspan(0, expectedPacketSize));
-
-			std::optional<TagMap::TagPayload> tagPayload = tagMap.consumeTag(tag);
-
-			if (!tagPayload.has_value())
+			bool hadMatch = false;
+			for (size_t i = 0; i < static_cast<size_t>(messageLength); i += expectedPacketSize)
 			{
-				throttledIps.emplace_back(binaryIp, timeNow + std::chrono::seconds(3));
-				continue;
+				const uint64_t tag = Serialization::readUint64(std::as_bytes(std::span(buf)).subspan(i, expectedPacketSize));
+
+				std::optional<TagMap::TagPayload> tagPayload = tagMap.consumeTag(tag);
+
+				if (tagPayload.has_value())
+				{
+					hadMatch = true;
+					if (Cryptography::EncryptResult result = composeAnswer(*tagPayload, clientHashes, responsePlaintext, std::span(buf).subspan(0, responsePlaintextSize + Cryptography::CipherAuthDataSize)); result != Cryptography::EncryptResult::Success)
+					{
+						break;
+					}
+
+					if (const int sentSize = NsdInternalUtils::sendNsdAnswer(socket, std::span(buf).subspan(0, responsePlaintextSize + Cryptography::CipherAuthDataSize), clientAddr); sentSize == -1)
+					{
+						return SocketError{ std::format("Failed to send response to UDP socket, error code {}.", Network::getLastSocketError()) };
+					}
+
+					break;
+				}
 			}
 
-			if (Cryptography::EncryptResult result = composeAnswer(*tagPayload, clientHashes, responsePlaintext, std::span(buf).subspan(0, responsePlaintextSize + Cryptography::CipherAuthDataSize)); result != Cryptography::EncryptResult::Success)
+			if (!hadMatch)
 			{
-				continue;
-			}
-
-			if (const int sentSize = NsdInternalUtils::sendNsdAnswer(socket, std::span(buf).subspan(0, responsePlaintextSize + Cryptography::CipherAuthDataSize), clientAddr); sentSize == -1)
-			{
-				return SocketError{ std::format("Failed to send response to UDP socket, error code {}.", Network::getLastSocketError()) };
+				// reduce the potential load on the server and the guessing speed
+				throttledIps.emplace_back(binaryIp, timeNow + std::chrono::milliseconds(800));
 			}
 		}
 	}

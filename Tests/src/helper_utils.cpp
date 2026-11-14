@@ -101,7 +101,7 @@ void assertSpansEqual(std::span<const std::byte> span1, std::span<const std::byt
 		{
 			if (span1[i] != span2[i])
 			{
-				FAIL() << std::format("Two spans are not equal, first diverged byte at index {}", i);
+				ADD_FAILURE() << std::format("Two spans are not equal, first diverged byte at index {}", i);
 				break;
 			}
 		}

@@ -6,6 +6,7 @@
 #include <gtest/gtest.h>
 
 #include "common_shared/debug/log.h"
+#include "common_shared/network/utils.h"
 
 using ::testing::EmptyTestEventListener;
 using ::testing::Environment;
@@ -36,12 +37,14 @@ class TestInfoLogger final : public EmptyTestEventListener
 
 void SGTestingEnvironment::SetUp()
 {
+	Network::initSocketLib();
 	AssertHelper::enableAsserts();
 	initSessionRandomSeed();
 }
 
 void SGTestingEnvironment::TearDown()
 {
+	Network::shutdownSocketLib();
 }
 
 // Called before a test starts.

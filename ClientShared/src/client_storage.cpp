@@ -21,6 +21,7 @@ namespace ClientStorageInternal
 	static constexpr std::zstring_view SentFilesDatabaseName = "sent_files";
 	static constexpr std::zstring_view PartiallySentDatabaseName = "part_sent";
 	static constexpr std::zstring_view ActivityJournalDatabaseName = "activity";
+	static constexpr std::zstring_view IdentificationTagIndicesDatabaseName = "tagIndices";
 
 	static constexpr size_t ActivityRecordValueStaticDataSize = 22;
 
@@ -29,7 +30,7 @@ namespace ClientStorageInternal
 		std::vector<ClientSentFilesStorage::ActivityJournalRecord> result;
 		if (beginIdx > endIdx) [[unlikely]]
 		{
-			reportReleaseError("Min and max indexes are in the wrong order. beginIdx={} endIdx={}", beginIdx, endIdx);
+			reportReleaseError("Min and max indices are in the wrong order. beginIdx={} endIdx={}", beginIdx, endIdx);
 			return result;
 		}
 
@@ -94,7 +95,7 @@ namespace ClientStorageInternal
 			result.push_back(std::move(record));
 
 			++index;
-			if (index >= endIdx) // normal exit condition, assumes indexes don't have gaps
+			if (index >= endIdx) // normal exit condition, assumes indices don't have gaps
 			{
 				break;
 			}
@@ -165,7 +166,7 @@ bool ClientConfigStorage::addConfirmedServerBinding(const ServerId& serverId, co
 	}
 
 	// find first free
-	std::array<bool, 256> takenIndexes = {};
+	std::array<bool, 256> takenIndices = {};
 	Lmdb::Result<Lmdb::ReadOnlyCursor> cursor = Lmdb::ReadOnlyCursor::open(wrapper->transaction, wrapper->database);
 	if (cursor.isError()) [[unlikely]]
 	{
@@ -185,7 +186,7 @@ bool ClientConfigStorage::addConfirmedServerBinding(const ServerId& serverId, co
 		{
 			if (view->value.size() > 1)
 			{
-				takenIndexes[static_cast<size_t>(view->value[0])] = true;
+				takenIndices[static_cast<size_t>(view->value[0])] = true;
 			}
 
 			if (cursor->next() != Lmdb::ReturnCode::Success) [[unlikely]]
@@ -199,7 +200,7 @@ bool ClientConfigStorage::addConfirmedServerBinding(const ServerId& serverId, co
 	std::optional<uint8_t> firstFreeIndex{};
 	for (size_t i = 0; i < 256; ++i)
 	{
-		if (takenIndexes[i] == false)
+		if (takenIndices[i] == false)
 		{
 			firstFreeIndex = static_cast<uint8_t>(i);
 			break;
@@ -208,17 +209,27 @@ bool ClientConfigStorage::addConfirmedServerBinding(const ServerId& serverId, co
 
 	if (!firstFreeIndex.has_value())
 	{
-		reportDebugError("All 256 server indexes are taken, can't pair more servers");
+		reportDebugError("All 256 server indices are taken, can't pair more servers");
 		return false;
 	}
 
 	std::vector<std::byte> value;
-	value.resize(1 + 1 + binding.serverName.size() + binding.connectionId.size() + binding.remoteStaticKey.size() + binding.staticKeys.publicKey.size() + binding.staticKeys.secretKey.size());
+	value.resize(
+		1 // serverIdx
+		+ 1 // serverName length
+		+ binding.serverName.size()
+		+ binding.nsdIdentificationHash.size()
+		+ binding.encryptedRequestIdentificationHash.size()
+		+ binding.remoteStaticKey.size()
+		+ binding.staticKeys.publicKey.size()
+		+ binding.staticKeys.secretKey.size()
+	);
 	Serialization::GenericSerializationWrapper serializer{ value };
 
 	if (!serializer.writeUint8(*firstFreeIndex, "serverIdx")) { return false; }
 	if (!serializer.writeShortString(binding.serverName, "serverName")) { return false; }
-	if (!serializer.writeFixedData(binding.connectionId, "connectionId")) { return false; }
+	if (!serializer.writeFixedData(binding.nsdIdentificationHash, "nsdIdentificationHash")) { return false; }
+	if (!serializer.writeFixedData(binding.encryptedRequestIdentificationHash, "encryptedRequestIdentificationHash")) { return false; }
 	if (!serializer.writeFixedData(binding.remoteStaticKey, "remoteStaticKey")) { return false; }
 	if (!serializer.writeFixedData(binding.staticKeys.publicKey, "publicKey")) { return false; }
 	if (!serializer.writeFixedData(binding.staticKeys.secretKey, "secretKey")) { return false; }
@@ -295,7 +306,8 @@ std::optional<ClientConfigStorage::ServerBinding> ClientConfigStorage::getConfir
 
 	if (!deserializer.readUint8(result.serverIdx, "serverIdx")) { return std::nullopt; }
 	if (!deserializer.readShortString(result.serverName, "serverName")) { return std::nullopt; }
-	if (!deserializer.readFixedData(result.connectionId, "connectionId")) { return std::nullopt; }
+	if (!deserializer.readFixedData(result.nsdIdentificationHash, "nsdIdentificationHash")) { return std::nullopt; }
+	if (!deserializer.readFixedData(result.encryptedRequestIdentificationHash, "encryptedRequestIdentificationHash")) { return std::nullopt; }
 	if (!deserializer.readFixedData(result.remoteStaticKey, "remoteStaticKey")) { return std::nullopt; }
 	if (!deserializer.readFixedData(result.staticKeys.publicKey, "publicKey")) { return std::nullopt; }
 	if (!deserializer.readFixedData(result.staticKeys.secretKey, "secretKey")) { return std::nullopt; }
@@ -326,6 +338,72 @@ bool ClientConfigStorage::hasConfirmedServerBinding(const ServerId& serverId) no
 		return false;
 	}
 	return isFound;
+}
+
+void ClientConfigStorage::getAllIdentificationHashes(IdentificationTagType tagType, std::vector<ServerIdentificationHashData>& result)
+{
+	result.clear();
+
+	Lmdb::Result<Lmdb::ReadOnlySingleDbWrapper> wrapper = Lmdb::openReadOnlySingleDbTransaction(mEnvironment, ClientStorageInternal::ConfirmedDatabaseName);
+	if (wrapper.isError())
+	{
+		return;
+	}
+
+	Lmdb::Result<Lmdb::ReadOnlyCursor> cursor = Lmdb::ReadOnlyCursor::open(wrapper->transaction, wrapper->database);
+	if (cursor.isError())
+	{
+		return;
+	}
+
+	Lmdb::ReturnCode returnCode = cursor->first();
+	if (returnCode == Lmdb::ReturnCode::Success)
+	{
+		Lmdb::Result<Lmdb::CursorDataView> view = cursor->viewCurrent();
+		while (view.isValid())
+		{
+			Serialization::GenericDeserializationWrapper deserializer{ view->value };
+
+			std::byte serverIdx;
+			if (!deserializer.readByte(serverIdx, "serverIdx")) { break; }
+
+			result.emplace_back();
+			result.back().serverIdx = static_cast<uint8_t>(serverIdx);
+
+			if (!deserializer.skipShortString("serverName"))
+			{
+				result.pop_back();
+				break;
+			}
+			if (tagType == IdentificationTagType::Nsd)
+			{
+				if (!deserializer.readFixedData(result.back().hash, "nsdIdentificationHash"))
+				{
+					result.pop_back();
+					break;
+				}
+			}
+			else
+			{
+				if (!deserializer.skipBytes(Cryptography::HASHLEN))
+				{
+					result.pop_back();
+					break;
+				}
+				if (!deserializer.readFixedData(result.back().hash, "encryptedRequestIdentificationHash"))
+				{
+					result.pop_back();
+					break;
+				}
+			}
+
+			if (cursor->next() != Lmdb::ReturnCode::Success) [[unlikely]]
+			{
+				break;
+			}
+			view = cursor->viewCurrent();
+		}
+	}
 }
 
 ClientConfigStorage::ClientConfigStorage(Lmdb::ReadWriteEnvironment&& environment) noexcept
@@ -674,96 +752,104 @@ void ClientSentFilesStorage::deleteServer(uint8_t serverIdx) noexcept
 	}
 
 	Lmdb::Result<Lmdb::ReadWriteDatabase> sentFilesDb = Lmdb::ReadWriteDatabase::open(*transaction, ClientStorageInternal::SentFilesDatabaseName);
-	if (sentFilesDb.isError()) [[unlikely]]
+	if (sentFilesDb.isValid()) [[likely]]
 	{
-		return;
-	}
-
-	if (serverIdx >= 64) [[unlikely]]
-	{
-		reportDebugError("We got server ID that doesn't fit into 64 byte bitset, don't filter out the sent files");
-		return;
-	}
-	const uint64_t serverBitMaskInt = uint64_t(1) << serverIdx;
-
-	Lmdb::Result<Lmdb::ReadWriteCursor> sentFilesCursor = Lmdb::ReadWriteCursor::open(*transaction, *sentFilesDb);
-	if (sentFilesCursor.isError()) [[unlikely]]
-	{
-		return;
-	}
-
-	if (sentFilesCursor->first() == Lmdb::ReturnCode::Success)
-	{
-		Lmdb::Result<Lmdb::CursorDataView> view = sentFilesCursor->viewCurrent();
-		while (view.isValid())
+		if (serverIdx < 64) [[likely]]
 		{
-			uint64_t bits;
-			if (view->value.size() != sizeof(bits)) [[unlikely]]
-			{
-				break;
-			}
-			std::memcpy(&bits, view->value.data(), sizeof(bits));
+			const uint64_t serverBitMaskInt = uint64_t(1) << serverIdx;
 
-			const uint64_t remainingBits = bits & (~serverBitMaskInt);
-			// if this is the last set bit
-			if (remainingBits == 0)
+			Lmdb::Result<Lmdb::ReadWriteCursor> sentFilesCursor = Lmdb::ReadWriteCursor::open(*transaction, *sentFilesDb);
+			if (sentFilesCursor.isValid()) [[likely]]
 			{
-				if (sentFilesCursor->deleteCurrent() != Lmdb::ReturnCode::Success) [[unlikely]]
+				if (sentFilesCursor->first() == Lmdb::ReturnCode::Success)
 				{
-					break;
+					Lmdb::Result<Lmdb::CursorDataView> view = sentFilesCursor->viewCurrent();
+					while (view.isValid())
+					{
+						uint64_t bits;
+						if (view->value.size() != sizeof(bits)) [[unlikely]]
+						{
+							break;
+						}
+						std::memcpy(&bits, view->value.data(), sizeof(bits));
+
+						const uint64_t remainingBits = bits & (~serverBitMaskInt);
+						// if this is the last set bit
+						if (remainingBits == 0)
+						{
+							if (sentFilesCursor->deleteCurrent() != Lmdb::ReturnCode::Success) [[unlikely]]
+							{
+								break;
+							}
+						}
+						else if ((bits | serverBitMaskInt) != 0)
+						{
+							const std::array<std::byte, 8> newValue = std::bit_cast<std::array<std::byte, 8>>(remainingBits);
+							if (sentFilesCursor->setValue(view->key, newValue) != Lmdb::ReturnCode::Success) [[unlikely]]
+							{
+								break;
+							}
+						}
+
+						if (sentFilesCursor->next() != Lmdb::ReturnCode::Success) [[unlikely]]
+						{
+							break;
+						}
+						view = sentFilesCursor->viewCurrent();
+					}
 				}
 			}
-			else if ((bits | serverBitMaskInt) != 0)
-			{
-				const std::array<std::byte, 8> newValue = std::bit_cast<std::array<std::byte, 8>>(remainingBits);
-				if (sentFilesCursor->setValue(view->key, newValue) != Lmdb::ReturnCode::Success) [[unlikely]]
-				{
-					break;
-				}
-			}
-
-			if (sentFilesCursor->next() != Lmdb::ReturnCode::Success) [[unlikely]]
-			{
-				break;
-			}
-			view = sentFilesCursor->viewCurrent();
+		}
+		else
+		{
+			reportDebugError("We got server ID that doesn't fit into 64 bit bitset, don't filter out the sent files");
 		}
 	}
 
 	Lmdb::Result<Lmdb::ReadWriteDatabase> partiallySentDb = Lmdb::ReadWriteDatabase::open(*transaction, ClientStorageInternal::PartiallySentDatabaseName);
-	if (partiallySentDb.isError()) [[unlikely]]
+	if (partiallySentDb.isValid()) [[likely]]
 	{
-		return;
-	}
-
-	Lmdb::Result<Lmdb::ReadWriteCursor> partiallySentCursor = Lmdb::ReadWriteCursor::open(*transaction, *partiallySentDb);
-	if (partiallySentCursor.isError()) [[unlikely]]
-	{
-		return;
-	}
-
-	if (partiallySentCursor->first() == Lmdb::ReturnCode::Success)
-	{
-		Lmdb::Result<Lmdb::CursorDataView> view = partiallySentCursor->viewCurrent();
-		while (view.isValid())
+		Lmdb::Result<Lmdb::ReadWriteCursor> partiallySentCursor = Lmdb::ReadWriteCursor::open(*transaction, *partiallySentDb);
+		if (partiallySentCursor.isValid()) [[likely]]
 		{
-			if (view->key.size() < 1 || view->key[0] == std::byte(serverIdx))
+			if (partiallySentCursor->first() == Lmdb::ReturnCode::Success)
 			{
-				if (partiallySentCursor->deleteCurrent() != Lmdb::ReturnCode::Success) [[unlikely]]
+				Lmdb::Result<Lmdb::CursorDataView> view = partiallySentCursor->viewCurrent();
+				while (view.isValid())
 				{
-					break;
+					if (view->key.size() < 1 || view->key[0] == std::byte(serverIdx))
+					{
+						if (partiallySentCursor->deleteCurrent() != Lmdb::ReturnCode::Success) [[unlikely]]
+						{
+							break;
+						}
+					}
+
+					if (partiallySentCursor->next() != Lmdb::ReturnCode::Success) [[unlikely]]
+					{
+						break;
+					}
+					view = partiallySentCursor->viewCurrent();
 				}
 			}
-
-			if (partiallySentCursor->next() != Lmdb::ReturnCode::Success) [[unlikely]]
-			{
-				break;
-			}
-			view = partiallySentCursor->viewCurrent();
 		}
 	}
 
-	const Lmdb::ReturnCode returnCode = Lmdb::commitTransaction(std::move(*transaction), std::move(*sentFilesCursor), std::move(*partiallySentCursor));
+	Lmdb::Result<Lmdb::ReadWriteDatabase> identificationTagsDb = Lmdb::ReadWriteDatabase::open(*transaction, ClientStorageInternal::IdentificationTagIndicesDatabaseName);
+	if (identificationTagsDb.isValid()) [[likely]]
+	{
+		std::array<std::byte, 2> key;
+
+		key[0] = static_cast<std::byte>(serverIdx);
+		key[1] = static_cast<std::byte>(ClientConfigStorage::IdentificationTagType::Nsd);
+		[[maybe_unused]] Lmdb::ReturnCode returnCode1 = identificationTagsDb->deleteKey(key);
+
+		key[0] = static_cast<std::byte>(serverIdx);
+		key[1] = static_cast<std::byte>(ClientConfigStorage::IdentificationTagType::EncryptedRequest);
+		[[maybe_unused]] Lmdb::ReturnCode returnCode2 = identificationTagsDb->deleteKey(key);
+	}
+
+	const Lmdb::ReturnCode returnCode = Lmdb::commitTransactionNoCursors(std::move(*transaction));
 	if (returnCode != Lmdb::ReturnCode::Success)
 	{
 		return;
@@ -945,6 +1031,120 @@ std::vector<ClientSentFilesStorage::ActivityJournalRecord> ClientSentFilesStorag
 	}
 
 	return ClientStorageInternal::readActivityJournalRecords(*cursor, beginIdx, endIdx);
+}
+
+std::optional<uint32_t> ClientSentFilesStorage::consumeNextIdentificationKeyIndicesInPeriod(uint8_t serverIdx, ClientConfigStorage::IdentificationTagType tagType, uint32_t currentPeriodIndex, uint32_t count) noexcept
+{
+	if (count < 1)
+	{
+		return std::nullopt;
+	}
+
+	Lmdb::Result<Lmdb::ReadWriteSingleDbWrapper> wrapper = Lmdb::openReadWriteSingleDbTransaction(mEnvironment, ClientStorageInternal::IdentificationTagIndicesDatabaseName);
+	if (wrapper.isError()) [[unlikely]]
+	{
+		return std::nullopt;
+	}
+
+	std::array<std::byte, 2> key;
+	key[0] = static_cast<std::byte>(serverIdx);
+	key[1] = static_cast<std::byte>(tagType);
+	std::array<std::byte, sizeof(uint32_t) + sizeof(uint32_t) * 3> value;
+	size_t bytesRead = 0;
+	Lmdb::ReturnCode returnCode = wrapper->database.get(key, value, bytesRead);
+	if (returnCode != Lmdb::ReturnCode::Success && returnCode != Lmdb::ReturnCode::NotFound)
+	{
+		return std::nullopt;
+	}
+
+	std::array<uint32_t, 3> periodIndices = {};
+	uint32_t resultIndex = 0;
+	if (returnCode != Lmdb::ReturnCode::NotFound)
+	{
+		if (bytesRead != value.size())
+		{
+			return std::nullopt;
+		}
+
+		Serialization::GenericDeserializationWrapper deserializer{ value };
+
+		uint32_t lastCurrentPeriod = 0;
+		if (!deserializer.readUint32(lastCurrentPeriod, "currentPeriod")) { return std::nullopt; }
+		if (!deserializer.readUint32(periodIndices[0], "previousPeriodIndex")) { return std::nullopt; }
+		if (!deserializer.readUint32(periodIndices[1], "currentPeriodIndex")) { return std::nullopt; }
+		if (!deserializer.readUint32(periodIndices[2], "nextPeriodIndex")) { return std::nullopt; }
+
+		if (deserializer.getBytesRead() != value.size()) [[unlikely]]
+		{
+			reportReleaseError("Deserialization of identification tag indices read incorrect number of bytes: got {}, read {}", value.size(), deserializer.getBytesRead());
+			return std::nullopt;
+		}
+
+		if (currentPeriodIndex != lastCurrentPeriod)
+		{
+			if (currentPeriodIndex > lastCurrentPeriod)
+			{
+				const size_t shiftLeft = (currentPeriodIndex - lastCurrentPeriod);
+
+				if (shiftLeft > 2)
+				{
+					periodIndices = {};
+				}
+				else
+				{
+					std::fill(periodIndices.begin(), periodIndices.begin() + shiftLeft, uint32_t(0));
+					std::rotate(periodIndices.begin(), periodIndices.begin() + shiftLeft, periodIndices.end());
+				}
+			}
+			else
+			{
+				const size_t shiftRight = (lastCurrentPeriod - currentPeriodIndex);
+
+				if (shiftRight > 2)
+				{
+					periodIndices = {};
+				}
+				else
+				{
+					std::fill(periodIndices.begin() + (periodIndices.size() - shiftRight), periodIndices.end(), uint32_t(0));
+					std::rotate(periodIndices.begin(), periodIndices.begin() + (periodIndices.size() - shiftRight), periodIndices.end());
+				}
+			}
+		}
+	}
+
+	// check for unsigned overflow
+	if (periodIndices[1] + count < count)
+	{
+		reportDebugError("We have overflown possible indices for a period, this is probably a logical error");
+		return std::nullopt;
+	}
+
+	resultIndex = periodIndices[1];
+	periodIndices[1] += count;
+
+	Serialization::GenericSerializationWrapper serializer{ value };
+
+	if (!serializer.writeUint32(currentPeriodIndex, "currentPeriod")) { return std::nullopt; }
+	if (!serializer.writeUint32(periodIndices[0], "previousPeriodIndex")) { return std::nullopt; }
+	if (!serializer.writeUint32(periodIndices[1], "currentPeriodIndex")) { return std::nullopt; }
+	if (!serializer.writeUint32(periodIndices[2], "nextPeriodIndex")) { return std::nullopt; }
+	assertFatalRelease(serializer.getBytesWritten() == value.size(), "Logical error, serialization of confirmed binding leaves not filled bytes, buffer size: {} written: {}", value.size(), serializer.getBytesWritten());
+
+	returnCode = wrapper->database.put(key, value);
+	if (returnCode != Lmdb::ReturnCode::Success) [[unlikely]]
+	{
+		return std::nullopt;
+	}
+
+	returnCode = wrapper->commitTransactionNoCursors();
+	if (returnCode != Lmdb::ReturnCode::Success) [[unlikely]]
+	{
+		return std::nullopt;
+	}
+
+	// we only return the value if we properly consumed it (have written the increased value to the DB)
+	return resultIndex;
 }
 
 ClientSentFilesStorage::ClientSentFilesStorage(Lmdb::ReadWriteEnvironment&& environment) noexcept

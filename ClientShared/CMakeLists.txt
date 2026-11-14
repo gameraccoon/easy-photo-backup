@@ -27,11 +27,12 @@ target_sources(ClientShared
 		${CLIENT_SHARED_SRC_DIR}/client_storage.cpp
 		${CLIENT_SHARED_SRC_DIR}/file_send_helpers.cpp
 		${CLIENT_SHARED_SRC_DIR}/file_transfer_send_logic.cpp
+		${CLIENT_SHARED_SRC_DIR}/hidden_nsd_client_wrapper.cpp
 		${CLIENT_SHARED_SRC_DIR}/requests.cpp
 		${CLIENT_SHARED_SRC_DIR}/pairing_interactive_request.cpp
 		${CLIENT_SHARED_SRC_DIR}/pairing_helpers.cpp
 		${CLIENT_SHARED_SRC_DIR}/send_files_interactive_request.cpp
-		${CLIENT_SHARED_SRC_DIR}/server_discovery_client.cpp
+		${CLIENT_SHARED_SRC_DIR}/simple_nsd_client_wrapper.cpp
 )
 
 target_link_libraries(ClientShared

@@ -12,10 +12,7 @@ namespace RequestAnswers
 {
 	using namespace Protocol::RequestAnswers;
 
-	using RequestAnswer = std::variant<
-		UnsupportedProtocolVersion,
-		GetProtocolVersion,
-		GetServerName>;
+	using RequestAnswer = std::variant<UnsupportedProtocolVersion>;
 
 	std::optional<std::string> sendRequestAnswer(Network::RawSocket socket, RequestAnswer&& requestAnswer);
 } // namespace RequestAnswers

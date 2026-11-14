@@ -14,5 +14,13 @@ class ClientSentFilesStorage;
 
 namespace Requests
 {
-	RequestAnswers::RequestAnswer sendAndProcessSendFilesInteractiveRequest(Network::RawSocket socket, ClientSentFilesStorage& storageSentFiles, const ClientConfigStorage::ServerBinding& serverBinding, std::vector<std::filesystem::path>&& files, const std::vector<uint64_t>& previouslySentBytes, const std::filesystem::path& commonRoot) noexcept;
+	RequestAnswers::RequestAnswer sendAndProcessSendFilesInteractiveRequest(
+		Network::RawSocket socket,
+		const uint64_t identificationTag,
+		ClientSentFilesStorage& storageSentFiles,
+		const ClientConfigStorage::ServerBinding& serverBinding,
+		std::vector<std::filesystem::path>&& files,
+		const std::vector<uint64_t>& previouslySentBytes,
+		const std::filesystem::path& commonRoot
+	) noexcept;
 }

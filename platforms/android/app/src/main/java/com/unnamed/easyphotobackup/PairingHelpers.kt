@@ -1,12 +1,12 @@
 package com.unnamed.easyphotobackup
 
 object PairingHelpers {
-    private external fun requestServerNameNative(serverInfoHandle: Long): String?
     private external fun exchangePairingInformationWithServerNative(serverInfoHandle: Long): Long
     private external fun approveServerNative(
         clientConfigStorageHandle: Long,
         serverInfoHandle: Long,
-        pendingBindingHandle: Long
+        pendingBindingHandle: Long,
+        serverName: String
     ): String?
     private external fun removePairedServerNative(
         clientConfigStorageHandle: Long,
@@ -17,6 +17,10 @@ object PairingHelpers {
         clientConfigStorageHandle: Long,
         serverInfoHandle: Long
     ): Boolean
+    private external fun getServerNameNative(
+        clientConfigStorageHandle: Long,
+        serverInfoHandle: Long
+    ): String?
 
     fun exchangePairingInformationWithServer(serverInfo: ServerConnectionInfo): PendingServerBinding? {
         val handle = exchangePairingInformationWithServerNative(serverInfo.getNativeHandle())
@@ -27,19 +31,17 @@ object PairingHelpers {
         return null
     }
 
-    fun requestServerName(serverInfo: ServerConnectionInfo): String? {
-        return requestServerNameNative(serverInfo.getNativeHandle())
-    }
-
     fun approveServer(
         storage: ClientConfigStorage,
         serverInfo: ServerConnectionInfo,
-        pendingBinding: PendingServerBinding
+        pendingBinding: PendingServerBinding,
+        serverName: String
     ) : String? {
         return approveServerNative(
             storage.getNativeHandle(),
             serverInfo.getNativeHandle(),
-            pendingBinding.getNativeHandle()
+            pendingBinding.getNativeHandle(),
+            serverName
         )
     }
 
@@ -54,6 +56,13 @@ object PairingHelpers {
 
     fun isServerPaired(storage: ClientConfigStorage, serverInfo: ServerConnectionInfo): Boolean {
         return isServerPairedNative(
+            storage.getNativeHandle(),
+            serverInfo.getNativeHandle()
+        )
+    }
+
+    fun getServerName(storage: ClientConfigStorage, serverInfo: ServerConnectionInfo): String? {
+        return getServerNameNative(
             storage.getNativeHandle(),
             serverInfo.getNativeHandle()
         )

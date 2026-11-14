@@ -9,9 +9,7 @@
 #include <span>
 
 #include "common_shared/debug/assert.h"
-#include "common_shared/network/raw_sockets.h"
 #include "common_shared/serialization/number_serialization.h"
-#include "common_shared/serialization/string_serialization.h"
 #include "common_shared/template_utils.h"
 
 namespace Requests
@@ -19,23 +17,11 @@ namespace Requests
 	constexpr const int MessageTimeoutSeconds = 2;
 	constexpr const int MessagesTimeoutMicroseconds = 0;
 
-	static Protocol::RequestId prepareRequest(Request&& request, std::span<std::byte> /*outData*/, size_t& outBytesWritten, bool& outExpectsAnswer)
+	static Protocol::RequestId prepareRequest(PairingRequest&& request, std::span<std::byte> /*outData*/, size_t& outBytesWritten, bool& outExpectsAnswer)
 	{
 		return std::visit(
 			VisitLambda{
-				[&outExpectsAnswer, &outBytesWritten](Requests::GetProtocolVersion&&) -> Protocol::RequestId {
-					// make sure this logic does not change, as this answer is supposed to be the same across all versions
-					// in order for it to work
-					outExpectsAnswer = true;
-					outBytesWritten = 0;
-					return Protocol::RequestId::GetProtocolVersion;
-				},
-				[&outExpectsAnswer, &outBytesWritten](Requests::GetServerName&&) -> Protocol::RequestId {
-					outExpectsAnswer = true;
-					outBytesWritten = 0;
-					return Protocol::RequestId::GetServerName;
-				},
-				[&outExpectsAnswer, &outBytesWritten](Requests::Pair&&) {
+				[&outExpectsAnswer, &outBytesWritten](Protocol::PairingRequests::Pair&&) {
 					outExpectsAnswer = true;
 					outBytesWritten = 0;
 					return Protocol::RequestId::Pair;
@@ -61,40 +47,12 @@ namespace Requests
 
 			return RequestAnswers::UnsupportedProtocolVersion{
 				.firstSupportedProtocolVersion = Serialization::readUint16(answerData[0], answerData[1]),
+				.lastSupportedProtocolVersion = Serialization::readUint16(answerData[2], answerData[3]),
 			};
 		}
 
 		switch (request)
 		{
-		case Protocol::RequestId::GetProtocolVersion: {
-			if (answerId == static_cast<std::byte>(Protocol::RequestAnswerId::GetProtocolVersion))
-			{
-				// make sure this logic does not change as this answer is supposed to be the same for all versions
-				// in order for it to work
-				if (answerData.size() < 2)
-				{
-					reportDebugError("No version provided in GetProtocolVersion answer");
-					return RequestAnswers::Error{ "No version provided in GetProtocolVersion answer" };
-				}
-
-				return RequestAnswers::GetProtocolVersion{
-					.protocolVersion = Serialization::readUint16(answerData[0], answerData[1]),
-				};
-			}
-			break;
-		}
-		case Protocol::RequestId::GetServerName: {
-			if (answerId == static_cast<std::byte>(Protocol::RequestAnswerId::GetServerName))
-			{
-				RequestAnswers::GetServerName answer;
-				if (auto result = Serialization::readShortString(answerData, answer.serverName, Protocol::MaxServerNameSize); result.has_value())
-				{
-					return RequestAnswers::Error{ std::move(*result) };
-				}
-				return answer;
-			}
-			break;
-		}
 		case Protocol::RequestId::Pair:
 		case Protocol::RequestId::SendFiles:
 			// no answer expected, fall through to the error
@@ -116,12 +74,12 @@ namespace Requests
 
 		const Network::AutoclosingSocket socket = Network::AutoclosingSocket(std::get<Network::RawSocket>(std::move(createSocketResult)));
 
-		if (const auto result = Network::setSocketTimeout(socket, SO_RCVTIMEO, MessageTimeoutSeconds, MessagesTimeoutMicroseconds); result.has_value())
+		if (const auto result = Network::setSocketTimeout(socket, Network::SOCKET_OPTION_RCVTIMEO, MessageTimeoutSeconds, MessagesTimeoutMicroseconds); result.has_value())
 		{
 			reportDebugError("Could not set SO_RCVTIMEO to a client TCP socket");
 			return RequestAnswers::Error{ *result };
 		}
-		if (const auto result = Network::setSocketTimeout(socket, SO_SNDTIMEO, MessageTimeoutSeconds, MessagesTimeoutMicroseconds); result.has_value())
+		if (const auto result = Network::setSocketTimeout(socket, Network::SOCKET_OPTION_SNDTIMEO, MessageTimeoutSeconds, MessagesTimeoutMicroseconds); result.has_value())
 		{
 			reportDebugError("Could not set SO_SNDTIMEO to a client TCP socket");
 			return RequestAnswers::Error{ *result };
@@ -141,7 +99,7 @@ namespace Requests
 		return processFn(socket);
 	}
 
-	RequestAnswers::RequestAnswer sendAndProcessRequest(const char* serverAddress, const Network::AddressType serverAddressType, const uint16_t port, Request&& request)
+	RequestAnswers::RequestAnswer sendAndProcessRequest(const char* serverAddress, const Network::AddressType serverAddressType, const uint16_t port, PairingRequest&& request)
 	{
 		return prepareConnectionAndProcess(serverAddress, serverAddressType, port, [&request](Network::RawSocket socket) -> RequestAnswers::RequestAnswer {
 			constexpr size_t MAX_MESSAGE_SIZE = Protocol::MaxRequestAnswerSize;

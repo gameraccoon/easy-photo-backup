@@ -10,7 +10,6 @@ bool AppArguments::parse(int argc, char** argv, AppArguments& outAppArguments)
 		None,
 		WorkingDir,
 		TargetDir,
-		PairingApp,
 	};
 
 	Command command = Command::None;
@@ -21,11 +20,7 @@ bool AppArguments::parse(int argc, char** argv, AppArguments& outAppArguments)
 		switch (command)
 		{
 		case Command::None:
-			if (arg == "--pairingApp")
-			{
-				command = Command::PairingApp;
-			}
-			else if (arg == "--workingDir")
+			if (arg == "--workingDir")
 			{
 				command = Command::WorkingDir;
 			}
@@ -40,10 +35,6 @@ bool AppArguments::parse(int argc, char** argv, AppArguments& outAppArguments)
 			break;
 		case Command::TargetDir:
 			outAppArguments.targetDir = arg;
-			command = Command::None;
-			break;
-		case Command::PairingApp:
-			outAppArguments.pairingAppCommand = arg;
 			command = Command::None;
 			break;
 		}

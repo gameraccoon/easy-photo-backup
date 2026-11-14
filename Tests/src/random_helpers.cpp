@@ -20,9 +20,9 @@ std::minstd_rand::result_type getSessionRandomSeed() noexcept
 
 void fillWithTestRandomBytes(std::span<std::byte> data, int seed)
 {
-	srand(seed);
+	std::minstd_rand rand{ static_cast<std::minstd_rand::result_type>(seed) };
 	for (std::byte& byte : data)
 	{
-		byte = std::byte(random() % 256);
+		byte = std::byte(rand() % 256);
 	}
 }

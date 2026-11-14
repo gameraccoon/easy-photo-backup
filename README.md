@@ -86,11 +86,9 @@ Examples to demonstrate the difference:
 
 ## Used Protocols
 
-Noise_XX_25519_ChaChaPoly_BLAKE2b is used for exchanging pairing information, and its handshake hash used to derive short authentication string (SAS) to confirm the pairing.
+Noise_XX_25519_ChaChaPoly_BLAKE2b is used for exchanging pairing information.
 
-Static keys for Noise protocol are generated per unique pairing, and re-generated even if the same host and client application are re-paired.
-
-Noise_KK_25519_ChaChaPoly_BLAKE2b is used for file exchange, however accompanied with sending a connection ID in plain-text (static ID generated based on public keys of this device pairing).
+Noise_KK_25519_ChaChaPoly_BLAKE2b is used for file exchange.
 
 Both Noise implementations are covered with tests, including tests comparing them with Rust implementation from [noiseexplorer.com](https://noiseexplorer.com))
 
@@ -99,18 +97,18 @@ Used primitives (by [monocypher](https://monocypher.org/manual/aead)):
 - BLAKE2b for hashing
 - XChaCha20/Poly1305 for authenticated symmetrical encryption
 
-A custom UDP protocol similar to Bonjour protocol (but much simpler and more strict) is used for network service discovery (NSD).
+Two custom UDP protocols similar to Bonjour protocol are used for network service discovery (NSD):
+- during pairing phase the server uses discovery protocol with plaintext IDs, pretty much as Bonjour would
+- at other times an encrypted version of the NSD is used, which uses randomly generated tags to apply identity-hiding techniques
 
 The file transfer is split in equally sized chunks with equally sized number of chunks between answers, both padded, which allows hiding the number of files and their sizes being transmitted.
-
-All the protocols ensure the sizes of the messages when possible, or otherwise set maximum allowed sizes to variable sized data passed over network, rejecting anything that doesn't fit.
 
 ### What Is Protected and What Is Not
 
 - An attacker trying to perform a man-in-the-middle (MITM) attack during device pairing process needs to correctly forge keys for a handshake to produce the same 6-digit SAS on both sides. This is without knowing in advance the keys of the other party (which are regenerated for each pairing attempt). This makes the MITM attack highly unlikely.
-- An attacker connected to the same network as the client can determine that the device is using this application (by seeing the NSD requests).
+- While the host application is in pairing mode, an attacker connected to the same network as the client can determine that the device is using this application by seeing plaintext NSD traffic.
+- An attacker observing a communication between the client and the host application during file exchange can defer that the devices are using this application (by analyzing message sizes and sending patterns).
 - By the design of the protocol, an attacker observing the network during the file exchange communication is not able to determine the content of the data. Trying to tamper with the data in flight or repeating the data will result in authentication failure and terminate the transfer.
-- An attacker, who has previously been on the same network with the host and probed the host, or saw the client and the host exchanging information, can then create an application in other Wi-Fi networks to identify the client by answering the NSD requests.
 - An attacker who is on the same Wi-Fi network with the host and the client during the file exchange can roughly estimate the total size of all the files exchanged (sum of the sizes, but not individual sizes). However, chunk padding, potential resume of partial transfer, and metadata of individual files, all complicate the estimation.
-- The protocol is designed so that an attacker cannot forge a host application that can trick the client to exchange the files with it. At most, first chunks of encrypted data will be sent which could not be decrypted, but the connection will be closed as soon as the host is required to answer the status.
+- The protocol is designed so that an attacker cannot forge a host application that can trick the client to exchange the files with it. At most, first chunks of encrypted data will be sent which could not be decrypted, but the connection will be closed as soon as the host is required to answer with the status.
 - By the design of the protocol, an attacker cannot forge a client application that would allow uploading files to the host, the connection will be dropped as soon as the first file transfer is attempted after the failed handshake.
