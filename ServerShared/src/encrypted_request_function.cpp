@@ -9,7 +9,6 @@
 
 #include "common_shared/debug/assert.h"
 #include "common_shared/network/protocol.h"
-#include "common_shared/network/raw_sockets.h"
 #include "common_shared/network/utils.h"
 #include "common_shared/serialization/number_serialization.h"
 #include "common_shared/template_utils.h"
@@ -84,13 +83,13 @@ namespace TcpServer::Encrypted
 		// we need to make sure to have a timeout to not get DOS as soon as a couple of connections hangs
 		// we should have a shorter timeout now and increase it when we authentificate the user for the file transfer
 		// we may rethink this value if we are going to allow opening this service be accessed through direct connections over web
-		if (const auto result = Network::setSocketTimeout(socket, SO_RCVTIMEO, FirstMessageTimeoutSeconds, FirstMessageTimeoutMicroseconds); result.has_value())
+		if (const auto result = Network::setSocketTimeout(socket, Network::SOCKET_OPTION_RCVTIMEO, FirstMessageTimeoutSeconds, FirstMessageTimeoutMicroseconds); result.has_value())
 		{
 			reportDebugError("Could not set SO_RCVTIMEO to a connection socket");
 			return;
 		}
 
-		if (const auto result = Network::setSocketTimeout(socket, SO_SNDTIMEO, FirstMessageTimeoutSeconds, FirstMessageTimeoutMicroseconds); result.has_value())
+		if (const auto result = Network::setSocketTimeout(socket, Network::SOCKET_OPTION_SNDTIMEO, FirstMessageTimeoutSeconds, FirstMessageTimeoutMicroseconds); result.has_value())
 		{
 			reportDebugError("Could not set SO_SNDTIMEO to a connection socket");
 			return;
