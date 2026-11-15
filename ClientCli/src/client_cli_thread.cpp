@@ -66,22 +66,6 @@ namespace ClientCli
 		return static_cast<size_t>(oneBasedIndex - 1);
 	}
 
-	static void discoveryResultsToServerList(std::vector<ServerConnectionInfo>&& discoveryResults, ClientConfigStorage& configStorage, std::vector<ServerListItem>& outServerList)
-	{
-		outServerList.clear();
-		outServerList.reserve(discoveryResults.size());
-		for (const ServerConnectionInfo& discoveryResult : discoveryResults)
-		{
-			outServerList.push_back(
-				ServerListItem{
-					.displayName = std::format("{} ({})", discoveryResult.address.toString(), configStorage.hasConfirmedServerBinding(discoveryResult.serverId) ? "paired" : "unknown"),
-					.networkAddress = std::move(discoveryResult.address),
-					.serverId = std::move(discoveryResult.serverId),
-				}
-			);
-		}
-	}
-
 	void runCliThread() noexcept
 	{
 		std::optional<ClientConfigStorage> clientConfigStorage = ClientConfigStorage::openStorage(".");
@@ -100,24 +84,11 @@ namespace ClientCli
 
 		const std::filesystem::path filesDirectory = "client_files_to_send";
 		SimpleNsdClientWrapper simpleServerDiscoveryClient;
-		std::vector<ServerListItem> serverList;
 
 		printLnCli("Client started");
 
 		while (true)
 		{
-			if (serverList.empty())
-			{
-				printLnCli("\nNo discovered servers. Type 'nsd' or 'hnsd'");
-			}
-			else
-			{
-				printLnCli("\nServers:");
-				for (size_t i = 0; i < serverList.size(); ++i)
-				{
-					printLnCli(std::format("{}. - {}", i + 1, serverList[i].displayName));
-				}
-			}
 			std::string command = requestCli("> ");
 
 			if (command.empty())
@@ -131,11 +102,9 @@ namespace ClientCli
 				printLnCli("help - print this help");
 				printLnCli("quit - exit the client");
 				printLnCli("list - list paired servers");
-				printLnCli("nsd - start service discovery");
-				printLnCli("hnsd - start hidden service discovery");
-				printLnCli("pair <index> - pair a server");
-				printLnCli("unpair <index> - unpair a server");
-				printLnCli("send <index> - execute sending files routine");
+				printLnCli("pair - start pairing a server");
+				printLnCli("unpair - unpair a server");
+				printLnCli("send - execute sending files routine");
 				printLnCli("log - see the activity journal");
 			}
 			else if (command == "quit" || command == "exit")
@@ -144,75 +113,47 @@ namespace ClientCli
 			}
 			else if (command == "list")
 			{
-				serverList.clear();
 				std::vector<ClientConfigStorage::ConfirmedServerListItem> list = clientConfigStorage->getAllConfirmedServers();
-				serverList.reserve(list.size());
+				printLnCli("\nPaired servers:");
 				for (ClientConfigStorage::ConfirmedServerListItem& listItem : list)
 				{
-					serverList.push_back(ServerListItem{
-						.displayName = std::move(listItem.serverName),
-						.serverId = std::move(listItem.serverId),
-					});
+					printLnCli(std::format(" - {}", listItem.serverName));
 				}
-			}
-			else if (command == "nsd")
-			{
-				simpleServerDiscoveryClient.startDiscovery();
-				std::cin.ignore();
-				printLnCli("Press enter to finish");
-				std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-				std::vector<ServerConnectionInfo> results = simpleServerDiscoveryClient.getDiscoveryResults();
-				simpleServerDiscoveryClient.stopDiscovery();
-				discoveryResultsToServerList(std::move(results), *clientConfigStorage, serverList);
-			}
-			else if (command == "hnsd")
-			{
-				constexpr const uint32_t numRequests = 2;
-				std::vector<HiddenNsdClient::NsdServerData> serverData;
-				std::vector<ClientConfigStorage::ServerIdentificationHashData> serverHashes;
-				clientConfigStorage->getAllIdentificationHashes(ClientConfigStorage::IdentificationTagType::Nsd, serverHashes);
-				serverData.reserve(serverHashes.size());
-				for (ClientConfigStorage::ServerIdentificationHashData& hashData : serverHashes)
-				{
-					std::optional<uint32_t> indexResult = clientSentFilesStorage->consumeNextIdentificationKeyIndicesInPeriod(hashData.serverIdx, ClientConfigStorage::IdentificationTagType::Nsd, Cryptography::IdentificationTagsUtils::getCurrentDayIndex(), numRequests);
-					if (indexResult.has_value())
-					{
-						serverData.emplace_back(
-							std::move(hashData.hash),
-							*indexResult
-						);
-					}
-				}
-				std::vector<ServerConnectionInfo> results = HiddenNsdClientWrapper::runDiscovery(serverData, numRequests);
-				discoveryResultsToServerList(std::move(results), *clientConfigStorage, serverList);
 			}
 			else if (command == "pair")
 			{
-				const std::optional<size_t> indexResult = readOneBasedIndex(serverList.size());
+				simpleServerDiscoveryClient.startDiscovery();
+				std::cin.ignore();
+				std::this_thread::sleep_for(std::chrono::seconds(2));
+				std::vector<ServerConnectionInfo> results = simpleServerDiscoveryClient.getDiscoveryResults();
+				simpleServerDiscoveryClient.stopDiscovery();
+
+				printLnCli("\nDiscovered servers:");
+				for (size_t i = 0; i < results.size(); ++i)
+				{
+					printLnCli(std::format("{}. - {}{}", i + 1, results[i].address.toString(), clientConfigStorage->hasConfirmedServerBinding(results[i].serverId) ? "(already paired)" : ""));
+				}
+
+				const std::optional<size_t> indexResult = readOneBasedIndex(results.size());
 				if (!indexResult.has_value())
 				{
 					continue;
 				}
 				const size_t idx = *indexResult;
 
-				if (clientConfigStorage->hasConfirmedServerBinding(serverList[idx].serverId))
+				if (clientConfigStorage->hasConfirmedServerBinding(results[idx].serverId))
 				{
 					printLnCli("Server already paired");
 					continue;
 				}
 
-				if (serverList[idx].networkAddress.ip.empty())
+				if (results[idx].address.ip.empty())
 				{
 					printLnCli("Server needs to be discovered first");
 					continue;
 				}
 
-				ServerConnectionInfo connectionInfo{
-					.address = serverList[idx].networkAddress,
-					.serverId = serverList[idx].serverId,
-				};
-
-				std::variant<std::string, PendingServerBinding> pairingExchangeResult = PairingHelpers::exchangePairInformationWithServer(connectionInfo);
+				std::variant<std::string, PendingServerBinding> pairingExchangeResult = PairingHelpers::exchangePairInformationWithServer(results[idx]);
 
 				if (std::holds_alternative<std::string>(pairingExchangeResult))
 				{
@@ -233,7 +174,7 @@ namespace ClientCli
 				std::string serverName = requestCli("> ");
 
 				clientConfigStorage->addConfirmedServerBinding(
-					serverList[idx].serverId,
+					results[idx].serverId,
 					ClientConfigStorage::ServerBinding{
 						.serverName = std::move(serverName),
 						.nsdIdentificationHash = PairingUtils::generateNsdIdentificationHash(pairingExchange.handshakeHash),
@@ -244,24 +185,30 @@ namespace ClientCli
 				);
 
 				printLnCli("Server got approved. Confirm on the other device.");
-				serverList.clear();
 			}
 			else if (command == "unpair")
 			{
-				const std::optional<size_t> indexResult = readOneBasedIndex(serverList.size());
+				std::vector<ClientConfigStorage::ConfirmedServerListItem> list = clientConfigStorage->getAllConfirmedServers();
+				printLnCli("\nPaired servers:");
+				for (size_t i = 0; i < list.size(); ++i)
+				{
+					printLnCli(std::format("{}. - {}", i + 1, list[i].serverName));
+				}
+
+				const std::optional<size_t> indexResult = readOneBasedIndex(list.size());
 				if (!indexResult.has_value())
 				{
 					continue;
 				}
 				const size_t idx = *indexResult;
 
-				if (!clientConfigStorage->hasConfirmedServerBinding(serverList[idx].serverId))
+				if (!clientConfigStorage->hasConfirmedServerBinding(list[idx].serverId))
 				{
 					printLnCli("The server was not paired");
 					continue;
 				}
 
-				auto serverIdx = clientConfigStorage->removeConfirmedServerBinding(serverList[idx].serverId);
+				auto serverIdx = clientConfigStorage->removeConfirmedServerBinding(list[idx].serverId);
 				if (serverIdx.has_value())
 				{
 					// note that this can lock
@@ -272,40 +219,42 @@ namespace ClientCli
 				{
 					printLnCli("Could not remove paired server");
 				}
-				serverList.clear();
 			}
 			else if (command == "send")
 			{
-				const std::optional<size_t> indexResult = readOneBasedIndex(serverList.size());
-				if (!indexResult.has_value())
+				constexpr const uint32_t numRequests = 2;
+				std::vector<HiddenNsdClient::NsdServerData> serverData;
+				std::vector<ClientConfigStorage::ServerIdentificationHashData> serverHashes;
+				clientConfigStorage->getAllIdentificationHashes(ClientConfigStorage::IdentificationTagType::Nsd, serverHashes);
+				serverData.reserve(serverHashes.size());
+				for (ClientConfigStorage::ServerIdentificationHashData& hashData : serverHashes)
 				{
-					return;
-				}
-				const size_t idx = *indexResult;
-
-				if (!clientConfigStorage->hasConfirmedServerBinding(serverList[idx].serverId))
-				{
-					printLnCli("The server was not paired");
-					continue;
-				}
-
-				if (serverList[idx].networkAddress.ip.empty())
-				{
-					printLnCli("Server needs to be discovered first");
-					continue;
+					std::optional<uint32_t> indexResult = clientSentFilesStorage->consumeNextIdentificationKeyIndicesInPeriod(hashData.serverIdx, ClientConfigStorage::IdentificationTagType::Nsd, Cryptography::IdentificationTagsUtils::getCurrentDayIndex(), numRequests);
+					if (indexResult.has_value())
+					{
+						serverData.emplace_back(
+							std::move(hashData.hash),
+							*indexResult
+						);
+					}
 				}
 
-				ServerConnectionInfo connectionInfo{
-					.address = serverList[idx].networkAddress,
-					.serverId = serverList[idx].serverId,
-				};
-
-				if (auto error = FileSendHelpers::sendDirectory(*clientConfigStorage, *clientSentFilesStorage, connectionInfo, filesDirectory, filesDirectory); error.has_value())
+				std::vector<ServerConnectionInfo> results = HiddenNsdClientWrapper::runDiscovery(serverData, numRequests);
+				for (ServerConnectionInfo& connectionInfo : results)
 				{
-					printLnCli(std::format("Error when exchanging files: {}", std::move(*error)));
-					continue;
+					if (!clientConfigStorage->hasConfirmedServerBinding(connectionInfo.serverId))
+					{
+						printLnCli("The server was not paired, skipping");
+						continue;
+					}
+
+					if (auto error = FileSendHelpers::sendDirectory(*clientConfigStorage, *clientSentFilesStorage, connectionInfo, filesDirectory, filesDirectory); error.has_value())
+					{
+						printLnCli(std::format("Error when exchanging files: {}", std::move(*error)));
+						continue;
+					}
 				}
-				printLnCli("Finished sending files");
+				printLnCli(std::format("Finished sending files to {} server(s)", results.size()));
 			}
 			else if (command == "log")
 			{
