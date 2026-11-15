@@ -175,12 +175,13 @@ namespace PairingServiceLogic
 				const std::string sas = Cryptography::generateSas(binding->handshakeHash, 6);
 				printLnCli("New binding request");
 				printLnCli(std::format("Enter this code on the other device: {}", sas));
-				printLnCli("Did the other device confirm binding? Y/N");
+				printLnCli("Has the other device confirmed binding? Y/N");
 				std::string command = requestCli("> ");
 
 				if (command != "Y" && command != "y")
 				{
-					continue;
+					printLnCli("Device has not been added to the list of paired devices. Try pairing again.");
+					break;
 				}
 
 				printLnCli("Give this client a name");

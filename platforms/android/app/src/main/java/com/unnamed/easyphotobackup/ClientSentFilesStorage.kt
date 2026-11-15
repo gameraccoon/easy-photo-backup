@@ -27,7 +27,7 @@ class ClientSentFilesStorage(localStorageDirectory: String) : AutoCloseable {
         check(nativeHandle != 0L)
 
         val records = getLastActivityJournalRecords(nativeHandle, numberOfRecords)
-        check(!records.isEmpty())
+        check(records.isNotEmpty())
 
         return Pair(records.slice(0..records.size-2).map(::ActivityJournalRecord).toTypedArray(), (records[records.size - 1]).toInt())
     }

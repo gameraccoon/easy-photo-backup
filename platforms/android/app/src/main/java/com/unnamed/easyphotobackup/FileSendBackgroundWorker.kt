@@ -16,7 +16,6 @@ import java.util.Vector
 import kotlin.coroutines.cancellation.CancellationException
 import androidx.core.content.edit
 import androidx.work.ForegroundInfo
-import kotlin.time.Duration.Companion.seconds
 
 class FileSendBackgroundWorker(
     appContext: Context,
@@ -56,12 +55,12 @@ class FileSendBackgroundWorker(
             setProgress(workDataOf("status" to "discovering"))
 
             val discoveryClient = HiddenNsdClientNative()
-            val discoveryResults = discoveryClient.runDiscovery(clientConfigStorage, clientSentFilesStorage, 2);
+            val discoveryResults = discoveryClient.runDiscovery(clientConfigStorage, clientSentFilesStorage, 2)
 
             val statuses = Vector<String>()
             val resultStatus: String
 
-            if (!discoveryResults.isEmpty()) {
+            if (discoveryResults.isNotEmpty()) {
                 for (discoveryResult in discoveryResults) {
                     if (!PairingHelpers.isServerPaired(clientConfigStorage, discoveryResult)) {
                         statuses.add("\nSkipped unknown server")
@@ -92,7 +91,7 @@ class FileSendBackgroundWorker(
                 }
             }
             else {
-                resultStatus = "no servers"
+                resultStatus = "no servers online"
                 clientSentFilesStorage.addActivityJournalRecord(1, "")
             }
 

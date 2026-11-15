@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <format>
 #include <string>
 
@@ -213,15 +214,87 @@ Java_com_unnamed_easyphotobackup_HiddenNsdClientNative_runDiscoveryNative(
 	return result;
 }
 
+extern "C" JNIEXPORT jlong JNICALL
+Java_com_unnamed_easyphotobackup_ServerConnectionInfo_createNative(
+	JNIEnv* env,
+	jclass /*class*/,
+	jbyteArray serverIdJArray,
+	jstring ipJStr,
+	jint port
+)
+{
+	const char* ipCStr = env->GetStringUTFChars(ipJStr, nullptr);
+	std::string ip(ipCStr);
+	env->ReleaseStringUTFChars(ipJStr, ipCStr);
+
+	ServerConnectionInfo info;
+	info.address = Network::NetworkAddress{
+		.ip = std::move(ip),
+		.port = static_cast<uint16_t>(port),
+		.addressType = Network::AddressType::IpV4,
+	};
+
+	const jsize serverIdSize = env->GetArrayLength(serverIdJArray);
+	const jsize bytesToCopy = std::min(serverIdSize, static_cast<jsize>(info.serverId.size()));
+	env->GetByteArrayRegion(
+		serverIdJArray,
+		0,
+		bytesToCopy,
+		reinterpret_cast<jbyte*>(info.serverId.data())
+	);
+
+	return reinterpret_cast<jlong>(new ServerConnectionInfoNative(std::move(info)));
+}
+
 extern "C" JNIEXPORT void JNICALL
 Java_com_unnamed_easyphotobackup_ServerConnectionInfo_destroy(
+		JNIEnv* env,
+		jobject /*this*/,
+		jlong handle
+)
+{
+	ServerConnectionInfoNative* obj = reinterpret_cast<ServerConnectionInfoNative*>(handle);
+	delete obj;
+}
+
+extern "C" JNIEXPORT jbyteArray JNICALL
+Java_com_unnamed_easyphotobackup_ServerConnectionInfo_getServerIdNative(
 	JNIEnv* env,
 	jobject /*this*/,
 	jlong handle
 )
 {
-	ServerConnectionInfoNative* obj = reinterpret_cast<ServerConnectionInfoNative*>(handle);
-	delete obj;
+	const ServerConnectionInfoNative* obj = reinterpret_cast<ServerConnectionInfoNative*>(handle);
+	jbyteArray result = env->NewByteArray(static_cast<jsize>(obj->serverInfo.serverId.size()));
+	env->SetByteArrayRegion(
+		result,
+		0,
+		static_cast<jsize>(obj->serverInfo.serverId.size()),
+		reinterpret_cast<const jbyte*>(obj->serverInfo.serverId.data())
+	);
+	return result;
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_unnamed_easyphotobackup_ServerConnectionInfo_getIpNative(
+	JNIEnv* env,
+	jobject /*this*/,
+	jlong handle
+)
+{
+	const ServerConnectionInfoNative* obj = reinterpret_cast<ServerConnectionInfoNative*>(handle);
+	return env->NewStringUTF(obj->serverInfo.address.ip.c_str());
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_unnamed_easyphotobackup_ServerConnectionInfo_getPortNative(
+	JNIEnv* env,
+	jobject /*this*/,
+	jlong handle
+)
+{
+	const ServerConnectionInfoNative* obj = reinterpret_cast<ServerConnectionInfoNative*>(handle);
+	return static_cast<jint>(obj->serverInfo.address.port);
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -277,6 +350,38 @@ Java_com_unnamed_easyphotobackup_ClientConfigStorage_destroy(
 {
 	ClientConfigStorageNative* obj = reinterpret_cast<ClientConfigStorageNative*>(handle);
 	delete obj;
+}
+
+extern "C" JNIEXPORT jlongArray JNICALL
+Java_com_unnamed_easyphotobackup_ClientConfigStorage_getPairedServersNative(
+	JNIEnv* env,
+	jobject /*this*/,
+	jlong handle
+)
+{
+	ClientConfigStorageNative* obj = reinterpret_cast<ClientConfigStorageNative*>(handle);
+
+	std::vector<ClientConfigStorage::ConfirmedServerListItem> pairedServers = obj->storage.getAllConfirmedServers();
+
+	jlongArray result = env->NewLongArray(static_cast<jsize>(pairedServers.size()));
+
+	std::vector<jlong> handles;
+	handles.reserve(pairedServers.size());
+	for (ClientConfigStorage::ConfirmedServerListItem& pairedServer : pairedServers)
+	{
+		ServerConnectionInfo serverInfo;
+		serverInfo.serverId = pairedServer.serverId;
+		handles.push_back(reinterpret_cast<jlong>(new ServerConnectionInfoNative(std::move(serverInfo))));
+	}
+
+	env->SetLongArrayRegion(
+		result,
+		0,
+		static_cast<jsize>(handles.size()),
+		handles.data()
+	);
+
+	return result;
 }
 
 extern "C" JNIEXPORT jlong JNICALL
