@@ -15,6 +15,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
+import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -30,10 +31,10 @@ import java.util.concurrent.TimeUnit
 
 class MainActivity : AppCompatActivity() {
 
+    private lateinit var binding: ActivityMainBinding
+
     private lateinit var clientConfigStorage: ClientConfigStorage
     private lateinit var clientSentFilesStorage: ClientSentFilesStorage
-
-    private lateinit var binding: ActivityMainBinding
 
     private val serverInfos = mutableListOf<ServerConnectionInfo>()
     private var refreshGeneration = 0
@@ -44,11 +45,11 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        clientConfigStorage = ClientConfigStorage(filesDir.absolutePath)
-        clientSentFilesStorage = ClientSentFilesStorage(filesDir.absolutePath)
-
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        clientConfigStorage = ClientConfigStorage(filesDir.absolutePath)
+        clientSentFilesStorage = ClientSentFilesStorage(filesDir.absolutePath)
 
         ensureAllFilesAccess()
 
@@ -122,12 +123,14 @@ class MainActivity : AppCompatActivity() {
                 )
                 startActivity(intent)
             }
-        }
-        else
-        {
+        } else {
             // Android 10 (API 29) and below
             val permission = Manifest.permission.READ_EXTERNAL_STORAGE
-            if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+            if (ContextCompat.checkSelfPermission(
+                    this,
+                    permission
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
                 // Request the permission
                 ActivityCompat.requestPermissions(
                     this,
@@ -159,6 +162,9 @@ class MainActivity : AppCompatActivity() {
             binding.pairedDevices.removeAllViews()
             serverInfos.forEach { it.close() }
             serverInfos.clear()
+
+            binding.noPairedServersText.isVisible = pairedServers.isEmpty()
+
             serverInfos.addAll(pairedServers.map { (serverInfo, _) -> serverInfo })
 
             for ((serverInfo, serverName) in pairedServers) {

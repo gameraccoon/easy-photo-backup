@@ -18,6 +18,16 @@
             android:paddingLeft="16dp"
             android:paddingRight="16dp">
 
+            <TextView
+                android:id="@+id/no_paired_servers_text"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:paddingTop="16dp"
+                android:paddingBottom="16dp"
+                android:text="@string/no_paired_servers_text"
+                tools:visibility="gone" />
+
             <LinearLayout
                 android:id="@+id/paired_devices"
                 android:layout_width="match_parent"
@@ -34,7 +44,7 @@
                 android:id="@+id/pair_button"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/add_device" />
+                android:text="@string/pair_btn_label" />
 
             <Button
                 android:id="@+id/full_journal_button"

@@ -3,7 +3,7 @@
     <string name="title_activity_main">Paired devices</string>
     <string name="title_activity_discover_devices">Devices in the network</string>
     <string name="title_activity_pair_device">Pair device</string>
-    <string name="add_device">Add device</string>
+    <string name="pair_btn_label">Pair</string>
     <string name="add_by_ip_button">Add by IP</string>
     <string name="server_status_online">Online</string>
     <string name="server_status_offline">Offline</string>
@@ -29,4 +29,7 @@
     <string name="pairing_status_invalid_server_info">Invalid server information</string>
     <string name="journal_btn_title">See journal</string>
     <string name="debug_sync_btn_label">Force start sync (debug)</string>
+    <string name="no_paired_servers_text">No paired host applications.\nPress "Pair" and follow the instructions.</string>
+    <string name="pairing_instructions_text">Open the application on the host device, and select Pair.</string>
+    <string name="no_discovered_servers_text">No host applications were found on the network.</string>
 </resources>

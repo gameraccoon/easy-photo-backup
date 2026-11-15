@@ -1,15 +1,20 @@
 package com.unnamed.easyphotobackup
 
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
+import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.isEmpty
+import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
+import com.unnamed.easyphotobackup.databinding.ActivityDiscoverDevicesBinding
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -17,6 +22,8 @@ import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.milliseconds
 
 class DiscoverDevicesActivity : AppCompatActivity() {
+  private lateinit var binding: ActivityDiscoverDevicesBinding
+
   private val nsdClient = SimpleNsdClientNative()
   private lateinit var clientConfigStorage: ClientConfigStorage
   private val discoveredDevices = mutableMapOf<String, DiscoveredDeviceView>()
@@ -24,12 +31,16 @@ class DiscoverDevicesActivity : AppCompatActivity() {
   private var discoveryJob: Job? = null
   private var discoveryRunning = false
 
+  @RequiresApi(Build.VERSION_CODES.R)
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    clientConfigStorage = ClientConfigStorage(filesDir.absolutePath)
     enableEdgeToEdge()
-    setContentView(R.layout.activity_discover_devices)
-    ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
+
+    binding = ActivityDiscoverDevicesBinding.inflate(layoutInflater)
+    setContentView(binding.root)
+
+    clientConfigStorage = ClientConfigStorage(filesDir.absolutePath)
+    ViewCompat.setOnApplyWindowInsetsListener(binding.root) { v, insets ->
       val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
       v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
       insets
@@ -63,7 +74,7 @@ class DiscoverDevicesActivity : AppCompatActivity() {
     discoveryRunning = true
     nsdClient.startDiscovery()
 
-    // for UI we can update a bit faster than usual to get better responsiveness
+    // for UI, we can update a bit faster than usual to get better responsiveness
     discoveryJob = lifecycleScope.launch {
       while (isActive) {
         delay(500.milliseconds)
@@ -85,7 +96,6 @@ class DiscoverDevicesActivity : AppCompatActivity() {
 
   private fun updateLayoutFromServices() {
     val services = nsdClient.getDiscoveryResults()
-    val deviceList = findViewById<ViewGroup>(R.id.device_list) ?: return
 
     val foundDevices = mutableSetOf<String>()
     for (service in services) {
@@ -98,7 +108,7 @@ class DiscoverDevicesActivity : AppCompatActivity() {
         existingDevice.setServerInfo(service, clientConfigStorage)
         existingDevice.updateOnline(true)
       } else {
-        addDiscoveredDevice(deviceList, service, key)
+        addDiscoveredDevice(binding.deviceList, service, key)
       }
     }
 
@@ -107,6 +117,8 @@ class DiscoverDevicesActivity : AppCompatActivity() {
         device.updateOnline(false)
       }
     }
+
+    binding.noDiscoveredServersText.isVisible = binding.deviceList.isEmpty()
   }
 
   private fun addDiscoveredDevice(
@@ -133,7 +145,7 @@ class DiscoverDevicesActivity : AppCompatActivity() {
     return "${serverInfo.getIp()}:${serverInfo.getServerId().contentToString()}"
   }
 
-  fun onAddByIPClicked(view: View) {
+  fun onAddByIpClicked(view: View) {
     Toast.makeText(this, "Not implemented yet", Toast.LENGTH_SHORT).show()
   }
 }

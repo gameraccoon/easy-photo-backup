@@ -1,9 +1,7 @@
 package com.unnamed.easyphotobackup
 
-import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import android.text.InputType
 import android.view.KeyEvent
 import android.view.View
 import android.view.inputmethod.InputMethodManager
@@ -14,6 +12,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
+import com.unnamed.easyphotobackup.databinding.ActivityPairDeviceBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -21,6 +20,9 @@ import kotlinx.coroutines.withContext
 import kotlin.time.Duration.Companion.milliseconds
 
 class PairDeviceActivity : AppCompatActivity() {
+
+  private lateinit var binding: ActivityPairDeviceBinding
+
   private lateinit var clientConfigStorage: ClientConfigStorage
   private var serverInfo: ServerConnectionInfo? = null
   private var pendingServerBinding: PendingServerBinding? = null
@@ -29,8 +31,11 @@ class PairDeviceActivity : AppCompatActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     enableEdgeToEdge()
-    setContentView(R.layout.activity_pair_device)
-    ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
+
+    binding = ActivityPairDeviceBinding.inflate(layoutInflater)
+    setContentView(binding.root)
+
+    ViewCompat.setOnApplyWindowInsetsListener(binding.root) { v, insets ->
       val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
       v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
       insets
@@ -73,17 +78,15 @@ class PairDeviceActivity : AppCompatActivity() {
   }
 
   private fun showPairingCodeInput() {
-    val numericCodeInput = findViewById<EditText>(R.id.numeric_code_input)
-    val numericCodeBlock = findViewById<View>(R.id.numeric_code_block)
-    numericCodeInput.setOnKeyListener { _, keyCode, event ->
+    binding.numericCodeInput.setOnKeyListener { _, keyCode, event ->
       if (keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_UP) {
-        validateNumericCode(numericCodeInput)
+        validateNumericCode(binding.numericCodeInput)
         true
       } else {
         false
       }
     }
-    numericCodeBlock.visibility = View.VISIBLE
+    binding.numericCodeBlock.visibility = View.VISIBLE
     val waitingForCodeText = findViewById<View>(R.id.waiting_for_code_text)
     waitingForCodeText.visibility = View.GONE
   }
@@ -113,7 +116,7 @@ class PairDeviceActivity : AppCompatActivity() {
 
     // hide keyboard
     this.currentFocus?.let { view ->
-      val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+      val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
       imm?.hideSoftInputFromWindow(view.windowToken, 0)
     }
     numericCodeInput.visibility = View.GONE
