@@ -248,9 +248,9 @@ Java_com_unnamed_easyphotobackup_ServerConnectionInfo_createNative(
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_unnamed_easyphotobackup_ServerConnectionInfo_destroy(
-		JNIEnv* env,
-		jobject /*this*/,
-		jlong handle
+	JNIEnv* env,
+	jobject /*this*/,
+	jlong handle
 )
 {
 	ServerConnectionInfoNative* obj = reinterpret_cast<ServerConnectionInfoNative*>(handle);
