@@ -47,6 +47,11 @@ namespace TcpServer::Encrypted
 		auto tagPayload = identificationTags.consumeTag(tag);
 		identificationTagsMutex.unlock();
 
+		if (!tagPayload.has_value())
+		{
+			return;
+		}
+
 		std::optional<ServerConfigStorage::ClientBinding> clientBinding = configStorage.getConfirmedClientBinding(tagPayload->clientIndex);
 		if (!clientBinding.has_value())
 		{
