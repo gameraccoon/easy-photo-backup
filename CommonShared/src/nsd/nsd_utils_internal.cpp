@@ -9,6 +9,7 @@
 #include <sys/poll.h>
 #endif
 
+#include "common_shared/cryptography/utils/identification_tags.h"
 #include "common_shared/debug/assert.h"
 
 #ifdef DEBUG_CHECKS
@@ -33,6 +34,7 @@ namespace NsdInternalUtils
 	std::function<int(Network::RawSocket, std::span<std::byte>, NetworkAddressKey&)> gRecvRequestMock;
 	std::function<int(Network::RawSocket, std::span<const std::byte>, NetworkAddressKey)> gSendAnswerMock;
 	std::function<int(Network::RawSocket, std::span<std::byte>, NetworkAddressKey&)> gRecvAnswerMock;
+	std::function<int32_t()> gGetTagRotationPeriodMock;
 #endif // WITH_TESTS
 
 	uint16_t checksum16v1(const std::span<const std::byte> data) noexcept
@@ -389,5 +391,17 @@ namespace NsdInternalUtils
 		std::rotate(discoveredServersData.discoveryGenerations.data(), discoveredServersData.discoveryGenerations.data() + (discoveredServersData.discoveryGenerations.size() - 1), discoveredServersData.discoveryGenerations.data() + discoveredServersData.discoveryGenerations.size());
 		debugAssert(discoveredServersData.discoveryGenerations.size() < 8, "Too many servers during debugging ({}), is this a bug or are we stress-testing?", discoveredServersData.discoveryGenerations.size());
 		discoveredServersData.discoveryGenerations[0].clear();
+	}
+
+	int32_t getCurrentTagRotationPeriod() noexcept
+	{
+#ifdef WITH_TESTS
+		if (gGetTagRotationPeriodMock)
+		{
+			return gGetTagRotationPeriodMock();
+		}
+#endif // WITH_TESTS
+
+		return Cryptography::IdentificationTagsUtils::getCurrentDayIndex();
 	}
 } // namespace NsdInternalUtils

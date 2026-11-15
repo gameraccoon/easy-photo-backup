@@ -52,6 +52,8 @@ public:
 	[[nodiscard]] Network::RawSocket openListenServerSocket(const char* serverIp);
 	void closeServerSocket(const size_t serverSocketIdx);
 
+	void setCurrentKeyRotationPeriod(int32_t);
+
 private:
 	bool getAddressFromIpV4String(const char* address, uint16_t port, NsdInternalUtils::NetworkAddressKey& outNetAddress);
 
@@ -60,4 +62,5 @@ private:
 	std::vector<std::unique_ptr<ClientSocket>> clients;
 	std::vector<std::unique_ptr<ServerSocket>> servers;
 	std::mutex dataMutex;
+	int32_t currentKeyRotationPeriod = 65432;
 };

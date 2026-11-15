@@ -167,6 +167,9 @@ void NsdTestMocks::setUp()
 		outNetAddress = servers[serverSocketIdx]->netAddress;
 		return static_cast<int>(message->data.size());
 	};
+	NsdInternalUtils::gGetTagRotationPeriodMock = [this]() {
+		return currentKeyRotationPeriod;
+	};
 }
 
 void NsdTestMocks::tearDown()
@@ -179,6 +182,7 @@ void NsdTestMocks::tearDown()
 	NsdInternalUtils::gRecvRequestMock = nullptr;
 	NsdInternalUtils::gSendAnswerMock = nullptr;
 	NsdInternalUtils::gRecvAnswerMock = nullptr;
+	NsdInternalUtils::gGetTagRotationPeriodMock = nullptr;
 
 	clients.clear();
 	servers.clear();
@@ -201,6 +205,11 @@ void NsdTestMocks::closeServerSocket(const size_t serverSocketIdx)
 		return;
 	}
 	servers[serverSocketIdx] = nullptr;
+}
+
+void NsdTestMocks::setCurrentKeyRotationPeriod(int32_t newPeriod)
+{
+	currentKeyRotationPeriod = newPeriod;
 }
 
 bool NsdTestMocks::getAddressFromIpV4String(const char* address, uint16_t port, NsdInternalUtils::NetworkAddressKey& outNetAddress)

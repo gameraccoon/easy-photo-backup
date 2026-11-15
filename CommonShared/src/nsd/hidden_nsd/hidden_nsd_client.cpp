@@ -130,7 +130,7 @@ namespace HiddenNsdClient
 
 		NsdInternalUtils::ClientDiscoveredServersData discoveredServersData;
 
-		const int32_t currentPeriodIndex = Cryptography::IdentificationTagsUtils::getCurrentDayIndex();
+		const int32_t currentPeriodIndex = NsdInternalUtils::getCurrentTagRotationPeriod();
 
 		constexpr size_t BUFFER_SIZE = 1024;
 		std::array<std::byte, BUFFER_SIZE> buffer;

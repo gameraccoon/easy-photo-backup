@@ -8,7 +8,6 @@
 #include "tests/random_helpers.h"
 #include <gtest/gtest.h>
 
-#include "common_shared/cryptography/utils/identification_tags.h"
 #include "common_shared/requests/pairing_utils.h"
 #include "common_shared/serialization/number_serialization.h"
 

@@ -57,7 +57,7 @@ namespace HiddenNsdServer
 			return;
 		}
 
-		assertFatalRelease(clientHashes.size() != clientIds.size(), "Logical error, these vectors should always have the same size");
+		assertFatalRelease(clientHashes.size() == clientIds.size(), "Logical error, these vectors should always have the same size");
 
 		std::sort(clientsToRemove.begin(), clientsToRemove.end());
 		size_t writeIdx = 0;
@@ -162,7 +162,7 @@ namespace HiddenNsdServer
 		// we never move back in time, if the clocks drift back we keep the last used period
 		// periods are also measured in days or at least hours, so 32bit overflow is not
 		// something we should be concerned about
-		const int32_t currentPeriodIndex = std::max(Cryptography::IdentificationTagsUtils::getCurrentDayIndex(), lastPeriodIndex);
+		const int32_t currentPeriodIndex = std::max(NsdInternalUtils::getCurrentTagRotationPeriod(), lastPeriodIndex);
 
 		size_t numAddedClients = 0;
 		updateHashesFn(clientHashes, clientIds, numAddedClients, clientsToRemove);
@@ -218,7 +218,7 @@ namespace HiddenNsdServer
 		updateHashesFn(clientHashes, clientIds, initialClientsNum, clientsToRemove);
 
 		TagMap tagMap;
-		int32_t lastPeriodIndex = Cryptography::IdentificationTagsUtils::getCurrentDayIndex();
+		int32_t lastPeriodIndex = NsdInternalUtils::getCurrentTagRotationPeriod();
 		tagMap.updateTagMap(clientHashes, 0, lastPeriodIndex);
 
 		const int expectedPacketSize = 8;

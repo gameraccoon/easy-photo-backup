@@ -684,6 +684,13 @@ namespace Network
 
 	void closeSocket(const RawSocket socket, int timeoutMicroseconds)
 	{
+#ifdef WITH_TESTS
+		if (gTestDisableRealSockets)
+		{
+			return;
+		}
+#endif
+
 		Network::setSocketTimeout(socket, SO_RCVTIMEO, 0, timeoutMicroseconds);
 		char buf[1024];
 

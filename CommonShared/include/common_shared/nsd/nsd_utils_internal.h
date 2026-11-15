@@ -47,6 +47,7 @@ namespace NsdInternalUtils
 	extern std::function<int(Network::RawSocket, std::span<std::byte>, NetworkAddressKey&)> gRecvRequestMock;
 	extern std::function<int(Network::RawSocket, std::span<const std::byte>, NetworkAddressKey)> gSendAnswerMock;
 	extern std::function<int(Network::RawSocket, std::span<std::byte>, NetworkAddressKey&)> gRecvAnswerMock;
+	extern std::function<int32_t()> gGetTagRotationPeriodMock;
 #endif
 
 	[[nodiscard]] uint16_t checksum16v1(const std::span<const std::byte> data) noexcept;
@@ -68,4 +69,6 @@ namespace NsdInternalUtils
 
 	void registerDiscoveredServer(ClientDiscoveredServersData& discoveredServersData, const NetworkAddressKey& netAddress, const std::vector<std::byte>& extraData, uint16_t port, const NsdUtils::DiscoveryResultFunction& resultFunction);
 	void removeOldDiscoveredServers(ClientDiscoveredServersData& discoveredServersData, const NsdUtils::DiscoveryResultFunction& resultFunction) noexcept;
+
+	[[nodiscard]] int32_t getCurrentTagRotationPeriod() noexcept;
 } // namespace NsdInternalUtils

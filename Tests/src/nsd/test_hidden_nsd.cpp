@@ -92,3 +92,100 @@ TEST_F(HiddenNsdTest, NsdServer_StartClient_FindTheServer)
 	mocks.closeServerSocket(serverSocket);
 	serverThread.join();
 }
+
+TEST_F(HiddenNsdTest, NsdServer_AddAndRemovePairedClient_ClientIsNotRecognizedAnymore)
+{
+	Network::RawSocket serverSocket = mocks.openListenServerSocket("10.101.1.2");
+	Cryptography::HashResult clientHash;
+	fillWithTestRandomBytes(clientHash, getSessionRandomSeed());
+	constexpr uint16_t nsdPort = 1234;
+	std::atomic_bool timeToRemove = false;
+	const int32_t keyRotationPeriod = getRandom<int32_t>(getSessionRandomSeed());
+	mocks.setCurrentKeyRotationPeriod(keyRotationPeriod);
+
+	auto updateClientHashesFn = [&clientHash, &timeToRemove](std::vector<Cryptography::HashResult>& clientHashes, std::vector<uint32_t>& clientIndices, size_t& outNumAddedClients, std::vector<size_t>& inOutClientsToRemove) {
+		if (!timeToRemove.load(std::memory_order::relaxed))
+		{
+			if (clientHashes.empty())
+			{
+				outNumAddedClients = 1;
+				clientHashes.push_back(clientHash.clone());
+				clientIndices.push_back(0);
+			}
+		}
+		else
+		{
+			outNumAddedClients = 0;
+			if (!clientHashes.empty())
+			{
+				for (size_t i = 0; i < clientHashes.size(); ++i)
+				{
+					inOutClientsToRemove.push_back(i);
+				}
+			}
+		}
+	};
+
+	auto serverThread = std::thread([serverSocket, &updateClientHashesFn] {
+		constexpr std::string_view payload = "test data";
+		constexpr const char* networkInterface = "0.0.0.0";
+		constexpr uint16_t advertizedPort = 3456;
+		HiddenNsdServer::listen(
+			serverSocket,
+			Network::AddressType::IpV4,
+			networkInterface,
+			nsdPort,
+			advertizedPort,
+			std::as_bytes(std::span(payload)),
+			updateClientHashesFn
+		);
+	});
+
+	std::atomic_bool gotAnswer{ false };
+	auto answerFn = [&clientStopSignal = mocks.clientStopSignal, &gotAnswer](NsdUtils::DiscoveryResult&& result) {
+		clientStopSignal.store(true, std::memory_order::relaxed);
+		gotAnswer.store(true, std::memory_order::relaxed);
+
+		const std::string expectedPayloadStr = "test data";
+		const std::span<const std::byte> expectedPayload = std::as_bytes(std::span(expectedPayloadStr));
+
+		ASSERT_EQ(result.state, NsdUtils::DiscoveryState::Added);
+		EXPECT_EQ(result.address.addressType, Network::AddressType::IpV4);
+		EXPECT_EQ(result.address.toString(), "10.101.1.2:3456");
+		assertSpansEqual(std::vector<std::byte>(expectedPayload.begin(), expectedPayload.end()), result.extraData);
+	};
+
+	std::vector<HiddenNsdClient::NsdServerData> serverData;
+	serverData.emplace_back(clientHash.clone(), 0);
+	constexpr float timeBetweenBroadcastsSec = 0.01f;
+	constexpr int numberOfBroadcasts = 5;
+	constexpr float extraWaitTimeAfterLastBroadcastSec = 0.01f;
+	HiddenNsdClient::processServiceDiscoveryThread(
+		Network::AddressType::IpV4,
+		nsdPort,
+		timeBetweenBroadcastsSec,
+		numberOfBroadcasts,
+		extraWaitTimeAfterLastBroadcastSec,
+		serverData,
+		answerFn
+	);
+	EXPECT_TRUE(gotAnswer.load(std::memory_order::relaxed));
+
+	gotAnswer.store(false, std::memory_order::relaxed);
+	timeToRemove.store(true, std::memory_order::relaxed);
+	mocks.setCurrentKeyRotationPeriod(keyRotationPeriod + 1);
+
+	HiddenNsdClient::processServiceDiscoveryThread(
+		Network::AddressType::IpV4,
+		nsdPort,
+		timeBetweenBroadcastsSec,
+		numberOfBroadcasts,
+		extraWaitTimeAfterLastBroadcastSec,
+		serverData,
+		answerFn
+	);
+	EXPECT_FALSE(gotAnswer.load(std::memory_order::relaxed));
+
+	mocks.closeServerSocket(serverSocket);
+	serverThread.join();
+}
