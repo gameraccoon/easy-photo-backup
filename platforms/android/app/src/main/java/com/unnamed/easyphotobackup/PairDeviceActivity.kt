@@ -87,7 +87,7 @@ class PairDeviceActivity : AppCompatActivity() {
       }
     }
     binding.numericCodeBlock.visibility = View.VISIBLE
-    val waitingForCodeText = findViewById<View>(R.id.waiting_for_code_text)
+    val waitingForCodeText = binding.waitingForCodeText
     waitingForCodeText.visibility = View.GONE
   }
 
@@ -97,7 +97,6 @@ class PairDeviceActivity : AppCompatActivity() {
     }
 
     val enteredNumericCodeText = numericCodeInput.text.toString().trim()
-    val numericCodeBlock = findViewById<View>(R.id.numeric_code_block)
     if (enteredNumericCodeText.toIntOrNull() == null) {
       Toast.makeText(
               this, getString(R.string.security_code_nan), Toast.LENGTH_LONG)
@@ -105,33 +104,58 @@ class PairDeviceActivity : AppCompatActivity() {
       return
     }
 
-    val pendingBinding = pendingServerBinding
-    val info = serverInfo
-    if (pendingBinding == null || info == null) {
+    if (pendingServerBinding == null || serverInfo == null) {
       Toast.makeText(
               this, getString(R.string.security_code_not_valid), Toast.LENGTH_LONG)
           .show()
       return
     }
 
-    // hide keyboard
-    this.currentFocus?.let { view ->
-      val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
-      imm?.hideSoftInputFromWindow(view.windowToken, 0)
-    }
+    hideKeyboard()
     numericCodeInput.visibility = View.GONE
-    numericCodeBlock.visibility = View.GONE
+    binding.numericCodeBlock.visibility = View.GONE
 
-    if (enteredNumericCodeText != pendingBinding.generateShortAuthentificationString().trim()) {
-      findViewById<View>(R.id.incorrect_code_message).visibility = View.VISIBLE
+    if (enteredNumericCodeText != pendingServerBinding!!.generateShortAuthentificationString().trim()) {
+      binding.incorrectCodeMessage.visibility = View.VISIBLE
       return
     }
 
     pairingInProgress = true
 
+    binding.serverNameInput.setOnKeyListener { _, keyCode, event ->
+      if (keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_UP) {
+        onServerNameChosen(binding.serverNameInput)
+        true
+      } else {
+        false
+      }
+    }
+
+    binding.numericCodeBlock.visibility = View.GONE
+    binding.serverNameBlock.visibility = View.VISIBLE
+  }
+
+  private fun hideKeyboard() {
+    this.currentFocus?.let { view ->
+      val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
+      imm?.hideSoftInputFromWindow(view.windowToken, 0)
+      }
+  }
+
+  fun onServerNameChosen(serverNameInput: EditText)
+  {
+    val serverName = serverNameInput.text.toString().trim()
+    // ToDo: sanitize the name
+
     lifecycleScope.launch {
+      if (serverInfo == null || pendingServerBinding == null)
+      {
+        pairingInProgress = false
+        return@launch
+      }
+
       val error = withContext(Dispatchers.IO) {
-        PairingHelpers.approveServer(clientConfigStorage, info, pendingBinding, "test server")
+        PairingHelpers.approveServer(clientConfigStorage, serverInfo!!, pendingServerBinding!!, serverName)
       }
 
       if (error != null) {
@@ -140,7 +164,9 @@ class PairDeviceActivity : AppCompatActivity() {
         return@launch
       }
 
-      findViewById<View>(R.id.confirmed_message).visibility = View.VISIBLE
+      hideKeyboard()
+      binding.serverNameBlock.visibility = View.GONE
+      binding.confirmedMessage.visibility = View.VISIBLE
 
       delay(3000.milliseconds)
 
