@@ -44,8 +44,17 @@ namespace Lmdb
 			return parseReturnCode(returnCode);
 		}
 
+		constexpr mdb_size_t megabytes = 1024 * 1024;
+
+#if UINTPTR_MAX == 0xffffffffffffffffULL
 		// 1Gb, if the database ever wants to grow bigger, we definitely have a problem
-		returnCode = mdb_env_set_mapsize(mdbEnvironment, 1 * 1024 * 1024 * 1024);
+		constexpr mdb_size_t maxDbSize = 1024 * megabytes;
+#else
+		// some older 32 bit androids don't allow to map to more than 256 megabytes total
+		constexpr mdb_size_t maxDbSize = 128 * megabytes;
+#endif
+
+		returnCode = mdb_env_set_mapsize(mdbEnvironment, maxDbSize);
 		if (returnCode != 0)
 		{
 			reportDebugError("Could not size LMDB environment: '{}'", mdb_strerror(returnCode));

@@ -1,6 +1,7 @@
 package com.unnamed.easyphotobackup
 
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
@@ -12,6 +13,8 @@ import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import com.unnamed.easyphotobackup.databinding.ActivityMainBinding
 import androidx.core.net.toUri
 import androidx.core.view.isVisible
@@ -26,6 +29,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.TimeUnit
+import android.Manifest
 
 class MainActivity : AppCompatActivity() {
 
@@ -35,6 +39,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
 
     private var confirmingServer: ServerConnectionInfo? = null
+
+    private val STORAGE_PERMISSION_CODE = 100
 
     @RequiresApi(Build.VERSION_CODES.R)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -95,12 +101,29 @@ class MainActivity : AppCompatActivity() {
 
     @RequiresApi(Build.VERSION_CODES.R)
     private fun ensureAllFilesAccess() {
-        if (!Environment.isExternalStorageManager()) {
-            val intent = Intent(
-                Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
-                "package:$packageName".toUri()
-            )
-            startActivity(intent)
+        // Even though Android Studio says this check is not needed, it saves the app from crashing
+        // on older android versions which otherwise work just fine
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            if (!Environment.isExternalStorageManager()) {
+                val intent = Intent(
+                    Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                    "package:$packageName".toUri()
+                )
+                startActivity(intent)
+            }
+        }
+        else
+        {
+            // Android 10 (API 29) and below
+            val permission = Manifest.permission.READ_EXTERNAL_STORAGE
+            if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+                // Request the permission
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(permission),
+                    STORAGE_PERMISSION_CODE
+                )
+            }
         }
     }
 
