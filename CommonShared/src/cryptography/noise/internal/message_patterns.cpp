@@ -18,11 +18,6 @@ namespace Noise::MessagePatterns
 
 		handshakeState.ephemeralKeys = generateKeypair_x25519();
 
-		if (!Cryptography::isPublicKeyValid(handshakeState.ephemeralKeys->publicKey))
-		{
-			return MessageWriteError::InvalidPublicKey;
-		}
-
 		if (Utils::writeDataToBuffer(handshakeState.ephemeralKeys->publicKey, outMessageBuffer, inOutCursor) != 0)
 		{
 			return MessageWriteError::MessageBufferTooSmall;
@@ -48,11 +43,6 @@ namespace Noise::MessagePatterns
 			return MessageReadError::TruncatedMessage;
 		}
 
-		if (!Cryptography::isPublicKeyValid(*handshakeState.remoteEphemeralKey))
-		{
-			return MessageReadError::InvalidPublicKey;
-		}
-
 		Utils::mixHash(*handshakeState.remoteEphemeralKey, handshakeState.symmetricState);
 
 		return std::nullopt;
@@ -69,11 +59,6 @@ namespace Noise::MessagePatterns
 		if (outMessageBuffer.size() < inOutCursor + DHLEN + CipherAuthDataSize)
 		{
 			return MessageWriteError::MessageBufferTooSmall;
-		}
-
-		if (!Cryptography::isPublicKeyValid(handshakeState.staticKeys->publicKey))
-		{
-			return MessageWriteError::InvalidPublicKey;
 		}
 
 		// to avoid extra copies, write the result of encryption directly to the message buffer
@@ -121,11 +106,6 @@ namespace Noise::MessagePatterns
 			return MessageReadError::DecryptionFailed;
 		}
 
-		if (!Cryptography::isPublicKeyValid(*handshakeState.remoteStaticKey))
-		{
-			return MessageReadError::InvalidPublicKey;
-		}
-
 		inOutCursor += DHLEN + CipherAuthDataSize;
 
 		return std::nullopt;
@@ -144,7 +124,14 @@ namespace Noise::MessagePatterns
 			return MessageWriteError::NoRemoteEphemeralKey;
 		}
 
-		Utils::mixKey(Cryptography::diffieHellman_x25519(handshakeState.ephemeralKeys->secretKey, *handshakeState.remoteEphemeralKey), handshakeState.symmetricState);
+		const std::optional<Cryptography::DhResult> dhResult = Cryptography::diffieHellman_x25519(handshakeState.ephemeralKeys->secretKey, *handshakeState.remoteEphemeralKey);
+
+		if (!dhResult.has_value())
+		{
+			return MessageWriteError::InvalidPublicKey;
+		}
+
+		Utils::mixKey(*dhResult, handshakeState.symmetricState);
 
 		return std::nullopt;
 	}
@@ -162,7 +149,14 @@ namespace Noise::MessagePatterns
 			return MessageReadError::NoRemoteEphemeralKey;
 		}
 
-		Utils::mixKey(Cryptography::diffieHellman_x25519(handshakeState.ephemeralKeys->secretKey, *handshakeState.remoteEphemeralKey), handshakeState.symmetricState);
+		const std::optional<Cryptography::DhResult> dhResult = Cryptography::diffieHellman_x25519(handshakeState.ephemeralKeys->secretKey, *handshakeState.remoteEphemeralKey);
+
+		if (!dhResult.has_value())
+		{
+			return MessageReadError::InvalidPublicKey;
+		}
+
+		Utils::mixKey(*dhResult, handshakeState.symmetricState);
 
 		return std::nullopt;
 	}
@@ -233,7 +227,14 @@ namespace Noise::MessagePatterns
 			return MessageWriteError::NoRemoteStaticKey;
 		}
 
-		Utils::mixKey(Cryptography::diffieHellman_x25519(handshakeState.ephemeralKeys->secretKey, *handshakeState.remoteStaticKey), handshakeState.symmetricState);
+		const std::optional<Cryptography::DhResult> dhResult = Cryptography::diffieHellman_x25519(handshakeState.ephemeralKeys->secretKey, *handshakeState.remoteStaticKey);
+
+		if (!dhResult.has_value())
+		{
+			return MessageWriteError::InvalidPublicKey;
+		}
+
+		Utils::mixKey(*dhResult, handshakeState.symmetricState);
 
 		return std::nullopt;
 	}
@@ -250,7 +251,14 @@ namespace Noise::MessagePatterns
 			return MessageReadError::NoRemoteEphemeralKey;
 		}
 
-		Utils::mixKey(Cryptography::diffieHellman_x25519(handshakeState.staticKeys->secretKey, *handshakeState.remoteEphemeralKey), handshakeState.symmetricState);
+		const std::optional<Cryptography::DhResult> dhResult = Cryptography::diffieHellman_x25519(handshakeState.staticKeys->secretKey, *handshakeState.remoteEphemeralKey);
+
+		if (!dhResult.has_value())
+		{
+			return MessageReadError::InvalidPublicKey;
+		}
+
+		Utils::mixKey(*dhResult, handshakeState.symmetricState);
 
 		return std::nullopt;
 	}
@@ -267,7 +275,14 @@ namespace Noise::MessagePatterns
 			return MessageWriteError::NoRemoteEphemeralKey;
 		}
 
-		Utils::mixKey(Cryptography::diffieHellman_x25519(handshakeState.staticKeys->secretKey, *handshakeState.remoteEphemeralKey), handshakeState.symmetricState);
+		const std::optional<Cryptography::DhResult> dhResult = Cryptography::diffieHellman_x25519(handshakeState.staticKeys->secretKey, *handshakeState.remoteEphemeralKey);
+
+		if (!dhResult.has_value())
+		{
+			return MessageWriteError::InvalidPublicKey;
+		}
+
+		Utils::mixKey(*dhResult, handshakeState.symmetricState);
 
 		return std::nullopt;
 	}
@@ -284,7 +299,14 @@ namespace Noise::MessagePatterns
 			return MessageReadError::NoRemoteStaticKey;
 		}
 
-		Utils::mixKey(Cryptography::diffieHellman_x25519(handshakeState.ephemeralKeys->secretKey, *handshakeState.remoteStaticKey), handshakeState.symmetricState);
+		const std::optional<Cryptography::DhResult> dhResult = Cryptography::diffieHellman_x25519(handshakeState.ephemeralKeys->secretKey, *handshakeState.remoteStaticKey);
+
+		if (!dhResult.has_value())
+		{
+			return MessageReadError::InvalidPublicKey;
+		}
+
+		Utils::mixKey(*dhResult, handshakeState.symmetricState);
 
 		return std::nullopt;
 	}
@@ -301,7 +323,14 @@ namespace Noise::MessagePatterns
 			return MessageWriteError::NoRemoteEphemeralKey;
 		}
 
-		Utils::mixKey(Cryptography::diffieHellman_x25519(handshakeState.staticKeys->secretKey, *handshakeState.remoteEphemeralKey), handshakeState.symmetricState);
+		const std::optional<Cryptography::DhResult> dhResult = Cryptography::diffieHellman_x25519(handshakeState.staticKeys->secretKey, *handshakeState.remoteEphemeralKey);
+
+		if (!dhResult.has_value())
+		{
+			return MessageWriteError::InvalidPublicKey;
+		}
+
+		Utils::mixKey(*dhResult, handshakeState.symmetricState);
 
 		return std::nullopt;
 	}
@@ -318,7 +347,14 @@ namespace Noise::MessagePatterns
 			return MessageReadError::NoRemoteStaticKey;
 		}
 
-		Utils::mixKey(Cryptography::diffieHellman_x25519(handshakeState.ephemeralKeys->secretKey, *handshakeState.remoteStaticKey), handshakeState.symmetricState);
+		const std::optional<Cryptography::DhResult> dhResult = Cryptography::diffieHellman_x25519(handshakeState.ephemeralKeys->secretKey, *handshakeState.remoteStaticKey);
+
+		if (!dhResult.has_value())
+		{
+			return MessageReadError::InvalidPublicKey;
+		}
+
+		Utils::mixKey(*dhResult, handshakeState.symmetricState);
 
 		return std::nullopt;
 	}
@@ -335,7 +371,14 @@ namespace Noise::MessagePatterns
 			return MessageWriteError::NoRemoteStaticKey;
 		}
 
-		Utils::mixKey(Cryptography::diffieHellman_x25519(handshakeState.ephemeralKeys->secretKey, *handshakeState.remoteStaticKey), handshakeState.symmetricState);
+		const std::optional<Cryptography::DhResult> dhResult = Cryptography::diffieHellman_x25519(handshakeState.ephemeralKeys->secretKey, *handshakeState.remoteStaticKey);
+
+		if (!dhResult.has_value())
+		{
+			return MessageWriteError::InvalidPublicKey;
+		}
+
+		Utils::mixKey(*dhResult, handshakeState.symmetricState);
 
 		return std::nullopt;
 	}
@@ -352,7 +395,14 @@ namespace Noise::MessagePatterns
 			return MessageReadError::NoRemoteEphemeralKey;
 		}
 
-		Utils::mixKey(Cryptography::diffieHellman_x25519(handshakeState.staticKeys->secretKey, *handshakeState.remoteEphemeralKey), handshakeState.symmetricState);
+		const std::optional<Cryptography::DhResult> dhResult = Cryptography::diffieHellman_x25519(handshakeState.staticKeys->secretKey, *handshakeState.remoteEphemeralKey);
+
+		if (!dhResult.has_value())
+		{
+			return MessageReadError::InvalidPublicKey;
+		}
+
+		Utils::mixKey(*dhResult, handshakeState.symmetricState);
 
 		return std::nullopt;
 	}
@@ -369,7 +419,14 @@ namespace Noise::MessagePatterns
 			return MessageWriteError::NoRemoteStaticKey;
 		}
 
-		Utils::mixKey(Cryptography::diffieHellman_x25519(handshakeState.staticKeys->secretKey, *handshakeState.remoteStaticKey), handshakeState.symmetricState);
+		const std::optional<Cryptography::DhResult> dhResult = Cryptography::diffieHellman_x25519(handshakeState.staticKeys->secretKey, *handshakeState.remoteStaticKey);
+
+		if (!dhResult.has_value())
+		{
+			return MessageWriteError::InvalidPublicKey;
+		}
+
+		Utils::mixKey(*dhResult, handshakeState.symmetricState);
 
 		return std::nullopt;
 	}
@@ -386,7 +443,14 @@ namespace Noise::MessagePatterns
 			return MessageReadError::NoRemoteStaticKey;
 		}
 
-		Utils::mixKey(Cryptography::diffieHellman_x25519(handshakeState.staticKeys->secretKey, *handshakeState.remoteStaticKey), handshakeState.symmetricState);
+		const std::optional<Cryptography::DhResult> dhResult = Cryptography::diffieHellman_x25519(handshakeState.staticKeys->secretKey, *handshakeState.remoteStaticKey);
+
+		if (!dhResult.has_value())
+		{
+			return MessageReadError::InvalidPublicKey;
+		}
+
+		Utils::mixKey(*dhResult, handshakeState.symmetricState);
 
 		return std::nullopt;
 	}

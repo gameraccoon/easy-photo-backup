@@ -10,10 +10,12 @@ TEST(CryptographyDhFunctions, DhX25519_randomTest)
 {
 	Cryptography::Keypair keys1 = Cryptography::generateKeypair_x25519();
 	Cryptography::Keypair keys2 = Cryptography::generateKeypair_x25519();
-	Cryptography::DhResult dhResult1 = Cryptography::diffieHellman_x25519(keys1.secretKey, keys2.publicKey);
-	Cryptography::DhResult dhResult2 = Cryptography::diffieHellman_x25519(keys2.secretKey, keys1.publicKey);
+	std::optional<Cryptography::DhResult> dhResult1 = Cryptography::diffieHellman_x25519(keys1.secretKey, keys2.publicKey);
+	std::optional<Cryptography::DhResult> dhResult2 = Cryptography::diffieHellman_x25519(keys2.secretKey, keys1.publicKey);
 
-	EXPECT_EQ(dhResult1.raw, dhResult2.raw);
+	ASSERT_TRUE(dhResult1.has_value());
+	ASSERT_TRUE(dhResult2.has_value());
+	EXPECT_EQ(dhResult1->raw, dhResult2->raw);
 }
 
 TEST(CryptographyDhFunctions, DhX25519_test)
@@ -30,9 +32,56 @@ TEST(CryptographyDhFunctions, DhX25519_test)
 	std::array<std::byte, Cryptography::DHLEN> expectedResult = {};
 	vectorToArray(hexToBytes("37266b1796b20191001d0a7b46cef587deb1f7e7b73e26d764314113ad3b4c28"), expectedResult);
 
-	Cryptography::DhResult dhResult1 = Cryptography::diffieHellman_x25519(keys1.secretKey, keys2.publicKey);
-	Cryptography::DhResult dhResult2 = Cryptography::diffieHellman_x25519(keys2.secretKey, keys1.publicKey);
+	std::optional<Cryptography::DhResult> dhResult1 = Cryptography::diffieHellman_x25519(keys1.secretKey, keys2.publicKey);
+	std::optional<Cryptography::DhResult> dhResult2 = Cryptography::diffieHellman_x25519(keys2.secretKey, keys1.publicKey);
 
-	EXPECT_EQ(dhResult1.raw, expectedResult);
-	EXPECT_EQ(dhResult2.raw, expectedResult);
+	ASSERT_TRUE(dhResult1.has_value());
+	ASSERT_TRUE(dhResult2.has_value());
+	EXPECT_EQ(dhResult1->raw, expectedResult);
+	EXPECT_EQ(dhResult2->raw, expectedResult);
+}
+
+TEST(CryptographyDhFunctions, DhX25519_ignoresHighBit)
+{
+	Cryptography::Keypair keys1 = Cryptography::generateKeypair_x25519();
+	Cryptography::Keypair keys2 = Cryptography::generateKeypair_x25519();
+
+	Cryptography::PublicKey modifiedPublicKey = keys2.publicKey.clone();
+	modifiedPublicKey.raw[31] |= std::byte{ 0x80 };
+
+	auto original = Cryptography::diffieHellman_x25519(keys1.secretKey, keys2.publicKey);
+	auto modified = Cryptography::diffieHellman_x25519(keys1.secretKey, modifiedPublicKey);
+
+	ASSERT_TRUE(original.has_value());
+	ASSERT_TRUE(modified.has_value());
+
+	EXPECT_EQ(original->raw, modified->raw);
+}
+
+TEST(CryptographyDhFunctions, DhX25519_rejectsLowOrderPoints)
+{
+	Cryptography::Keypair keys = Cryptography::generateKeypair_x25519();
+	constexpr std::array<std::string_view, 7> lowOrderPoints = {
+		"0000000000000000000000000000000000000000000000000000000000000000",
+		"0100000000000000000000000000000000000000000000000000000000000000",
+		"e0eb7a7c3b41b8ae1656e3faf19fc46ada098deb9c32b1fd866205165f49b800",
+		"5f9c95bca3508c24b1d0b1559c83ef5b04445cc4581c8e86d8224eddd09f1157",
+		"ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+		"edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+		"eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+	};
+
+	for (const std::string_view point : lowOrderPoints)
+	{
+		Cryptography::PublicKey publicKey;
+		vectorToArray(hexToBytes(point), publicKey.raw);
+
+		const std::optional<Cryptography::DhResult> dhResult1 = Cryptography::diffieHellman_x25519(keys.secretKey, publicKey);
+		EXPECT_FALSE(dhResult1.has_value());
+
+		// test the same key with bit 255 set
+		publicKey.raw[31] |= std::byte{ 0x80 };
+		const std::optional<Cryptography::DhResult> dhResult2 = Cryptography::diffieHellman_x25519(keys.secretKey, publicKey);
+		EXPECT_FALSE(dhResult2.has_value());
+	}
 }

@@ -3,13 +3,13 @@
 
 #pragma once
 
+#include <optional>
+
 #include "common_shared/cryptography/types/dh_types.h"
 
 namespace Cryptography
 {
 	[[nodiscard]] Keypair generateKeypair_x25519() noexcept;
 
-	[[nodiscard]] DhResult diffieHellman_x25519(const SecretKey& secretKey, const PublicKey& publicKey) noexcept;
-
-	[[nodiscard]] bool isPublicKeyValid(const PublicKey& publicKey) noexcept;
+	[[nodiscard]] std::optional<DhResult> diffieHellman_x25519(const SecretKey& secretKey, const PublicKey& publicKey) noexcept;
 }
