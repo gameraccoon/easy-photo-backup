@@ -63,6 +63,7 @@ namespace ServiceLogic
 		}
 
 		uint32_t currentTagPeriod = Cryptography::IdentificationTagsUtils::getCurrentDayIndex();
+		std::scoped_lock l(inOutClientHashes.encryptedRequestIdentificationTagsMutex);
 		inOutClientHashes.encryptedRequestIdentificationTags.resetMap(inOutClientHashes.encryptedRequestHashes, currentTagPeriod);
 	}
 
