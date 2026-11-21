@@ -16,15 +16,13 @@ class ServerConfigStorage;
 
 namespace TcpServer::Encrypted
 {
-	constexpr const size_t IdentificationTagsWindowPerDay = 256;
-
 	using PairingFn = std::function<void(Requests::PendingClientBinding&& pendingClientBinding)>;
 
 	void handleClient(
 		const Network::RawSocket socket,
 		const std::filesystem::path& targetDir,
 		ServerConfigStorage& configStorage,
-		Cryptography::IdentificationTagMap<IdentificationTagsWindowPerDay>& identificationTags,
+		Cryptography::IdentificationTagMap& identificationTags,
 		std::mutex& identificationTagsMutex
 	);
 }

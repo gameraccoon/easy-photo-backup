@@ -12,7 +12,7 @@
 TEST(IdentificationTags, EmptyTagMap_Populate_ContainsTagsForThreePeriods)
 {
 	constexpr size_t PeriodSize = 16;
-	Cryptography::IdentificationTagMap<PeriodSize> tagMap;
+	Cryptography::IdentificationTagMap tagMap{ PeriodSize };
 
 	std::vector<Cryptography::HashResult> clients;
 	Cryptography::HashResult clientHash;
@@ -30,7 +30,7 @@ TEST(IdentificationTags, EmptyTagMap_Populate_ContainsTagsForThreePeriods)
 TEST(IdentificationTags, PopulatedTagMap_ConsumeTags_AllTagsFound)
 {
 	constexpr size_t PeriodSize = 16;
-	Cryptography::IdentificationTagMap<PeriodSize> tagMap;
+	Cryptography::IdentificationTagMap tagMap{ PeriodSize };
 	std::vector<Cryptography::HashResult> clients;
 	Cryptography::HashResult clientHash;
 	fillWithTestRandomBytes(clientHash, getSessionRandomSeed());
@@ -53,7 +53,7 @@ TEST(IdentificationTags, PopulatedTagMap_ConsumeTags_AllTagsFound)
 TEST(IdentificationTags, PopulatedTagMap_ConsumeTagsTwice_OnlyFirstConsumed)
 {
 	constexpr size_t PeriodSize = 16;
-	Cryptography::IdentificationTagMap<PeriodSize> tagMap;
+	Cryptography::IdentificationTagMap tagMap{ PeriodSize };
 	std::vector<Cryptography::HashResult> clients;
 	Cryptography::HashResult clientHash;
 	fillWithTestRandomBytes(clientHash, getSessionRandomSeed());
@@ -71,7 +71,7 @@ TEST(IdentificationTags, PopulatedTagMap_ConsumeTagsTwice_OnlyFirstConsumed)
 TEST(IdentificationTags, PopulatedTagMap_ConsumeFromBeyondPopulatedPeriods_NotFound)
 {
 	constexpr size_t PeriodSize = 16;
-	Cryptography::IdentificationTagMap<PeriodSize> tagMap;
+	Cryptography::IdentificationTagMap tagMap{ PeriodSize };
 	std::vector<Cryptography::HashResult> clients;
 	Cryptography::HashResult clientHash;
 	fillWithTestRandomBytes(clientHash, getSessionRandomSeed());
@@ -87,7 +87,7 @@ TEST(IdentificationTags, PopulatedTagMap_ConsumeFromBeyondPopulatedPeriods_NotFo
 TEST(IdentificationTags, PopulatedTagMap_MovePeriodForwardByOneAndConsumeAll_OnlyCorrectPeriodsAreConsumed)
 {
 	constexpr size_t PeriodSize = 16;
-	Cryptography::IdentificationTagMap<PeriodSize> tagMap;
+	Cryptography::IdentificationTagMap tagMap{ PeriodSize };
 
 	std::vector<Cryptography::HashResult> clients;
 	Cryptography::HashResult clientHash;
@@ -117,7 +117,7 @@ TEST(IdentificationTags, PopulatedTagMap_MovePeriodForwardByOneAndConsumeAll_Onl
 TEST(IdentificationTags, PopulatedTagMap_MovePeriodForwardByTwoAndConsumeAll_OnlyCorrectPeriodsAreConsumed)
 {
 	constexpr size_t PeriodSize = 16;
-	Cryptography::IdentificationTagMap<PeriodSize> tagMap;
+	Cryptography::IdentificationTagMap tagMap{ PeriodSize };
 
 	std::vector<Cryptography::HashResult> clients;
 	Cryptography::HashResult clientHash;
@@ -150,7 +150,7 @@ TEST(IdentificationTags, PopulatedTagMap_MovePeriodForwardByTwoAndConsumeAll_Onl
 TEST(IdentificationTags, PopulatedTagMap_MovePeriodForwardByThreeAndConsumeAll_OnlyCorrectPeriodsAreConsumed)
 {
 	constexpr size_t PeriodSize = 16;
-	Cryptography::IdentificationTagMap<PeriodSize> tagMap;
+	Cryptography::IdentificationTagMap tagMap{ PeriodSize };
 
 	std::vector<Cryptography::HashResult> clients;
 	Cryptography::HashResult clientHash;
@@ -183,7 +183,7 @@ TEST(IdentificationTags, PopulatedTagMap_MovePeriodForwardByThreeAndConsumeAll_O
 TEST(IdentificationTags, PopulatedTagMap_MovePeriodForwardByTenAndConsumeAll_OnlyCorrectPeriodsAreConsumed)
 {
 	constexpr size_t PeriodSize = 16;
-	Cryptography::IdentificationTagMap<PeriodSize> tagMap;
+	Cryptography::IdentificationTagMap tagMap{ PeriodSize };
 
 	std::vector<Cryptography::HashResult> clients;
 	Cryptography::HashResult clientHash;
@@ -216,7 +216,7 @@ TEST(IdentificationTags, PopulatedTagMap_MovePeriodForwardByTenAndConsumeAll_Onl
 TEST(IdentificationTags, PopulatedTagMap_MovePeriodBackwardByOneAndConsumeAll_PeriodDoesNotChange)
 {
 	constexpr size_t PeriodSize = 16;
-	Cryptography::IdentificationTagMap<PeriodSize> tagMap;
+	Cryptography::IdentificationTagMap tagMap{ PeriodSize };
 
 	std::vector<Cryptography::HashResult> clients;
 	Cryptography::HashResult clientHash;
@@ -246,7 +246,7 @@ TEST(IdentificationTags, PopulatedTagMap_MovePeriodBackwardByOneAndConsumeAll_Pe
 TEST(IdentificationTags, PopulatedTagMap_MovePeriodBackwardByTwoAndConsumeAll_PeriodDoesNotChange)
 {
 	constexpr size_t PeriodSize = 16;
-	Cryptography::IdentificationTagMap<PeriodSize> tagMap;
+	Cryptography::IdentificationTagMap tagMap{ PeriodSize };
 
 	std::vector<Cryptography::HashResult> clients;
 	Cryptography::HashResult clientHash;
@@ -279,7 +279,7 @@ TEST(IdentificationTags, PopulatedTagMap_MovePeriodBackwardByTwoAndConsumeAll_Pe
 TEST(IdentificationTags, PopulatedTagMap_ResetPeriodBackwardByThreeAndConsumeAll_OnlyTheNewPeriodConsumed)
 {
 	constexpr size_t PeriodSize = 16;
-	Cryptography::IdentificationTagMap<PeriodSize> tagMap;
+	Cryptography::IdentificationTagMap tagMap{ PeriodSize };
 
 	std::vector<Cryptography::HashResult> clients;
 	Cryptography::HashResult clientHash;
@@ -312,7 +312,7 @@ TEST(IdentificationTags, PopulatedTagMap_ResetPeriodBackwardByThreeAndConsumeAll
 TEST(IdentificationTags, PartiallyConsumedPopulatedTagMap_MovePeriodForwardByOneAndConsumeAll_AlreadyConsumedRecordsDoNotExist)
 {
 	constexpr size_t PeriodSize = 16;
-	Cryptography::IdentificationTagMap<PeriodSize> tagMap;
+	Cryptography::IdentificationTagMap tagMap{ PeriodSize };
 
 	std::vector<Cryptography::HashResult> clients;
 	Cryptography::HashResult clientHash;
@@ -357,7 +357,7 @@ TEST(IdentificationTags, PartiallyConsumedPopulatedTagMap_MovePeriodForwardByOne
 TEST(IdentificationTags, TagMapPopulatedForTwoClients_ConsumeTags_TagsReturnCorrectClientIndex)
 {
 	constexpr size_t PeriodSize = 16;
-	Cryptography::IdentificationTagMap<PeriodSize> tagMap;
+	Cryptography::IdentificationTagMap tagMap{ PeriodSize };
 	std::vector<Cryptography::HashResult> clients;
 	Cryptography::HashResult clientHash1;
 	fillWithTestRandomBytes(clientHash1, getSessionRandomSeed());
@@ -389,7 +389,7 @@ TEST(IdentificationTags, TagMapPopulatedForTwoClients_ConsumeTags_TagsReturnCorr
 TEST(IdentificationTags, TagMapPopulatedForTwoClients_MoveForwardByOneAndConsumeTags_OnlyCorrectPeriodsConsumed)
 {
 	constexpr size_t PeriodSize = 16;
-	Cryptography::IdentificationTagMap<PeriodSize> tagMap;
+	Cryptography::IdentificationTagMap tagMap{ PeriodSize };
 	std::vector<Cryptography::HashResult> clients;
 	Cryptography::HashResult clientHash1;
 	fillWithTestRandomBytes(clientHash1, getSessionRandomSeed());
@@ -433,7 +433,7 @@ TEST(IdentificationTags, TagMapPopulatedForTwoClients_MoveForwardByOneAndConsume
 TEST(IdentificationTags, TagMapPopulatedForOneClients_AddOneClientTagsAndConsumeTags_BothClientTagsExist)
 {
 	constexpr size_t PeriodSize = 16;
-	Cryptography::IdentificationTagMap<PeriodSize> tagMap;
+	Cryptography::IdentificationTagMap tagMap{ PeriodSize };
 	std::vector<Cryptography::HashResult> clients;
 	Cryptography::HashResult clientHash1;
 	fillWithTestRandomBytes(clientHash1, getSessionRandomSeed());
@@ -467,7 +467,7 @@ TEST(IdentificationTags, TagMapPopulatedForOneClients_AddOneClientTagsAndConsume
 TEST(IdentificationTags, TagMapPopulatedForTwoClients_RemoveOneClientTagsAndConsumeTags_OnlyTagsFromRemainingClientExist)
 {
 	constexpr size_t PeriodSize = 16;
-	Cryptography::IdentificationTagMap<PeriodSize> tagMap;
+	Cryptography::IdentificationTagMap tagMap{ PeriodSize };
 	std::vector<Cryptography::HashResult> clients;
 	Cryptography::HashResult clientHash1;
 	fillWithTestRandomBytes(clientHash1, getSessionRandomSeed());

@@ -25,12 +25,15 @@
 
 namespace ServiceLogic
 {
+	constexpr const size_t IdentificationTagsWindowPerDay = 256;
+
 	struct EncryptedRequestIdentificationData
 	{
 		uint32_t currentTagPeriod{};
-		std::vector<Cryptography::HashResult> encryptedRequestHashes;
-		std::vector<uint32_t> encryptedRequestIndices;
-		Cryptography::IdentificationTagMap<TcpServer::Encrypted::IdentificationTagsWindowPerDay> encryptedRequestIdentificationTags;
+		std::vector<Cryptography::HashResult> encryptedRequestClientHashes;
+		std::vector<uint32_t> encryptedRequestClientIndices;
+		std::vector<size_t> clientsToRemove;
+		Cryptography::IdentificationTagMap encryptedRequestIdentificationTags{ IdentificationTagsWindowPerDay };
 		std::mutex encryptedRequestIdentificationTagsMutex;
 	};
 
@@ -38,10 +41,10 @@ namespace ServiceLogic
 	{
 		std::vector<size_t> indicesToRemove;
 		size_t numAdded;
-		configStorage.updateIdentificationHashes(ServerConfigStorage::IdentificationTagType::EncryptedRequest, outClientHashes.encryptedRequestHashes, outClientHashes.encryptedRequestIndices, numAdded, indicesToRemove);
+		configStorage.updateIdentificationHashes(ServerConfigStorage::IdentificationTagType::EncryptedRequest, outClientHashes.encryptedRequestClientHashes, outClientHashes.encryptedRequestClientIndices, numAdded, indicesToRemove);
 
 		uint32_t currentTagPeriod = Cryptography::IdentificationTagsUtils::getCurrentDayIndex();
-		outClientHashes.encryptedRequestIdentificationTags.resetMap(outClientHashes.encryptedRequestHashes, currentTagPeriod);
+		outClientHashes.encryptedRequestIdentificationTags.resetMap(outClientHashes.encryptedRequestClientHashes, currentTagPeriod);
 	}
 
 	static void updateClientHashesForNsd(ServerConfigStorage& configStorage, std::vector<Cryptography::HashResult>& clientHashes, std::vector<uint32_t>& clientIndices, size_t numClientsAdded, std::vector<size_t>& clientsToRemove)
@@ -49,22 +52,26 @@ namespace ServiceLogic
 		configStorage.updateIdentificationHashes(ServerConfigStorage::IdentificationTagType::Nsd, clientHashes, clientIndices, numClientsAdded, clientsToRemove);
 	}
 
-	static void updateClientHashesForEncryptedRequests(ServerConfigStorage& configStorage, EncryptedRequestIdentificationData& inOutClientHashes)
+	static void updateClientAndPeriodData(ServerConfigStorage& configStorage, EncryptedRequestIdentificationData& inOutClientHashes) noexcept
 	{
-		std::vector<size_t> indicesToRemove;
-		size_t numAdded;
-		configStorage.updateIdentificationHashes(ServerConfigStorage::IdentificationTagType::EncryptedRequest, inOutClientHashes.encryptedRequestHashes, inOutClientHashes.encryptedRequestIndices, numAdded, indicesToRemove);
-		std::sort(indicesToRemove.begin(), indicesToRemove.end(), std::greater<>());
-		for (size_t idx : indicesToRemove)
-		{
-			assertFatalRelease(idx < inOutClientHashes.encryptedRequestHashes.size() && idx < inOutClientHashes.encryptedRequestIndices.size(), "Logical error: invalid index to remove");
-			inOutClientHashes.encryptedRequestHashes.erase(inOutClientHashes.encryptedRequestHashes.begin() + idx);
-			inOutClientHashes.encryptedRequestIndices.erase(inOutClientHashes.encryptedRequestIndices.begin() + idx);
-		}
+		// we never move back in time, if the clocks drift back we keep the last used period
+		// periods are also measured in days or at least hours, so 32bit overflow is not
+		// something we should be concerned about
+		const uint32_t lastPeriodIndex = inOutClientHashes.currentTagPeriod;
+		const uint32_t currentPeriodIndex = std::max(static_cast<uint32_t>(Cryptography::IdentificationTagsUtils::getCurrentDayIndex()), lastPeriodIndex);
 
-		uint32_t currentTagPeriod = Cryptography::IdentificationTagsUtils::getCurrentDayIndex();
+		size_t numAddedClients = 0;
+		configStorage.updateIdentificationHashes(ServerConfigStorage::IdentificationTagType::EncryptedRequest, inOutClientHashes.encryptedRequestClientHashes, inOutClientHashes.encryptedRequestClientIndices, numAddedClients, inOutClientHashes.clientsToRemove);
+
 		std::scoped_lock l(inOutClientHashes.encryptedRequestIdentificationTagsMutex);
-		inOutClientHashes.encryptedRequestIdentificationTags.resetMap(inOutClientHashes.encryptedRequestHashes, currentTagPeriod);
+		Cryptography::IdentificationTagsUtils::processClientModificationRequests(inOutClientHashes.encryptedRequestClientHashes, inOutClientHashes.encryptedRequestIdentificationTags, lastPeriodIndex, currentPeriodIndex, numAddedClients, inOutClientHashes.clientsToRemove);
+
+		if (currentPeriodIndex > lastPeriodIndex)
+		{
+			Cryptography::IdentificationTagsUtils::applyPendingRemovals(inOutClientHashes.encryptedRequestClientHashes, inOutClientHashes.encryptedRequestClientIndices, inOutClientHashes.encryptedRequestIdentificationTags, std::move(inOutClientHashes.clientsToRemove));
+			inOutClientHashes.encryptedRequestIdentificationTags.updateTagMap(inOutClientHashes.encryptedRequestClientHashes, lastPeriodIndex, currentPeriodIndex);
+			inOutClientHashes.currentTagPeriod = currentPeriodIndex;
+		}
 	}
 
 	void startService(const AppArguments& arguments)
@@ -115,25 +122,7 @@ namespace ServiceLogic
 		EncryptedRequestIdentificationData approvedClientHashes;
 		populateClientHashes(*configStorage, approvedClientHashes);
 		auto onClientConnectedFn = [&configStorage, &approvedClientHashes] {
-			updateClientHashesForEncryptedRequests(*configStorage, approvedClientHashes);
-			const uint32_t newTagPeriod = Cryptography::IdentificationTagsUtils::getCurrentDayIndex();
-			if (newTagPeriod != approvedClientHashes.currentTagPeriod)
-			{
-				if (newTagPeriod > approvedClientHashes.currentTagPeriod)
-				{
-					approvedClientHashes.encryptedRequestIdentificationTagsMutex.lock();
-					approvedClientHashes.encryptedRequestIdentificationTags.updateTagMap(approvedClientHashes.encryptedRequestHashes, newTagPeriod, approvedClientHashes.currentTagPeriod);
-					approvedClientHashes.encryptedRequestIdentificationTagsMutex.unlock();
-					approvedClientHashes.currentTagPeriod = newTagPeriod;
-				}
-				else if (newTagPeriod + 2 < approvedClientHashes.currentTagPeriod)
-				{
-					// if we went back a lot, we should just reset the map
-					approvedClientHashes.encryptedRequestIdentificationTagsMutex.lock();
-					approvedClientHashes.encryptedRequestIdentificationTags.resetMap(approvedClientHashes.encryptedRequestHashes, approvedClientHashes.currentTagPeriod);
-					approvedClientHashes.encryptedRequestIdentificationTagsMutex.unlock();
-				}
-			}
+			updateClientAndPeriodData(*configStorage, approvedClientHashes);
 		};
 
 		const std::filesystem::path targetDir = arguments.targetDir.empty() ? "./server_target_directory" : arguments.targetDir;
@@ -173,8 +162,8 @@ namespace ServiceLogic
 
 		const uint16_t serverPort = portFuture.get();
 
-		const auto updateClientHashesForNsdFn = [&configStorage](std::vector<Cryptography::HashResult>& clientHashes, std::vector<uint32_t>& clientIndices, size_t numClientsAdded, std::vector<size_t>& clientsToRemove) {
-			updateClientHashesForNsd(*configStorage, clientHashes, clientIndices, numClientsAdded, clientsToRemove);
+		const auto updateClientHashesForNsdFn = [&configStorage](std::vector<Cryptography::HashResult>& clientHashes, std::vector<uint32_t>& clientIndices, size_t& outNumClientsAdded, std::vector<size_t>& clientsToRemove) {
+			updateClientHashesForNsd(*configStorage, clientHashes, clientIndices, outNumClientsAdded, clientsToRemove);
 		};
 
 		std::thread nsdThread([nsdSocket, &nsdCloseSocketFlag, serverId, serverPort, &updateClientHashesForNsdFn] {

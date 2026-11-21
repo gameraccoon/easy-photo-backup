@@ -10,16 +10,10 @@
 #include <variant>
 
 #include "common_shared/cryptography/types/hash_types.h"
-#include "common_shared/cryptography/utils/identification_tags.h"
 #include "common_shared/network/utils.h"
 
 namespace HiddenNsdServer
 {
-	// we store the amount of tags that is enough to cover all possible requets during one time period
-	constexpr size_t TagsPerPeriod = 256;
-
-	using TagMap = Cryptography::IdentificationTagMap<TagsPerPeriod>;
-
 	using ClientHashes = std::vector<Cryptography::HashResult>;
 	using ClientHashIds = std::vector<uint32_t>;
 

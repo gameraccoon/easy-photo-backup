@@ -87,6 +87,13 @@ namespace FileSendHelpers
 			return std::nullopt;
 		}
 
+		std::optional<uint32_t> identificationTagIndexResult = clientSentFilesStorage.consumeNextIdentificationKeyIndicesInPeriod(serverBinding->serverIdx, ClientConfigStorage::IdentificationTagType::EncryptedRequest, Cryptography::IdentificationTagsUtils::getCurrentDayIndex(), 1);
+		if (!identificationTagIndexResult.has_value())
+		{
+			reportDebugError("Logical error: could not generate new identification tag index");
+			return "Could not generate new identification tag index in the period";
+		}
+
 		const uint64_t identificationTag = Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(serverBinding->encryptedRequestIdentificationHash, Cryptography::IdentificationTagsUtils::getCurrentDayIndex(), 0);
 
 		RequestAnswers::RequestAnswer SendFilesAnswer = Requests::prepareConnectionAndProcess(

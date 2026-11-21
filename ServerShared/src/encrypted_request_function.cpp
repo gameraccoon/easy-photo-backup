@@ -29,7 +29,7 @@ namespace TcpServer::Encrypted
 		const std::span<const std::byte>& message,
 		const std::filesystem::path& targetDir,
 		ServerConfigStorage& configStorage,
-		Cryptography::IdentificationTagMap<IdentificationTagsWindowPerDay>& identificationTags,
+		Cryptography::IdentificationTagMap& identificationTags,
 		std::mutex& identificationTagsMutex
 	)
 	{
@@ -76,7 +76,7 @@ namespace TcpServer::Encrypted
 		const Network::RawSocket socket,
 		const std::filesystem::path& targetDir,
 		ServerConfigStorage& configStorage,
-		Cryptography::IdentificationTagMap<IdentificationTagsWindowPerDay>& identificationTags,
+		Cryptography::IdentificationTagMap& identificationTags,
 		std::mutex& identificationTagsMutex
 	)
 	{
