@@ -31,6 +31,11 @@ namespace HiddenNsdServer
 	{
 		// use the hash as the encryption key
 		Cryptography::CipherKey cipherKey;
+		if (tagPayload.clientIndex >= clientHashes.size())
+		{
+			reportDebugError("Logical error: incorrect client index for client hashes");
+			return Cryptography::EncryptResult::NoEncryptionKey;
+		}
 		std::copy(clientHashes[tagPayload.clientIndex].raw.begin(), clientHashes[tagPayload.clientIndex].raw.begin() + 32, cipherKey.raw.begin());
 		// date and tag index make an unique nonce, since we use them only once
 		Cryptography::Nonce nonce = (static_cast<uint64_t>(tagPayload.periodIndex) << (8 * 4)) + tagPayload.keyIndexInPeriod;

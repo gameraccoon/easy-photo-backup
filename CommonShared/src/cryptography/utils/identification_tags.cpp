@@ -212,7 +212,10 @@ namespace Cryptography
 
 			// shift the client indices in the map
 			tagMap.forEachPayload([&indexRedirectors](auto& payload) {
-				payload.clientIndex = static_cast<uint32_t>(indexRedirectors[payload.clientIndex]);
+				if (payload.clientIndex < indexRedirectors.size())
+				{
+					payload.clientIndex = static_cast<uint32_t>(indexRedirectors[payload.clientIndex]);
+				}
 			});
 
 			clientsToRemove.clear();
