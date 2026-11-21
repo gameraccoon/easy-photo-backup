@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 
 #include "common_shared/cryptography/primitives/hash_functions.h"
 #include "common_shared/debug/assert.h"
