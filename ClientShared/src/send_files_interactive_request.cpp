@@ -150,11 +150,15 @@ namespace Requests
 		auto sendResult = Network::sendEncrypted(socket, buffer, 3, sendingCipherState);
 		if (sendResult.has_value()) [[unlikely]]
 		{
-			reportDebugError("Could : {}", *sendResult);
+			reportDebugError("Could not send send file request prelude: {}", *sendResult);
 			return RequestAnswers::ErrorNoHandling{};
 		}
 
-		Noise::Utils::rekey(sendingCipherState);
+		if (Cryptography::EncryptResult result = Noise::Utils::rekey(sendingCipherState); result != Cryptography::EncryptResult::Success)
+		{
+			reportDebugError("Could not call rekey function: {}", static_cast<int>(result));
+			return RequestAnswers::LogicalError{ std::format("Could not call rekey function: {}", static_cast<int>(result)) };
+		}
 
 		Debug::Log::printDebug("Start sending files");
 

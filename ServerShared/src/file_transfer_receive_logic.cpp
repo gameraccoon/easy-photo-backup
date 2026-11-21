@@ -647,7 +647,11 @@ namespace FileTransferReceiveLogic
 				return false;
 			}
 
-			Noise::Utils::rekey(receivingCipherstate);
+			if (Cryptography::EncryptResult result = Noise::Utils::rekey(receivingCipherstate); result != Cryptography::EncryptResult::Success)
+			{
+				reportDebugError("Could not call rekey function: {}", static_cast<int>(result));
+				return false;
+			}
 
 			++transferData.chunksReceived;
 			bytesReadInChunk = 0;
@@ -736,7 +740,11 @@ namespace FileTransferReceiveLogic
 					return false;
 				}
 
-				Noise::Utils::rekey(sendingCipherstate);
+				if (Cryptography::EncryptResult result = Noise::Utils::rekey(sendingCipherstate); result != Cryptography::EncryptResult::Success)
+				{
+					reportDebugError("Could not call rekey function: {}", static_cast<int>(result));
+					return false;
+				}
 
 				// clean the ciphertext from the buffer to make sure we have zeros to reuse the buffer
 				std::fill(sendingBuffer.raw.begin(), sendingBuffer.raw.end(), std::byte(0x00));

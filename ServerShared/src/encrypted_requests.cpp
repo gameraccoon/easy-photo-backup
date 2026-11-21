@@ -130,7 +130,11 @@ namespace EncryptedRequests
 			return RequestReadError{ std::format("Received chunk of unexpected size: {}", bytesReceived) };
 		}
 
-		Noise::Utils::rekey(outReceivingCipherState);
+		if (Cryptography::EncryptResult result = Noise::Utils::rekey(outReceivingCipherState); result != Cryptography::EncryptResult::Success)
+		{
+			reportDebugError("Could not call rekey function: {}", static_cast<int>(result));
+			return RequestReadError{ "Could not call rekey function" };
+		}
 
 		const uint16_t networkProtocolVersion = Serialization::readUint16(buffer[0], buffer[1]);
 		if (networkProtocolVersion != Protocol::NetworkProtocolVersion)

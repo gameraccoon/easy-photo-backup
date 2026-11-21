@@ -92,6 +92,7 @@ namespace Noise::Utils
 		{
 			std::copy(cyphertext.begin(), cyphertext.begin() + Cryptography::CipherKeySize, cipherState.cipherKey.raw.begin());
 		}
+		// per Noise specification, we don't reset the nonce https://noiseprotocol.org/noise.html#rekey
 		return result;
 	}
 

@@ -236,19 +236,19 @@ TEST(CryptographyNoiseUtils, rekey_test)
 	Noise::CipherStateSending cipherState;
 	vectorToArray(hexToBytes("613a3c66a134f9ddce3bd238b17b7b3178c76e135dc8a87feae48a575407eefb"), cipherState.cipherKey.raw);
 
-	Noise::Utils::rekey(cipherState);
+	EXPECT_EQ(Noise::Utils::rekey(cipherState), Cryptography::EncryptResult::Success);
 	EXPECT_EQ(vectorToArray<Cryptography::CipherKeySize>(hexToBytes("188a697bdb20db820f326a535a3f6cd7ea7e1b55624a53d7255c261191910227")), cipherState.cipherKey.raw);
 
-	Noise::Utils::rekey(cipherState);
+	EXPECT_EQ(Noise::Utils::rekey(cipherState), Cryptography::EncryptResult::Success);
 	EXPECT_EQ(vectorToArray<Cryptography::CipherKeySize>(hexToBytes("2a9e9a04fb1ef746a2e21d0b014688a440bd67655326ce08a55cbfc0bb3e12fc")), cipherState.cipherKey.raw);
 
-	Noise::Utils::rekey(cipherState);
+	EXPECT_EQ(Noise::Utils::rekey(cipherState), Cryptography::EncryptResult::Success);
 	EXPECT_EQ(vectorToArray<Cryptography::CipherKeySize>(hexToBytes("f7248ebb312e297f77f7c700c0bd72bbc0e4b9fd0a924bad27a413611303ef32")), cipherState.cipherKey.raw);
 
-	Noise::Utils::rekey(cipherState);
+	EXPECT_EQ(Noise::Utils::rekey(cipherState), Cryptography::EncryptResult::Success);
 	EXPECT_EQ(vectorToArray<Cryptography::CipherKeySize>(hexToBytes("021aa1b00770b89921cd197852bdcb827f593d03108222a2497a88a8b3b6c483")), cipherState.cipherKey.raw);
 
-	Noise::Utils::rekey(cipherState);
+	EXPECT_EQ(Noise::Utils::rekey(cipherState), Cryptography::EncryptResult::Success);
 	EXPECT_EQ(vectorToArray<Cryptography::CipherKeySize>(hexToBytes("ce8e87a7988c3f61a2df61e8dfa91bcbf18b67233a595dc30e26c69a4fdb717d")), cipherState.cipherKey.raw);
 }
 

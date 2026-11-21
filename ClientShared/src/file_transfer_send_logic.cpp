@@ -476,7 +476,11 @@ namespace FileTransferSendLogic
 				return false;
 			}
 
-			Noise::Utils::rekey(sendingCipherstate);
+			if (Cryptography::EncryptResult result = Noise::Utils::rekey(sendingCipherstate); result != Cryptography::EncryptResult::Success)
+			{
+				reportDebugError("Could not call rekey function: {}", static_cast<int>(result));
+				return false;
+			}
 
 			++stats.chunksSent;
 			bytesFilledInChunk = 0;
@@ -617,7 +621,11 @@ namespace FileTransferSendLogic
 					return false;
 				}
 
-				Noise::Utils::rekey(receivingCipherstate);
+				if (Cryptography::EncryptResult result = Noise::Utils::rekey(receivingCipherstate); result != Cryptography::EncryptResult::Success)
+				{
+					reportDebugError("Could not call rekey function: {}", static_cast<int>(result));
+					return false;
+				}
 				posInChunk = 0;
 
 				return true;
