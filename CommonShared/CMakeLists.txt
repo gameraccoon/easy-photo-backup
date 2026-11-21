@@ -79,7 +79,6 @@ target_sources(CommonShared
 		${COMMON_SHARED_SRC_DIR}/storage/lmdb_environment.cpp
 		${COMMON_SHARED_SRC_DIR}/storage/lmdb_helpers.cpp
 		${COMMON_SHARED_SRC_DIR}/storage/lmdb_transaction.cpp
-		${COMMON_SHARED_SRC_DIR}/hash_utils.cpp
 )
 
 if(MSVC)

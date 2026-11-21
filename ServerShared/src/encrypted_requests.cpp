@@ -77,6 +77,12 @@ namespace EncryptedRequests
 				cursor
 			);
 
+			if (std::holds_alternative<Noise::MessageWriteError>(result))
+			{
+				reportDebugError("Could not append second Noise KK handshake message: {}", static_cast<int>(std::get<Noise::MessageWriteError>(result)));
+				return false;
+			}
+
 			if (cursor != NoiseKK::Message2ExpectedSize + SecondMessagePreludeSize)
 			{
 				reportDebugError("Second KK message had unexpected size {}", cursor);
