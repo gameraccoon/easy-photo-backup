@@ -16,6 +16,7 @@ namespace Cryptography
 	std::string generateSas(const HashResult& handshakeHash, uint8_t digits) noexcept
 	{
 		assertFatalRelease(digits < std::numeric_limits<uint64_t>::digits10, "generateSas requested more digits than possible {}", digits);
+		assertFatalRelease(digits > 0, "Logical error: should not call generateSas with requesting zero digits");
 
 		HashResult hmac;
 		HMAC_blake2b(handshakeHash, std::as_bytes(std::span(sasContextString)), hmac);
