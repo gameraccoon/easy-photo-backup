@@ -377,55 +377,56 @@ void ServerConfigStorage::updateIdentificationHashes(IdentificationTagType tagTy
 		Lmdb::Result<Lmdb::CursorDataView> view = cursor->viewCurrent();
 		while (view.isValid())
 		{
-			if (view->key.size() != sizeof(ConnectionIdx))
+			if (view->key.size() == sizeof(ConnectionIdx)) [[likely]]
+			{
+				// the keys are sorted asc (big endian serialization => lexicographical byte sorting)
+				const ConnectionIdx currentIndex = Serialization::readUint32(view->key);
+				existingKeys.push_back(currentIndex);
+
+				if (std::find(inOutIds.begin(), inOutIds.end(), currentIndex) == inOutIds.end())
+				{
+					inOutHashes.emplace_back();
+					inOutIds.push_back(currentIndex);
+
+					Serialization::GenericDeserializationWrapper deserializer{ view->value };
+
+					if (!deserializer.skipShortString("clientName"))
+					{
+						inOutHashes.pop_back();
+						inOutIds.pop_back();
+						break;
+					}
+					if (tagType == IdentificationTagType::Nsd)
+					{
+						if (!deserializer.readFixedData(inOutHashes.back(), "nsdIdentificationHash"))
+						{
+							inOutHashes.pop_back();
+							inOutIds.pop_back();
+							break;
+						}
+					}
+					else
+					{
+						if (!deserializer.skipBytes(Cryptography::HASHLEN))
+						{
+							inOutHashes.pop_back();
+							inOutIds.pop_back();
+							break;
+						}
+						if (!deserializer.readFixedData(inOutHashes.back(), "encryptedRequestIdentificationHash"))
+						{
+							inOutHashes.pop_back();
+							inOutIds.pop_back();
+							break;
+						}
+					}
+
+					++outNumAdded;
+				}
+			}
+			else
 			{
 				reportDebugError("Unexpected key size {}", view->key.size());
-				continue;
-			}
-
-			// the keys are sorted asc (big endian serialization => lexicographical byte sorting)
-			const ConnectionIdx currentIndex = Serialization::readUint32(view->key);
-			existingKeys.push_back(currentIndex);
-
-			if (std::find(inOutIds.begin(), inOutIds.end(), currentIndex) == inOutIds.end())
-			{
-				inOutHashes.emplace_back();
-				inOutIds.push_back(currentIndex);
-
-				Serialization::GenericDeserializationWrapper deserializer{ view->value };
-
-				if (!deserializer.skipShortString("clientName"))
-				{
-					inOutHashes.pop_back();
-					inOutIds.pop_back();
-					break;
-				}
-				if (tagType == IdentificationTagType::Nsd)
-				{
-					if (!deserializer.readFixedData(inOutHashes.back(), "nsdIdentificationHash"))
-					{
-						inOutHashes.pop_back();
-						inOutIds.pop_back();
-						break;
-					}
-				}
-				else
-				{
-					if (!deserializer.skipBytes(Cryptography::HASHLEN))
-					{
-						inOutHashes.pop_back();
-						inOutIds.pop_back();
-						break;
-					}
-					if (!deserializer.readFixedData(inOutHashes.back(), "encryptedRequestIdentificationHash"))
-					{
-						inOutHashes.pop_back();
-						inOutIds.pop_back();
-						break;
-					}
-				}
-
-				++outNumAdded;
 			}
 
 			if (cursor->next() != Lmdb::ReturnCode::Success) [[unlikely]]
