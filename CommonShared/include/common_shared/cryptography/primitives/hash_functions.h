@@ -4,8 +4,6 @@
 #pragma once
 
 #include <cstddef>
-#include <filesystem>
-#include <fstream>
 #include <span>
 
 #include "common_shared/cryptography/types/hash_types.h"
@@ -24,8 +22,4 @@ namespace Cryptography
 		HashResult* output2,
 		HashResult* output3
 	) noexcept;
-
-	// 0 means success
-	[[nodiscard]] int hashFile(const std::filesystem::path& path, HashResult& outHash) noexcept;
-	[[nodiscard]] int hashFileBytes(std::ifstream& stream, size_t fileSize, HashResult& outHash) noexcept;
 } // namespace Cryptography
