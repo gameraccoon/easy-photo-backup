@@ -177,8 +177,6 @@ namespace HiddenNsdServer
 				continue;
 			}
 
-			updateClientAndPeriodData(lastPeriodIndex, updateHashesFn, clientHashes, clientIds, tagMap, clientsToRemove);
-
 			if (messageLength % expectedPacketSize != 0)
 			{
 				continue;
@@ -190,6 +188,8 @@ namespace HiddenNsdServer
 			{
 				continue;
 			}
+
+			updateClientAndPeriodData(lastPeriodIndex, updateHashesFn, clientHashes, clientIds, tagMap, clientsToRemove);
 
 			bool hadMatch = false;
 			for (size_t i = 0; i < static_cast<size_t>(messageLength); i += expectedPacketSize)
