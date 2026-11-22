@@ -19,7 +19,8 @@ namespace Protocol
 	//   + remove GetProtocolVersion and GetServerName request and answer
 	//   + make Pair request only work in "pairing mode"
 	// 3 - changed the dirivation logic for pairing keys and tags
-	constexpr uint16_t NetworkProtocolVersion = 3;
+	// 4 - changed hash function parameters
+	constexpr uint16_t NetworkProtocolVersion = 4;
 
 	enum class RequestId : uint8_t
 	{
