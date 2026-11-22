@@ -108,7 +108,7 @@ namespace Noise::Utils
 
 	int writeDataToBuffer(const std::span<const std::byte> data, const std::span<std::byte> inOutBuffer, size_t& inOutWritePos) noexcept
 	{
-		if (inOutBuffer.size() < (inOutWritePos + data.size()))
+		if (inOutWritePos > inOutBuffer.size() || data.size() > inOutBuffer.size() - inOutWritePos)
 		{
 			return -1;
 		}
@@ -126,7 +126,7 @@ namespace Noise::Utils
 
 	int readDataFromBuffer(const std::span<const std::byte> buffer, const std::span<std::byte> outData, size_t& inOutReadPos) noexcept
 	{
-		if (buffer.size() < (inOutReadPos + outData.size()))
+		if (inOutReadPos > buffer.size() || outData.size() > buffer.size() - inOutReadPos)
 		{
 			return -1;
 		}

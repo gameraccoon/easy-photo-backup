@@ -56,7 +56,8 @@ namespace Noise::MessagePatterns
 			return MessageWriteError::NoStaticKeys;
 		}
 
-		if (outMessageBuffer.size() < inOutCursor + DHLEN + CipherAuthDataSize)
+		constexpr size_t PatternWriteSize = DHLEN + CipherAuthDataSize;
+		if (inOutCursor > outMessageBuffer.size() || (outMessageBuffer.size() - inOutCursor) < PatternWriteSize)
 		{
 			return MessageWriteError::MessageBufferTooSmall;
 		}
@@ -67,14 +68,14 @@ namespace Noise::MessagePatterns
 				handshakeState.staticKeys->publicKey,
 				std::span(
 					outMessageBuffer.data() + inOutCursor,
-					outMessageBuffer.data() + inOutCursor + DHLEN + CipherAuthDataSize
+					outMessageBuffer.data() + inOutCursor + PatternWriteSize
 				)
 			)
 			!= EncryptResult::Success)
 		{
 			return MessageWriteError::EncryptionFailed;
 		}
-		inOutCursor += DHLEN + CipherAuthDataSize;
+		inOutCursor += PatternWriteSize;
 
 		return std::nullopt;
 	}
@@ -87,7 +88,8 @@ namespace Noise::MessagePatterns
 			return MessageReadError::RemoteStaticKeyAlreadySet;
 		}
 
-		if (messageData.size() < inOutCursor + DHLEN + CipherAuthDataSize)
+		constexpr size_t PatternWriteSize = DHLEN + CipherAuthDataSize;
+		if (inOutCursor > messageData.size() || (messageData.size() - inOutCursor) < PatternWriteSize)
 		{
 			return MessageReadError::TruncatedMessage;
 		}
@@ -97,7 +99,7 @@ namespace Noise::MessagePatterns
 				handshakeState.symmetricState,
 				std::span(
 					messageData.data() + inOutCursor,
-					messageData.data() + inOutCursor + DHLEN + CipherAuthDataSize
+					messageData.data() + inOutCursor + PatternWriteSize
 				),
 				*handshakeState.remoteStaticKey
 			)
@@ -106,7 +108,7 @@ namespace Noise::MessagePatterns
 			return MessageReadError::DecryptionFailed;
 		}
 
-		inOutCursor += DHLEN + CipherAuthDataSize;
+		inOutCursor += PatternWriteSize;
 
 		return std::nullopt;
 	}
