@@ -10,30 +10,30 @@ TEST(PairingCodeUtils, Generate6DigitShortAuthentificationString)
 {
 	{
 		Cryptography::HashResult handshakeHash;
-		vectorToArray(hexToBytes("bdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbd"), handshakeHash.raw);
+		vectorToArray(hexToBytes("bdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbd"), handshakeHash.raw);
 
-		EXPECT_EQ(Cryptography::generateSas(handshakeHash, 6), "595657");
+		EXPECT_EQ(Cryptography::generateSas(handshakeHash, 6), "731538");
 	}
 
 	{
 		Cryptography::HashResult handshakeHash;
-		vectorToArray(hexToBytes("acacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacac"), handshakeHash.raw);
+		vectorToArray(hexToBytes("acacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacac"), handshakeHash.raw);
 
-		EXPECT_EQ(Cryptography::generateSas(handshakeHash, 6), "357353");
+		EXPECT_EQ(Cryptography::generateSas(handshakeHash, 6), "547992");
 	}
 
 	{
 		Cryptography::HashResult handshakeHash;
-		vectorToArray(hexToBytes("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"), handshakeHash.raw);
+		vectorToArray(hexToBytes("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"), handshakeHash.raw);
 
-		EXPECT_EQ(Cryptography::generateSas(handshakeHash, 6), "757153");
+		EXPECT_EQ(Cryptography::generateSas(handshakeHash, 6), "611997");
 	}
 
 	{
 		Cryptography::HashResult handshakeHash;
-		vectorToArray(hexToBytes("0202020202020202020202020202020202020202020202020202020202020202"), handshakeHash.raw);
+		vectorToArray(hexToBytes("02020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202"), handshakeHash.raw);
 
-		EXPECT_EQ(Cryptography::generateSas(handshakeHash, 6), "064448");
+		EXPECT_EQ(Cryptography::generateSas(handshakeHash, 6), "768672");
 	}
 }
 
@@ -41,29 +41,29 @@ TEST(PairingCodeUtils, Generate18DigitShortAuthentificationString)
 {
 	{
 		Cryptography::HashResult handshakeHash;
-		vectorToArray(hexToBytes("bdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbd"), handshakeHash.raw);
+		vectorToArray(hexToBytes("bdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbd"), handshakeHash.raw);
 
-		EXPECT_EQ(Cryptography::generateSas(handshakeHash, 18), "178551235023595657");
+		EXPECT_EQ(Cryptography::generateSas(handshakeHash, 18), "870147435510731538");
 	}
 
 	{
 		Cryptography::HashResult handshakeHash;
-		vectorToArray(hexToBytes("acacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacac"), handshakeHash.raw);
+		vectorToArray(hexToBytes("acacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacac"), handshakeHash.raw);
 
-		EXPECT_EQ(Cryptography::generateSas(handshakeHash, 18), "757573731884357353");
+		EXPECT_EQ(Cryptography::generateSas(handshakeHash, 18), "460560263755547992");
 	}
 
 	{
 		Cryptography::HashResult handshakeHash;
-		vectorToArray(hexToBytes("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"), handshakeHash.raw);
+		vectorToArray(hexToBytes("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"), handshakeHash.raw);
 
-		EXPECT_EQ(Cryptography::generateSas(handshakeHash, 18), "363154300105757153");
+		EXPECT_EQ(Cryptography::generateSas(handshakeHash, 18), "673948211619611997");
 	}
 
 	{
 		Cryptography::HashResult handshakeHash;
-		vectorToArray(hexToBytes("fbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfb"), handshakeHash.raw);
+		vectorToArray(hexToBytes("fbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfb"), handshakeHash.raw);
 
-		EXPECT_EQ(Cryptography::generateSas(handshakeHash, 18), "098155677750281005");
+		EXPECT_EQ(Cryptography::generateSas(handshakeHash, 18), "600105947052569491");
 	}
 }
