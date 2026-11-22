@@ -7,13 +7,13 @@
 
 namespace PairingUtils
 {
-	Cryptography::HashResult generateNsdIdentificationHash(const Cryptography::HashResult& handshakeHash) noexcept
+	Cryptography::HashResult generateNsdIdentificationHash(const Cryptography::HashResult& chainingKey) noexcept
 	{
-		return Cryptography::IdentificationTagsUtils::generateIdentificationHash(handshakeHash, std::as_bytes(std::span(Protocol::Salts::NsdIdTagSaltString)));
+		return Cryptography::IdentificationTagsUtils::generateIdentificationHash(chainingKey, std::as_bytes(std::span(Protocol::Salts::NsdIdTagSaltString)));
 	}
 
-	Cryptography::HashResult generateEncryptedRequestIdentificationHash(const Cryptography::HashResult& handshakeHash) noexcept
+	Cryptography::HashResult generateEncryptedRequestIdentificationHash(const Cryptography::HashResult& chainingKey) noexcept
 	{
-		return Cryptography::IdentificationTagsUtils::generateIdentificationHash(handshakeHash, std::as_bytes(std::span(Protocol::Salts::EncryptedRequestIdTagSaltString)));
+		return Cryptography::IdentificationTagsUtils::generateIdentificationHash(chainingKey, std::as_bytes(std::span(Protocol::Salts::EncryptedRequestIdTagSaltString)));
 	}
 }

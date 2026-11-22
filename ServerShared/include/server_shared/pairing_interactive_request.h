@@ -16,7 +16,7 @@ namespace Requests
 	{
 		Cryptography::Keypair staticKeys;
 		Cryptography::PublicKey remoteStaticKey;
-		Cryptography::HashResult handshakeHash;
+		Cryptography::HashResult chainingKey;
 	};
 
 	[[nodiscard]] std::optional<PendingClientBinding> processPairingInteractiveRequest(std::span<const std::byte> firstMessage, const Network::RawSocket socket);

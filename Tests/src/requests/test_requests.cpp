@@ -187,8 +187,8 @@ TEST_F(RequestsTest, PairConfirmAndExchangeFiles_FilesExchanged)
 			serverId,
 			ClientConfigStorage::ServerBinding{
 				.serverName = "test server",
-				.nsdIdentificationHash = PairingUtils::generateNsdIdentificationHash(pairingInformation.handshakeHash),
-				.encryptedRequestIdentificationHash = PairingUtils::generateEncryptedRequestIdentificationHash(pairingInformation.handshakeHash),
+				.nsdIdentificationHash = PairingUtils::generateNsdIdentificationHash(pairingInformation.chainingKey),
+				.encryptedRequestIdentificationHash = PairingUtils::generateEncryptedRequestIdentificationHash(pairingInformation.chainingKey),
 				.remoteStaticKey = pairingInformation.remoteStaticKey.clone(),
 				.staticKeys = pairingInformation.staticKeys.clone(),
 			}
@@ -239,8 +239,8 @@ TEST_F(RequestsTest, PairConfirmAndExchangeFiles_FilesExchanged)
 
 	ServerConfigStorage::ClientBinding approvedBinding{
 		.clientName = "test_client",
-		.nsdIdentificationHash = PairingUtils::generateNsdIdentificationHash(pendingClientBinding->handshakeHash),
-		.encryptedRequestIdentificationHash = PairingUtils::generateEncryptedRequestIdentificationHash(pendingClientBinding->handshakeHash),
+		.nsdIdentificationHash = PairingUtils::generateNsdIdentificationHash(pendingClientBinding->chainingKey),
+		.encryptedRequestIdentificationHash = PairingUtils::generateEncryptedRequestIdentificationHash(pendingClientBinding->chainingKey),
 		.remoteStaticKey = std::move(pendingClientBinding->remoteStaticKey),
 		.staticKeys = std::move(pendingClientBinding->staticKeys),
 	};

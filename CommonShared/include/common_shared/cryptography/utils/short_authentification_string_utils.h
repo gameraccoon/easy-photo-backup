@@ -9,5 +9,5 @@
 
 namespace Cryptography
 {
-	std::string generateSas(const HashResult& handshakeHash, uint8_t digits) noexcept;
+	std::string generateSas(const HashResult& chainingKey, uint8_t digits) noexcept;
 }

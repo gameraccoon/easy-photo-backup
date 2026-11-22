@@ -40,7 +40,7 @@ TEST(CryptographyNoiseXXHandshake, roundtripTest)
 	ASSERT_TRUE(std::holds_alternative<HandshakeResult>(result1));
 	ASSERT_TRUE(std::holds_alternative<HandshakeResult>(result2));
 
-	EXPECT_EQ(std::get<HandshakeResult>(result1).handshakeHash.raw, std::get<HandshakeResult>(result2).handshakeHash.raw);
+	EXPECT_EQ(std::get<HandshakeResult>(result1).chainingKey.raw, std::get<HandshakeResult>(result2).chainingKey.raw);
 	EXPECT_EQ(initiatorStaticKeys.publicKey.raw, std::get<HandshakeResult>(result2).remoteStaticKey.raw);
 	EXPECT_EQ(std::get<HandshakeResult>(result1).remoteStaticKey.raw, responderStaticKeys.publicKey.raw);
 }

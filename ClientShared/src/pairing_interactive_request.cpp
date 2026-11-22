@@ -137,7 +137,7 @@ namespace Requests
 				return Protocol::RequestAnswers::Pair{
 					.staticKeys = std::move(staticKeys),
 					.remoteStaticKey = std::move(std::get<NoiseXX::HandshakeResult>(result).remoteStaticKey),
-					.handshakeHash = std::move(std::get<NoiseXX::HandshakeResult>(result).handshakeHash),
+					.chainingKey = std::move(std::get<NoiseXX::HandshakeResult>(result).chainingKey),
 				};
 			}
 		}

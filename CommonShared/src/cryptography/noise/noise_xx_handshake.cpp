@@ -140,7 +140,7 @@ namespace Noise::NoiseXX
 		}
 
 		HandshakeResult result;
-		result.handshakeHash = std::move(handshakeState.symmetricState.handshakeHash);
+		result.chainingKey = std::move(handshakeState.symmetricState.chainingKey);
 		if (!handshakeState.remoteStaticKey.has_value())
 		{
 			return MessageWriteError::NoRemoteStaticKey;
@@ -167,7 +167,7 @@ namespace Noise::NoiseXX
 		}
 
 		HandshakeResult result;
-		result.handshakeHash = std::move(handshakeState.symmetricState.handshakeHash);
+		result.chainingKey = std::move(handshakeState.symmetricState.chainingKey);
 		if (!handshakeState.remoteStaticKey.has_value())
 		{
 			return MessageReadError::NoRemoteStaticKey;

@@ -17,7 +17,7 @@ namespace Noise::NoiseXX
 	struct HandshakeResult
 	{
 		PublicKey remoteStaticKey;
-		HashResult handshakeHash;
+		HashResult chainingKey;
 		// this can include more data which is omitted because this application doesn't use it
 	};
 
