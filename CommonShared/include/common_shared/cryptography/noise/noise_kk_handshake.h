@@ -26,7 +26,7 @@ namespace Noise::NoiseKK
 	[[nodiscard]] ResponderHandshakeState initializeResponder(const Keypair& staticKeys, const PublicKey& remoteStaticKey) noexcept;
 
 	// message 1
-	const size_t Message1ExpectedSize = DHLEN;
+	const size_t Message1ExpectedSize = DHLEN + CipherAuthDataSize;
 	using AppendHandshakeMessage1Result = std::optional<MessageWriteError>;
 	using ProcessHandshakeMessage1Result = std::optional<MessageReadError>;
 
@@ -35,7 +35,7 @@ namespace Noise::NoiseKK
 	[[nodiscard]] ProcessHandshakeMessage1Result processHandshakeMessage1(ResponderHandshakeState& handshakeState, const std::span<const std::byte> messageData, size_t& inOutCursor) noexcept;
 
 	// message 2
-	const size_t Message2ExpectedSize = DHLEN;
+	const size_t Message2ExpectedSize = DHLEN + CipherAuthDataSize;
 	using AppendHandshakeMessage2Result = std::variant<MessageWriteError, HandshakeResult>;
 	using ProcessHandshakeMessage2Result = std::variant<MessageReadError, HandshakeResult>;
 

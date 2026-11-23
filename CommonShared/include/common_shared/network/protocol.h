@@ -20,7 +20,8 @@ namespace Protocol
 	//   + make Pair request only work in "pairing mode"
 	// 3 - changed the dirivation logic for pairing keys and tags
 	// 4 - changed hash function parameters
-	constexpr uint16_t NetworkProtocolVersion = 4;
+	// 5 - added empty Noise payload
+	constexpr uint16_t NetworkProtocolVersion = 5;
 
 	enum class RequestId : uint8_t
 	{

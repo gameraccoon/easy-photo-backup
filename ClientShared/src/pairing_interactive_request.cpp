@@ -23,7 +23,7 @@ namespace Requests
 
 		InitiatorHandshakeState handshakeState = NoiseXX::initializeInitiator(staticKeys);
 
-		constexpr size_t BufferSize = SecondMessagePreludeSize + DHLEN + DHLEN + CipherAuthDataSize;
+		constexpr size_t BufferSize = SecondMessagePreludeSize + NoiseXX::Message2ExpectedSize;
 		Cryptography::ByteSequence<Cryptography::ByteSequenceTag::TempInternalBuffer, BufferSize> buffer;
 
 		{

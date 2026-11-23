@@ -3,6 +3,8 @@
 
 #include "common_shared/cryptography/noise/internal/handshake_utils.h"
 
+#include <array>
+
 #include "common_shared/cryptography/noise/cipher_utils.h"
 #include "common_shared/cryptography/primitives/hash_functions.h"
 #include "common_shared/debug/assert.h"
@@ -86,6 +88,46 @@ namespace Noise::Utils
 		result = decryptWithAd(*symmetricState.cipherState, symmetricState.handshakeHash, ciphertext, outPlaintext);
 		mixHash(ciphertext, symmetricState);
 		return result;
+	}
+
+	int appendEmptyPayloadMacAndHash(SymmetricState& symmetricState, const std::span<std::byte> outMessageBuffer, size_t& inOutCursor)
+	{
+		if (!symmetricState.cipherState.has_value())
+		{
+			return 0;
+		}
+
+		std::array<std::byte, Cryptography::CipherAuthDataSize> mac = {};
+		// a valid pointer is expected by the cipher helpers even for a zero-length payload
+		const std::array<std::byte, 1> emptyPlaintext = {};
+		if (encryptAndHash(symmetricState, std::span<const std::byte>(emptyPlaintext.data(), 0), mac) != Cryptography::EncryptResult::Success)
+		{
+			return -1;
+		}
+
+		return writeDataToBuffer(mac, outMessageBuffer, inOutCursor);
+	}
+
+	int consumeEmptyPayloadMacAndHash(SymmetricState& symmetricState, const std::span<const std::byte> messageData, size_t& inOutCursor)
+	{
+		if (!symmetricState.cipherState.has_value())
+		{
+			return 0;
+		}
+
+		std::array<std::byte, Cryptography::CipherAuthDataSize> mac = {};
+		if (readDataFromBuffer(messageData, mac, inOutCursor) != 0)
+		{
+			return -1;
+		}
+
+		std::array<std::byte, 1> emptyPlaintext = {};
+		if (decryptAndHash(symmetricState, mac, std::span<std::byte>(emptyPlaintext.data(), 0)) != Cryptography::DecryptResult::Success)
+		{
+			return -1;
+		}
+
+		return 0;
 	}
 
 	void split(const SymmetricState& symmetricState, CipherStateSending& c1, CipherStateReceiving& c2, HandshakeRole role)
