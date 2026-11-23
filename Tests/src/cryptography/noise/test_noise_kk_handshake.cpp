@@ -1,9 +1,8 @@
 // Copyright (C) Pavel Grebnev 2026
 // Distributed under the MIT License (license terms are at http://opensource.org/licenses/MIT).
 
-#include <gtest/gtest.h>
-
 #include "tests/helper_utils.h"
+#include <gtest/gtest.h>
 
 #include "common_shared/cryptography/noise/internal/handshake_utils.h"
 #include "common_shared/cryptography/noise/internal/message_patterns.h"
