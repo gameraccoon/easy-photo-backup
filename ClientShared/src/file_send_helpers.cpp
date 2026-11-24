@@ -94,7 +94,7 @@ namespace FileSendHelpers
 			return "Could not generate new identification tag index in the period";
 		}
 
-		const uint64_t identificationTag = Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(serverBinding->encryptedRequestIdentificationHash, Cryptography::IdentificationTagsUtils::getCurrentDayIndex(), 0);
+		const uint64_t identificationTag = Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(serverBinding->encryptedRequestIdentificationHash, Cryptography::IdentificationTagsUtils::getCurrentDayIndex(), *identificationTagIndexResult);
 
 		RequestAnswers::RequestAnswer SendFilesAnswer = Requests::prepareConnectionAndProcess(
 			serverInfo.address.ip.data(),
