@@ -469,7 +469,7 @@ Java_com_unnamed_easyphotobackup_PairingHelpers_approveServerNative(
 		ClientConfigStorage::ServerBinding{
 			.serverName = std::move(serverName),
 			.nsdIdentificationHash = PairingUtils::generateNsdIdentificationHash(pendingServerBindingNative->serverBinding.chainingKey),
-			.encryptedRequestIdentificationHash = PairingUtils::generateEncryptedRequestIdentificationHash(pendingServerBindingNative->serverBinding.handshakeHash),
+			.encryptedRequestIdentificationHash = PairingUtils::generateEncryptedRequestIdentificationHash(pendingServerBindingNative->serverBinding.chainingKey),
 			.remoteStaticKey = std::move(pendingServerBindingNative->serverBinding.remoteStaticKey),
 			.staticKeys = std::move(pendingServerBindingNative->serverBinding.staticKeys),
 		}
