@@ -85,12 +85,12 @@ namespace Noise::Utils
 	[[nodiscard]] EncryptResult rekeyGeneric(CipherState<Tag>& cipherState)
 	{
 		const std::array<std::byte, Cryptography::CipherKeySize> allZeros = {};
-		std::array<std::byte, Cryptography::CipherKeySize + Cryptography::CipherAuthDataSize> cyphertext;
+		Cryptography::ByteSequence<Cryptography::ByteSequenceTag::TempInternalBuffer, Cryptography::CipherKeySize + Cryptography::CipherAuthDataSize> cyphertext;
 		static_assert(MaxNonce == std::numeric_limits<Nonce>::max(), "Nonce expected to be 64 bit unsigned");
 		const EncryptResult result = Cryptography::encrypt_chacha20poly1305(cipherState.cipherKey, MaxNonce, std::span<std::byte>{}, allZeros, cyphertext);
 		if (result == EncryptResult::Success)
 		{
-			std::copy(cyphertext.begin(), cyphertext.begin() + Cryptography::CipherKeySize, cipherState.cipherKey.raw.begin());
+			std::copy(cyphertext.raw.begin(), cyphertext.raw.begin() + Cryptography::CipherKeySize, cipherState.cipherKey.raw.begin());
 		}
 		// per Noise specification, we don't reset the nonce https://noiseprotocol.org/noise.html#rekey
 		return result;
