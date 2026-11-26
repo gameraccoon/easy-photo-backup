@@ -5,6 +5,6 @@
 
 namespace PairingUtils
 {
-	[[nodiscard]] Cryptography::HashResult generateNsdIdentificationHash(const Cryptography::HashResult& handshakeHash) noexcept;
-	[[nodiscard]] Cryptography::HashResult generateEncryptedRequestIdentificationHash(const Cryptography::HashResult& handshakeHash) noexcept;
+	[[nodiscard]] Cryptography::HashResult generateNsdIdentificationHash(const Cryptography::HashResult& chainingKey) noexcept;
+	[[nodiscard]] Cryptography::HashResult generateEncryptedRequestIdentificationHash(const Cryptography::HashResult& chainingKey) noexcept;
 }

@@ -7,8 +7,8 @@
 
 namespace Cryptography
 {
-	constexpr std::size_t HASHLEN = 32;
-	constexpr std::size_t BLOCKLEN = 64;
+	constexpr std::size_t HASHLEN = 64;
+	constexpr std::size_t BLOCKLEN = 128;
 
 	using HashResult = ByteSequence<ByteSequenceTag::HashResult, HASHLEN>;
 } // namespace Cryptography

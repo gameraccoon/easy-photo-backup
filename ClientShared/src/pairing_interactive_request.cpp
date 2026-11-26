@@ -23,7 +23,7 @@ namespace Requests
 
 		InitiatorHandshakeState handshakeState = NoiseXX::initializeInitiator(staticKeys);
 
-		constexpr size_t BufferSize = SecondMessagePreludeSize + DHLEN + DHLEN + CipherAuthDataSize;
+		constexpr size_t BufferSize = SecondMessagePreludeSize + NoiseXX::Message2ExpectedSize;
 		Cryptography::ByteSequence<Cryptography::ByteSequenceTag::TempInternalBuffer, BufferSize> buffer;
 
 		{
@@ -137,7 +137,7 @@ namespace Requests
 				return Protocol::RequestAnswers::Pair{
 					.staticKeys = std::move(staticKeys),
 					.remoteStaticKey = std::move(std::get<NoiseXX::HandshakeResult>(result).remoteStaticKey),
-					.handshakeHash = std::move(std::get<NoiseXX::HandshakeResult>(result).handshakeHash),
+					.chainingKey = std::move(std::get<NoiseXX::HandshakeResult>(result).chainingKey),
 				};
 			}
 		}

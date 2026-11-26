@@ -164,7 +164,7 @@ namespace ClientCli
 				PendingServerBinding pairingExchange = std::get<PendingServerBinding>(std::move(pairingExchangeResult));
 
 				std::string code = requestCli("Enter the 6-digit code shown on the host machine\n> ");
-				if (code != Cryptography::generateSas(pairingExchange.handshakeHash, 6))
+				if (code != Cryptography::generateSas(pairingExchange.chainingKey, 6))
 				{
 					printLnCli("The code didn't match, please cancel the pairing on the other machine and start again");
 					continue;
@@ -177,8 +177,8 @@ namespace ClientCli
 					results[idx].serverId,
 					ClientConfigStorage::ServerBinding{
 						.serverName = std::move(serverName),
-						.nsdIdentificationHash = PairingUtils::generateNsdIdentificationHash(pairingExchange.handshakeHash),
-						.encryptedRequestIdentificationHash = PairingUtils::generateEncryptedRequestIdentificationHash(pairingExchange.handshakeHash),
+						.nsdIdentificationHash = PairingUtils::generateNsdIdentificationHash(pairingExchange.chainingKey),
+						.encryptedRequestIdentificationHash = PairingUtils::generateEncryptedRequestIdentificationHash(pairingExchange.chainingKey),
 						.remoteStaticKey = std::move(pairingExchange.remoteStaticKey),
 						.staticKeys = std::move(pairingExchange.staticKeys),
 					}

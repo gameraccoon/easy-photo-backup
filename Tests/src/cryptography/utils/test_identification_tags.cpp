@@ -495,22 +495,23 @@ TEST(IdentificationTags, TagMapPopulatedForTwoClients_RemoveOneClientTagsAndCons
 	}
 }
 
-TEST(IdentificationTags, HandshakeHash_PopulateIdentificationHashes_HashesMatchHistoricalValues)
+TEST(IdentificationTags, HandshakeHash_PopulateIdentificationHashes_HashesMatchRustReferenceValues)
 {
 	Cryptography::HashResult handshakeHash;
-	vectorToArray(hexToBytes("afdbf85f658e89dda6fb9c8de0bd09bbd0cc9cc5f2996ccb482159c1b78792ad"), handshakeHash.raw);
-	assertSpansEqual(hexToBytes("8315eac699c411216743597eb0abf4dbad1f3c774ada4026596a1fb68faa222b"), Cryptography::IdentificationTagsUtils::generateIdentificationHash(handshakeHash, std::as_bytes(std::span(Protocol::Salts::NsdIdTagSaltString))));
-	assertSpansEqual(hexToBytes("e776548ceb4128bc615e48006b220a1dae7337e96a4f366f4c58b30e6134ba5f"), Cryptography::IdentificationTagsUtils::generateIdentificationHash(handshakeHash, std::as_bytes(std::span(Protocol::Salts::EncryptedRequestIdTagSaltString))));
+	vectorToArray(hexToBytes("97f087d31d0e863e9e8eae308be7c8460118f11aceb435091d179c7039a2d5fc679c432f0ee39af9f0e0240575b8632394a7206305ab2c199b80e0ddb14eb924"), handshakeHash.raw);
+	assertSpansEqual(hexToBytes("fb13ea50c7fee19e4c8bdc8fe1c4d899879d658d9b41e43e22123b563eea5091adf191ab28f2ab5b727327c7459241ec516cbb7e6971712e2d98efe25022a2a7"), Cryptography::IdentificationTagsUtils::generateIdentificationHash(handshakeHash, std::as_bytes(std::span(Protocol::Salts::NsdIdTagSaltString))));
+	assertSpansEqual(hexToBytes("7383cb2e5382aaaf355e8efef01d4d98dcb914e2f20b93c0aa999041ffe848964a0d4d9bd3498e981288e550409bf9f43e06f58293a1b41d9f54f6de71988d92"), Cryptography::IdentificationTagsUtils::generateIdentificationHash(handshakeHash, std::as_bytes(std::span(Protocol::Salts::EncryptedRequestIdTagSaltString))));
 	// wrappers for the above, should result in the same values
-	assertSpansEqual(hexToBytes("8315eac699c411216743597eb0abf4dbad1f3c774ada4026596a1fb68faa222b"), PairingUtils::generateNsdIdentificationHash(handshakeHash));
-	assertSpansEqual(hexToBytes("e776548ceb4128bc615e48006b220a1dae7337e96a4f366f4c58b30e6134ba5f"), PairingUtils::generateEncryptedRequestIdentificationHash(handshakeHash));
+	assertSpansEqual(hexToBytes("fb13ea50c7fee19e4c8bdc8fe1c4d899879d658d9b41e43e22123b563eea5091adf191ab28f2ab5b727327c7459241ec516cbb7e6971712e2d98efe25022a2a7"), PairingUtils::generateNsdIdentificationHash(handshakeHash));
+	assertSpansEqual(hexToBytes("7383cb2e5382aaaf355e8efef01d4d98dcb914e2f20b93c0aa999041ffe848964a0d4d9bd3498e981288e550409bf9f43e06f58293a1b41d9f54f6de71988d92"), PairingUtils::generateEncryptedRequestIdentificationHash(handshakeHash));
 }
 
-TEST(IdentificationTags, HandshakeHash_GenerateSingleTagForPeriod_TagsMatchHistoricalValues)
+TEST(IdentificationTags, HandshakeHash_GenerateSingleTagForPeriod_TagsMatchRustReferenceValues)
 {
 	Cryptography::HashResult identificationHash;
-	EXPECT_EQ(uint64_t(0xC3C4CC1EB899F683), Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(identificationHash, 10, 100));
-	EXPECT_EQ(uint64_t(0x02028E6A2A59D916), Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(identificationHash, 11, 100));
-	EXPECT_EQ(uint64_t(0x1AF0B2925A1C51BE), Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(identificationHash, 11, 101));
-	EXPECT_EQ(uint64_t(0xCB17E7170C8A3D94), Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(identificationHash, 10, 101));
+	vectorToArray(hexToBytes("050eca46d4b39a92899fdef2c47b53a10f148e0421aa30d4a1de0ac073b5f4313949f389a2614a200c7edc73f47810d2e8b36e928bba2d4a758791f7e07fbcd8"), identificationHash.raw);
+	EXPECT_EQ(uint64_t(0x366D3E119EF95E5A), Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(identificationHash, 10, 100));
+	EXPECT_EQ(uint64_t(0x8914424BEF1ACBB0), Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(identificationHash, 11, 100));
+	EXPECT_EQ(uint64_t(0x7A941E7EBAAA6531), Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(identificationHash, 11, 101));
+	EXPECT_EQ(uint64_t(0x18DA05AB3A7096F9), Cryptography::IdentificationTagsUtils::generateSingleIdentificationTag(identificationHash, 10, 101));
 }

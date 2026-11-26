@@ -15,7 +15,7 @@ struct PendingServerBinding
 {
 	Cryptography::Keypair staticKeys;
 	Cryptography::PublicKey remoteStaticKey;
-	Cryptography::HashResult handshakeHash;
+	Cryptography::HashResult chainingKey;
 
 	[[nodiscard]] std::string generateShortAuthentificationString() const noexcept;
 };

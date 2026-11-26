@@ -13,7 +13,7 @@
 
 std::string PendingServerBinding::generateShortAuthentificationString() const noexcept
 {
-	return Cryptography::generateSas(this->handshakeHash, 6);
+	return Cryptography::generateSas(this->chainingKey, 6);
 }
 
 namespace PairingHelpers
@@ -35,7 +35,7 @@ namespace PairingHelpers
 					return PendingServerBinding{
 						.staticKeys = std::move(pair.staticKeys),
 						.remoteStaticKey = std::move(pair.remoteStaticKey),
-						.handshakeHash = std::move(pair.handshakeHash),
+						.chainingKey = std::move(pair.chainingKey),
 					};
 				},
 				[](RequestAnswers::UnsupportedProtocolVersion&& unsupportedProtocolVersion) -> std::variant<std::string, PendingServerBinding> {

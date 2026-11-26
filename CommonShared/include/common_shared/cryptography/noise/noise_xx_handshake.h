@@ -17,7 +17,7 @@ namespace Noise::NoiseXX
 	struct HandshakeResult
 	{
 		PublicKey remoteStaticKey;
-		HashResult handshakeHash;
+		HashResult chainingKey;
 		// this can include more data which is omitted because this application doesn't use it
 	};
 
@@ -35,7 +35,7 @@ namespace Noise::NoiseXX
 	[[nodiscard]] ProcessHandshakeMessage1Result processHandshakeMessage1(ResponderHandshakeState& handshakeState, const std::span<const std::byte> messageData, size_t& inOutCursor) noexcept;
 
 	// message 2
-	const size_t Message2ExpectedSize = DHLEN + DHLEN + CipherAuthDataSize;
+	const size_t Message2ExpectedSize = DHLEN + DHLEN + CipherAuthDataSize + CipherAuthDataSize;
 	using AppendHandshakeMessage2Result = std::optional<MessageWriteError>;
 	using ProcessHandshakeMessage2Result = std::optional<MessageReadError>;
 
@@ -44,7 +44,7 @@ namespace Noise::NoiseXX
 	[[nodiscard]] ProcessHandshakeMessage2Result processHandshakeMessage2(InitiatorHandshakeState& state, const std::span<const std::byte> messageData, size_t& inOutCursor) noexcept;
 
 	// message 3
-	const size_t Message3ExpectedSize = DHLEN + CipherAuthDataSize;
+	const size_t Message3ExpectedSize = DHLEN + CipherAuthDataSize + CipherAuthDataSize;
 	using AppendHandshakeMessage3Result = std::variant<MessageWriteError, HandshakeResult>;
 	using ProcessHandshakeMessage3Result = std::variant<MessageReadError, HandshakeResult>;
 

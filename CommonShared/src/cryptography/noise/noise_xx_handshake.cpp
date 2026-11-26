@@ -44,6 +44,11 @@ namespace Noise::NoiseXX
 			return *err;
 		}
 
+		if (Utils::appendEmptyPayloadMacAndHash(handshakeState.symmetricState, outMessageBuffer, inOutCursor) != 0)
+		{
+			return MessageWriteError::EncryptionFailed;
+		}
+
 		return std::nullopt;
 	}
 
@@ -57,6 +62,11 @@ namespace Noise::NoiseXX
 		if (auto err = MessagePatterns::readMessagePattern_e_responder(handshakeState, messageData, inOutCursor); err.has_value())
 		{
 			return *err;
+		}
+
+		if (Utils::consumeEmptyPayloadMacAndHash(handshakeState.symmetricState, messageData, inOutCursor) != 0)
+		{
+			return MessageReadError::DecryptionFailed;
 		}
 
 		return std::nullopt;
@@ -89,6 +99,11 @@ namespace Noise::NoiseXX
 			return *err;
 		}
 
+		if (Utils::appendEmptyPayloadMacAndHash(handshakeState.symmetricState, outMessageBuffer, inOutCursor) != 0)
+		{
+			return MessageWriteError::EncryptionFailed;
+		}
+
 		return std::nullopt;
 	}
 
@@ -119,6 +134,11 @@ namespace Noise::NoiseXX
 			return *err;
 		}
 
+		if (Utils::consumeEmptyPayloadMacAndHash(handshakeState.symmetricState, messageData, inOutCursor) != 0)
+		{
+			return MessageReadError::DecryptionFailed;
+		}
+
 		return std::nullopt;
 	}
 
@@ -139,8 +159,13 @@ namespace Noise::NoiseXX
 			return *err;
 		}
 
+		if (Utils::appendEmptyPayloadMacAndHash(handshakeState.symmetricState, outMessageBuffer, inOutCursor) != 0)
+		{
+			return MessageWriteError::EncryptionFailed;
+		}
+
 		HandshakeResult result;
-		result.handshakeHash = std::move(handshakeState.symmetricState.handshakeHash);
+		result.chainingKey = std::move(handshakeState.symmetricState.chainingKey);
 		if (!handshakeState.remoteStaticKey.has_value())
 		{
 			return MessageWriteError::NoRemoteStaticKey;
@@ -166,8 +191,13 @@ namespace Noise::NoiseXX
 			return *err;
 		}
 
+		if (Utils::consumeEmptyPayloadMacAndHash(handshakeState.symmetricState, messageData, inOutCursor) != 0)
+		{
+			return MessageReadError::DecryptionFailed;
+		}
+
 		HandshakeResult result;
-		result.handshakeHash = std::move(handshakeState.symmetricState.handshakeHash);
+		result.chainingKey = std::move(handshakeState.symmetricState.chainingKey);
 		if (!handshakeState.remoteStaticKey.has_value())
 		{
 			return MessageReadError::NoRemoteStaticKey;

@@ -18,7 +18,10 @@ namespace Protocol
 	// 2 - complete overhaul of the requests system to send tags instead of plaintest ID
 	//   + remove GetProtocolVersion and GetServerName request and answer
 	//   + make Pair request only work in "pairing mode"
-	constexpr uint16_t NetworkProtocolVersion = 2;
+	// 3 - changed the dirivation logic for pairing keys and tags
+	// 4 - changed hash function parameters
+	// 5 - added empty Noise payload
+	constexpr uint16_t NetworkProtocolVersion = 5;
 
 	enum class RequestId : uint8_t
 	{
@@ -67,10 +70,11 @@ namespace Protocol
 
 		struct Pair
 		{
-			// this is generated and (partially) exchanged during a NoiseXX handshake
 			Cryptography::Keypair staticKeys;
 			Cryptography::PublicKey remoteStaticKey;
-			Cryptography::HashResult handshakeHash;
+			// used for generation shared secrets based on the handshake
+			// should not be stored long term, and erased as soon as possible
+			Cryptography::HashResult chainingKey;
 		};
 
 		struct SendFiles

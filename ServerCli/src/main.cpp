@@ -172,7 +172,7 @@ namespace PairingServiceLogic
 			std::optional<Requests::PendingClientBinding> binding = bindingsPipe.recv(std::chrono::seconds(60));
 			if (binding.has_value())
 			{
-				const std::string sas = Cryptography::generateSas(binding->handshakeHash, 6);
+				const std::string sas = Cryptography::generateSas(binding->chainingKey, 6);
 				printLnCli("New binding request");
 				printLnCli(std::format("Enter this code on the other device: {}", sas));
 				printLnCli("Has the other device confirmed binding? Y/N");
@@ -193,8 +193,8 @@ namespace PairingServiceLogic
 				configStorage.addConfirmedClientBinding(
 					ServerConfigStorage::ClientBinding{
 						.clientName = std::move(clientName),
-						.nsdIdentificationHash = PairingUtils::generateNsdIdentificationHash(binding->handshakeHash),
-						.encryptedRequestIdentificationHash = PairingUtils::generateEncryptedRequestIdentificationHash(binding->handshakeHash),
+						.nsdIdentificationHash = PairingUtils::generateNsdIdentificationHash(binding->chainingKey),
+						.encryptedRequestIdentificationHash = PairingUtils::generateEncryptedRequestIdentificationHash(binding->chainingKey),
 						.remoteStaticKey = std::move(binding->remoteStaticKey),
 						.staticKeys = std::move(binding->staticKeys),
 					}
