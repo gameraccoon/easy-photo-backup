@@ -52,6 +52,9 @@ public:
 
 	void updateIdentificationHashes(IdentificationTagType tagType, std::vector<Cryptography::HashResult>& inOutHashes, std::vector<ConnectionIdx>& inOutIds, size_t& outNumAdded, std::vector<size_t>& indicesToRemove) noexcept;
 
+	[[nodiscard]] std::optional<std::array<uint32_t, 3>> getFirstIdentificationKeyIndexesInPeriods(ConnectionIdx connectionIdx, ServerConfigStorage::IdentificationTagType tagType, uint32_t currentPeriodIndex) noexcept;
+	void consumeIdentificationKeyIndexesInPeriod(ConnectionIdx connectionIdx, ServerConfigStorage::IdentificationTagType tagType, uint32_t periodIndex, uint32_t lastIndexInPeriodToConsume) noexcept;
+
 	[[nodiscard]] std::optional<std::array<std::byte, 16>> getOrGenerateServerId() noexcept;
 
 private:

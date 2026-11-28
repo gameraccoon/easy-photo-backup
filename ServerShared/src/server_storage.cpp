@@ -11,6 +11,7 @@
 #include "common_shared/debug/assert.h"
 #include "common_shared/serialization/number_serialization.h"
 #include "common_shared/serialization/serialization_helpers.h"
+#include "common_shared/storage/lmdb_cleanup.h"
 #include "common_shared/storage/lmdb_helpers.h"
 
 namespace ServerStorageInternal
@@ -18,6 +19,7 @@ namespace ServerStorageInternal
 	static constexpr std::string_view ServerConfigStorageEnviromentName = "server_config_storage";
 	static constexpr std::zstring_view ConfirmedDatabaseName = "confirmed";
 	static constexpr std::zstring_view ConfigDatabaseName = "config";
+	static constexpr std::zstring_view IdentificationTagIndicesDatabaseName = "tagIndices";
 	static constexpr std::string_view ServerIdKey = "server_id";
 } // namespace ServerStorageInternal
 
@@ -229,21 +231,36 @@ std::optional<ServerConfigStorage::ConnectionIdx> ServerConfigStorage::addConfir
 
 bool ServerConfigStorage::removeConfirmedClientBinding(const ConnectionIdx connectionIdx) noexcept
 {
-	Lmdb::Result<Lmdb::ReadWriteSingleDbWrapper> wrapper = Lmdb::openReadWriteSingleDbTransaction(mEnvironment, ServerStorageInternal::ConfirmedDatabaseName);
-	if (wrapper.isError())
+	Lmdb::Result<Lmdb::ReadWriteTransaction> transaction = Lmdb::ReadWriteTransaction::create(mEnvironment);
+	if (transaction.isError()) [[unlikely]]
 	{
 		return false;
 	}
 
-	std::array<std::byte, 4> key;
-	Serialization::writeUint32(key, connectionIdx);
-	Lmdb::ReturnCode returnCode = wrapper->database.deleteKey(key);
-	if (returnCode != Lmdb::ReturnCode::Success)
+	Lmdb::Result<Lmdb::ReadWriteDatabase> confirmedDb = Lmdb::ReadWriteDatabase::open(*transaction, ServerStorageInternal::ConfirmedDatabaseName);
+	if (confirmedDb.isValid()) [[likely]]
 	{
-		return false;
+		std::array<std::byte, 4> key;
+		Serialization::writeUint32(key, connectionIdx);
+		[[maybe_unused]] const Lmdb::ReturnCode returnCode = confirmedDb->deleteKey(key);
 	}
 
-	returnCode = wrapper->commitTransactionNoCursors();
+	Lmdb::Result<Lmdb::ReadWriteDatabase> identificationTagsDb = Lmdb::ReadWriteDatabase::open(*transaction, ServerStorageInternal::IdentificationTagIndicesDatabaseName);
+	if (identificationTagsDb.isValid()) [[likely]]
+	{
+		std::array<std::byte, 5> key;
+
+		Serialization::writeUint32(std::span(key).subspan(0, 4), connectionIdx);
+		key[4] = static_cast<std::byte>(ServerConfigStorage::IdentificationTagType::Nsd);
+
+		[[maybe_unused]] Lmdb::ReturnCode returnCode1 = identificationTagsDb->deleteKey(key);
+
+		Serialization::writeUint32(std::span(key).subspan(0, 4), connectionIdx);
+		key[4] = static_cast<std::byte>(ServerConfigStorage::IdentificationTagType::EncryptedRequest);
+		[[maybe_unused]] Lmdb::ReturnCode returnCode2 = identificationTagsDb->deleteKey(key);
+	}
+
+	const Lmdb::ReturnCode returnCode = Lmdb::commitTransactionNoCursors(std::move(*transaction));
 	if (returnCode != Lmdb::ReturnCode::Success)
 	{
 		return false;
@@ -446,6 +463,180 @@ void ServerConfigStorage::updateIdentificationHashes(IdentificationTagType tagTy
 				inOutIdexesToRemove.push_back(i);
 			}
 		}
+	}
+}
+
+[[nodiscard]] std::optional<std::array<uint32_t, 3>> ServerConfigStorage::getFirstIdentificationKeyIndexesInPeriods(ConnectionIdx connectionIdx, ServerConfigStorage::IdentificationTagType tagType, uint32_t currentPeriodIndex) noexcept
+{
+	Lmdb::Result<Lmdb::ReadWriteSingleDbWrapper> wrapper = Lmdb::openReadWriteSingleDbTransaction(mEnvironment, ServerStorageInternal::IdentificationTagIndicesDatabaseName);
+	if (wrapper.isError()) [[unlikely]]
+	{
+		return std::nullopt;
+	}
+
+	std::array<std::byte, 5> key;
+	Serialization::writeUint32(std::span(key).subspan(0, 4), connectionIdx);
+	key[4] = static_cast<std::byte>(tagType);
+	std::array<std::byte, sizeof(uint32_t) + sizeof(uint32_t) * 3> value;
+	size_t bytesRead = 0;
+	Lmdb::ReturnCode returnCode = wrapper->database.get(key, value, bytesRead);
+	if (returnCode != Lmdb::ReturnCode::Success && returnCode != Lmdb::ReturnCode::NotFound)
+	{
+		return std::nullopt;
+	}
+
+	uint32_t lastCurrentPeriod = 0;
+	std::array<uint32_t, 3> periodIndices = {};
+	if (returnCode != Lmdb::ReturnCode::NotFound)
+	{
+		if (bytesRead != value.size())
+		{
+			return std::nullopt;
+		}
+
+		Serialization::GenericDeserializationWrapper deserializer{ value };
+
+		if (!deserializer.readUint32(lastCurrentPeriod, "currentPeriod")) { return std::nullopt; }
+		if (!deserializer.readUint32(periodIndices[0], "previousPeriodIndex")) { return std::nullopt; }
+		if (!deserializer.readUint32(periodIndices[1], "currentPeriodIndex")) { return std::nullopt; }
+		if (!deserializer.readUint32(periodIndices[2], "nextPeriodIndex")) { return std::nullopt; }
+
+		if (deserializer.getBytesRead() != value.size()) [[unlikely]]
+		{
+			reportReleaseError("Deserialization of identification tag indices read incorrect number of bytes: got {}, read {}", value.size(), deserializer.getBytesRead());
+			return std::nullopt;
+		}
+
+		if (currentPeriodIndex != lastCurrentPeriod)
+		{
+			if (currentPeriodIndex > lastCurrentPeriod)
+			{
+				const size_t shiftLeft = (currentPeriodIndex - lastCurrentPeriod);
+
+				if (shiftLeft > 2)
+				{
+					periodIndices = {};
+				}
+				else
+				{
+					std::fill(periodIndices.begin(), periodIndices.begin() + shiftLeft, uint32_t(0));
+					std::rotate(periodIndices.begin(), periodIndices.begin() + shiftLeft, periodIndices.end());
+				}
+			}
+			else
+			{
+				const size_t shiftRight = (lastCurrentPeriod - currentPeriodIndex);
+
+				if (shiftRight > 2)
+				{
+					periodIndices = {};
+				}
+				else
+				{
+					std::fill(periodIndices.begin() + (periodIndices.size() - shiftRight), periodIndices.end(), uint32_t(0));
+					std::rotate(periodIndices.begin(), periodIndices.begin() + (periodIndices.size() - shiftRight), periodIndices.end());
+				}
+			}
+		}
+	}
+
+	if (returnCode == Lmdb::ReturnCode::NotFound || currentPeriodIndex != lastCurrentPeriod)
+	{
+		Serialization::GenericSerializationWrapper serializer{ value };
+
+		if (!serializer.writeUint32(currentPeriodIndex, "currentPeriod")) { return std::nullopt; }
+		if (!serializer.writeUint32(periodIndices[0], "previousPeriodIndex")) { return std::nullopt; }
+		if (!serializer.writeUint32(periodIndices[1], "currentPeriodIndex")) { return std::nullopt; }
+		if (!serializer.writeUint32(periodIndices[2], "nextPeriodIndex")) { return std::nullopt; }
+		assertFatalRelease(serializer.getBytesWritten() == value.size(), "Logical error, serialization of confirmed binding leaves not filled bytes, buffer size: {} written: {}", value.size(), serializer.getBytesWritten());
+
+		returnCode = wrapper->database.put(key, value);
+		if (returnCode != Lmdb::ReturnCode::Success) [[unlikely]]
+		{
+			return std::nullopt;
+		}
+
+		returnCode = wrapper->commitTransactionNoCursors();
+		if (returnCode != Lmdb::ReturnCode::Success) [[unlikely]]
+		{
+			return std::nullopt;
+		}
+	}
+
+	return periodIndices;
+}
+
+void ServerConfigStorage::consumeIdentificationKeyIndexesInPeriod(ConnectionIdx connectionIdx, ServerConfigStorage::IdentificationTagType tagType, uint32_t periodIndex, uint32_t lastIndexInPeriodToConsume) noexcept
+{
+	Lmdb::Result<Lmdb::ReadWriteSingleDbWrapper> wrapper = Lmdb::openReadWriteSingleDbTransaction(mEnvironment, ServerStorageInternal::IdentificationTagIndicesDatabaseName);
+	if (wrapper.isError()) [[unlikely]]
+	{
+		return;
+	}
+
+	std::array<std::byte, 5> key;
+	Serialization::writeUint32(std::span(key).subspan(0, 4), connectionIdx);
+	key[4] = static_cast<std::byte>(tagType);
+	std::array<std::byte, sizeof(uint32_t) + sizeof(uint32_t) * 3> value;
+	size_t bytesRead = 0;
+	Lmdb::ReturnCode returnCode = wrapper->database.get(key, value, bytesRead);
+	if (returnCode != Lmdb::ReturnCode::Success)
+	{
+		return;
+	}
+
+	if (bytesRead != value.size())
+	{
+		return;
+	}
+
+	Serialization::GenericDeserializationWrapper deserializer{ value };
+
+	uint32_t recordedCurrentPeriod = 0;
+	std::array<uint32_t, 3> periodIndices = {};
+
+	if (!deserializer.readUint32(recordedCurrentPeriod, "currentPeriod")) { return; }
+	if (!deserializer.readUint32(periodIndices[0], "previousPeriodIndex")) { return; }
+	if (!deserializer.readUint32(periodIndices[1], "currentPeriodIndex")) { return; }
+	if (!deserializer.readUint32(periodIndices[2], "nextPeriodIndex")) { return; }
+
+	if (deserializer.getBytesRead() != value.size()) [[unlikely]]
+	{
+		reportReleaseError("Deserialization of identification tag indices read incorrect number of bytes: got {}, read {}", value.size(), deserializer.getBytesRead());
+		return;
+	}
+
+	// if we are trying to consume a tag from a period we don't know about, skip it
+	if ((periodIndex > recordedCurrentPeriod && periodIndex - recordedCurrentPeriod > 1)
+		|| (periodIndex < recordedCurrentPeriod && recordedCurrentPeriod - periodIndex > 1)) [[unlikely]]
+	{
+		reportReleaseError("We tried to consume a tag from a period that is too old or too new last={} new={}", recordedCurrentPeriod, periodIndex);
+		return;
+	}
+
+	if (periodIndex < recordedCurrentPeriod)
+	{
+		Serialization::writeUint32(std::span(value).subspan(sizeof(uint32_t) * 1, sizeof(uint32_t)), std::max(periodIndices[0], lastIndexInPeriodToConsume + 1));
+	}
+	else if (periodIndex == recordedCurrentPeriod)
+	{
+		Serialization::writeUint32(std::span(value).subspan(sizeof(uint32_t) * 2, sizeof(uint32_t)), std::max(periodIndices[1], lastIndexInPeriodToConsume + 1));
+	}
+	else
+	{
+		Serialization::writeUint32(std::span(value).subspan(sizeof(uint32_t) * 3, sizeof(uint32_t)), std::max(periodIndices[2], lastIndexInPeriodToConsume + 1));
+	}
+
+	returnCode = wrapper->database.put(key, value);
+	if (returnCode != Lmdb::ReturnCode::Success) [[unlikely]]
+	{
+		return;
+	}
+
+	returnCode = wrapper->commitTransactionNoCursors();
+	if (returnCode != Lmdb::ReturnCode::Success) [[unlikely]]
+	{
+		return;
 	}
 }
 

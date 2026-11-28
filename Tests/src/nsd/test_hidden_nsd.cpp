@@ -44,7 +44,12 @@ TEST_F(HiddenNsdTest, NsdServer_StartClient_FindTheServer)
 		}
 	};
 
-	auto serverThread = std::thread([serverSocket, &updateClientHashesFn] {
+	std::atomic<int> numTagsConsumed = 0;
+	const auto onNsdTagConsumedFn = [&numTagsConsumed](const Cryptography::IdentificationTagMap::TagPayload& /*tagMap*/) {
+		numTagsConsumed.fetch_add(1, std::memory_order::relaxed);
+	};
+
+	auto serverThread = std::thread([serverSocket, &updateClientHashesFn, &onNsdTagConsumedFn] {
 		constexpr std::string_view payload = "test data";
 		constexpr const char* networkInterface = "0.0.0.0";
 		constexpr uint16_t advertizedPort = 3456;
@@ -55,7 +60,8 @@ TEST_F(HiddenNsdTest, NsdServer_StartClient_FindTheServer)
 			nsdPort,
 			advertizedPort,
 			std::as_bytes(std::span(payload)),
-			updateClientHashesFn
+			updateClientHashesFn,
+			onNsdTagConsumedFn
 		);
 	});
 
@@ -91,6 +97,8 @@ TEST_F(HiddenNsdTest, NsdServer_StartClient_FindTheServer)
 
 	mocks.closeServerSocket(serverSocket);
 	serverThread.join();
+
+	EXPECT_EQ(numTagsConsumed.load(std::memory_order::relaxed), 5);
 }
 
 TEST_F(HiddenNsdTest, NsdServer_AddAndRemovePairedClient_ClientIsNotRecognizedAnymore)
@@ -126,7 +134,12 @@ TEST_F(HiddenNsdTest, NsdServer_AddAndRemovePairedClient_ClientIsNotRecognizedAn
 		}
 	};
 
-	auto serverThread = std::thread([serverSocket, &updateClientHashesFn] {
+	std::atomic<int> numTagsConsumed = 0;
+	const auto onNsdTagConsumedFn = [&numTagsConsumed](const Cryptography::IdentificationTagMap::TagPayload& /*tagMap*/) {
+		numTagsConsumed.fetch_add(1, std::memory_order::relaxed);
+	};
+
+	auto serverThread = std::thread([serverSocket, &updateClientHashesFn, &onNsdTagConsumedFn] {
 		constexpr std::string_view payload = "test data";
 		constexpr const char* networkInterface = "0.0.0.0";
 		constexpr uint16_t advertizedPort = 3456;
@@ -137,7 +150,8 @@ TEST_F(HiddenNsdTest, NsdServer_AddAndRemovePairedClient_ClientIsNotRecognizedAn
 			nsdPort,
 			advertizedPort,
 			std::as_bytes(std::span(payload)),
-			updateClientHashesFn
+			updateClientHashesFn,
+			onNsdTagConsumedFn
 		);
 	});
 
@@ -171,6 +185,8 @@ TEST_F(HiddenNsdTest, NsdServer_AddAndRemovePairedClient_ClientIsNotRecognizedAn
 	);
 	EXPECT_TRUE(gotAnswer.load(std::memory_order::relaxed));
 
+	EXPECT_EQ(numTagsConsumed.load(std::memory_order::relaxed), 5);
+
 	gotAnswer.store(false, std::memory_order::relaxed);
 	timeToRemove.store(true, std::memory_order::relaxed);
 	mocks.setCurrentKeyRotationPeriod(keyRotationPeriod + 1);
@@ -188,4 +204,6 @@ TEST_F(HiddenNsdTest, NsdServer_AddAndRemovePairedClient_ClientIsNotRecognizedAn
 
 	mocks.closeServerSocket(serverSocket);
 	serverThread.join();
+
+	EXPECT_EQ(numTagsConsumed.load(std::memory_order::relaxed), 5);
 }

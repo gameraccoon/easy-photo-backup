@@ -8,7 +8,6 @@
 #include <format>
 
 #include "common_shared/cryptography/primitives/cipher_functions.h"
-#include "common_shared/cryptography/utils/identification_tags.h"
 #include "common_shared/debug/assert.h"
 #include "common_shared/network/utils.h"
 #include "common_shared/nsd/nsd_utils_internal.h"
@@ -121,7 +120,8 @@ namespace HiddenNsdServer
 		const uint16_t port,
 		const uint16_t advertizedPort,
 		std::span<const std::byte> extraData,
-		const UpdateHashesFn& updateHashesFn
+		const UpdateHashesFn& updateHashesFn,
+		const OnTagConsumedFn& onTagConsumedFn
 	) noexcept
 	{
 		if (auto error = NsdInternalUtils::bindNsdServerSocket(socket, interfaceAddressStr, addressType, port); error.has_value())
@@ -205,6 +205,8 @@ namespace HiddenNsdServer
 
 				if (tagPayload.has_value())
 				{
+					onTagConsumedFn(*tagPayload);
+
 					hadMatch = true;
 					if (Cryptography::EncryptResult result = composeAnswer(*tagPayload, clientHashes, responsePlaintext, std::span(buf).subspan(0, responsePlaintextSize + Cryptography::CipherAuthDataSize)); result != Cryptography::EncryptResult::Success)
 					{

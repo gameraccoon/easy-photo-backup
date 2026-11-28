@@ -10,6 +10,7 @@
 #include <variant>
 
 #include "common_shared/cryptography/types/hash_types.h"
+#include "common_shared/cryptography/utils/identification_tags.h"
 #include "common_shared/network/utils.h"
 
 namespace HiddenNsdServer
@@ -18,6 +19,7 @@ namespace HiddenNsdServer
 	using ClientHashIds = std::vector<uint32_t>;
 
 	using UpdateHashesFn = std::function<void(ClientHashes& /*clientHashes*/, ClientHashIds& hashesIds, size_t& /*outNumAddedClients*/, std::vector<size_t>& /*inOutClientsToRemove*/)>;
+	using OnTagConsumedFn = std::function<void(const Cryptography::IdentificationTagMap::TagPayload&)>;
 
 	struct SetupError
 	{
@@ -35,5 +37,14 @@ namespace HiddenNsdServer
 
 	using ListenResult = std::variant<SetupError, SocketError, SocketClosed>;
 
-	ListenResult listen(Network::RawSocket socket, Network::AddressType addressType, const char* interfaceAddressStr, uint16_t port, uint16_t advertizedPort, std::span<const std::byte> extraData, const UpdateHashesFn& updateHashesFn) noexcept;
+	ListenResult listen(
+		Network::RawSocket socket,
+		Network::AddressType addressType,
+		const char* interfaceAddressStr,
+		uint16_t port,
+		uint16_t advertizedPort,
+		std::span<const std::byte> extraData,
+		const UpdateHashesFn& updateHashesFn,
+		const OnTagConsumedFn& onTagConsumedFn
+	) noexcept;
 } // namespace HiddenNsdServer

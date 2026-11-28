@@ -51,6 +51,8 @@ namespace TcpServer::Encrypted
 			return;
 		}
 
+		configStorage.consumeIdentificationKeyIndexesInPeriod(tagPayload->clientIndex, ServerConfigStorage::IdentificationTagType::EncryptedRequest, tagPayload->periodIndex, tagPayload->keyIndexInPeriod);
+
 		std::optional<ServerConfigStorage::ClientBinding> clientBinding = configStorage.getConfirmedClientBinding(tagPayload->clientIndex);
 		if (!clientBinding.has_value())
 		{

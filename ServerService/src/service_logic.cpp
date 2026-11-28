@@ -166,7 +166,11 @@ namespace ServiceLogic
 			updateClientHashesForNsd(*configStorage, clientHashes, clientIndices, outNumClientsAdded, clientsToRemove);
 		};
 
-		std::thread nsdThread([nsdSocket, &nsdCloseSocketFlag, serverId, serverPort, &updateClientHashesForNsdFn] {
+		const auto onNsdTagConsumedFn = [&configStorage](const Cryptography::IdentificationTagMap::TagPayload& tagMap) {
+			configStorage->consumeIdentificationKeyIndexesInPeriod(tagMap.clientIndex, ServerConfigStorage::IdentificationTagType::Nsd, tagMap.periodIndex, tagMap.keyIndexInPeriod);
+		};
+
+		std::thread nsdThread([nsdSocket, &nsdCloseSocketFlag, serverId, serverPort, &updateClientHashesForNsdFn, &onNsdTagConsumedFn] {
 			std::array<std::byte, 18> extraData;
 			extraData[0] = static_cast<std::byte>(1); // protocol id
 			extraData[1] = static_cast<std::byte>(0); // the rest is the server ID
@@ -180,7 +184,8 @@ namespace ServiceLogic
 				5354,
 				serverPort,
 				extraData,
-				updateClientHashesForNsdFn
+				updateClientHashesForNsdFn,
+				onNsdTagConsumedFn
 			);
 
 			if (std::holds_alternative<HiddenNsdServer::SetupError>(result))
